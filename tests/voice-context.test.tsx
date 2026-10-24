@@ -8,6 +8,7 @@ import { InteractionProvider } from '../src/renderer/src/interaction/controls'
 import { useInteraction } from '../src/renderer/src/interaction/state'
 import { useVoice } from '../src/renderer/src/features/voice/useVoice'
 import { DEFAULT_VOICE, type VoiceApi, type VoiceEvent } from '../src/shared/voice'
+import { installGeminiMock } from './prediction-fixture'
 vi.mock('../src/renderer/src/features/voice/audio', () => ({
   captureMicrophone: vi.fn(async () => ({ rate: 48000, close: vi.fn() })),
   SpeechPlayer: vi.fn(function (_context, _volume, started: () => void, done: () => void) {
@@ -63,6 +64,7 @@ beforeEach(() => {
     }
   }
   window.voice = api
+  installGeminiMock()
   Object.defineProperty(navigator, 'mediaDevices', {
     configurable: true,
     value: {
@@ -75,6 +77,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   delete window.voice
+  delete window.gemini
   vi.unstubAllGlobals()
 })
 async function setup(): Promise<void> {
@@ -119,8 +122,63 @@ describe('always-on context bridge', () => {
       expect(current.tokens).toHaveLength(outcome === 'completed' ? 0 : 4)
       expect(current.draft).toBe('I want a coffee')
       expect(current.mode).toBe(outcome === 'completed' ? 'initials' : 'literal')
+      expect(current.sentenceEvents).toEqual([])
     }
   )
+  it('summarizes only with Gemini enabled and ignores a late result after clearing conversation', async () => {
+    await setup()
+    let resolveSummary: (text: string) => void = () => {}
+    const summarize = vi.fn(
+      () =>
+        new Promise<string>((resolve) => {
+          resolveSummary = resolve
+        })
+    )
+    const cancelSummary = vi.fn()
+    window.gemini!.summarize = summarize
+    window.gemini!.cancelSummary = cancelSummary
+    act(() => {
+      for (let i = 0; i < 9; i++)
+        dispatch({
+          type: 'conversation-add',
+          speaker: 'partner',
+          text: i === 0 ? 'Clash Royale' : 'Go on.'
+        })
+    })
+    expect(summarize).not.toHaveBeenCalled()
+    act(() => dispatch({ type: 'cloud', enabled: true }))
+    await waitFor(() => expect(summarize).toHaveBeenCalledOnce())
+    act(() => dispatch({ type: 'conversation-clear' }))
+    expect(cancelSummary).toHaveBeenCalledOnce()
+    await act(async () => {
+      resolveSummary('Clash Royale')
+      await Promise.resolve()
+    })
+    expect(current.conversationSummary).toBe('')
+    expect(current.summaryPending).toEqual([])
+  })
+  it('retains a locked sentence after speech without duplicating it', async () => {
+    await setup()
+    act(() => {
+      dispatch({ type: 'mode', mode: 'literal' })
+      dispatch({ type: 'input', text: 'My favorite deck is Hog Cycle' })
+      dispatch({ type: 'lock-sentence' })
+    })
+    expect(current.conversation).toHaveLength(1)
+    await act(async () => {
+      await voice.speak(current.draft, current.revision, 'speak')
+    })
+    const id = vi.mocked(api.speak).mock.calls.at(-1)![0].id
+    act(() => {
+      for (const callback of events) {
+        callback({ type: 'audio', id, samples: new Uint8Array(4) })
+        callback({ type: 'speech', id, status: 'generated' })
+      }
+    })
+    act(() => dispatch({ type: 'clear' }))
+    expect(current.conversation).toHaveLength(1)
+    expect(current.conversation[0].text).toBe('My favorite deck is Hog Cycle')
+  })
   it('starts automatically, keeps partials out of Gemini and refreshes expansion after finalized speech', async () => {
     await setup()
     act(() => {

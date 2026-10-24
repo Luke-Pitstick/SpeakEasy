@@ -122,6 +122,9 @@ export function installGeminiMock(): void {
   const listeners = new Set<(result: PredictionResult) => void>()
   const controllers = new Map<string, AbortController>()
   window.gemini = {
+    summarize: async () => 'Earlier conversation.',
+    cancelSummary: () => {},
+    clearPhraseCache: async () => {},
     status: async () => ({ configured: true, enabled: false }),
     setEnabled: async (enabled) => ({ configured: true, enabled }),
     start: async (request) => {

@@ -95,7 +95,7 @@ Implement cancellation through generation, queued audio, and playback. Ignore al
 
 ## Privacy and persistence
 
-Persistent, user-approved memory is required for the LLM portion of predictive composition. Read PRD section 5.7 before choosing storage; the backend and retrieval approach are deliberately undecided. Implement one selected approach, not every option. Keep storage and retrieval behind a small memory service owned by the main process, with gaze-accessible review, edit, forget, and clear-all controls.
+Persistent, user-approved memory is required for the LLM portion of predictive composition. Follow the selected local SQLite storage and lexical/semantic retrieval decisions in PRD section 5.7. Validate preference records and model proposals with Zod; only explicitly reviewed facts enter semantic retrieval. Keep storage and retrieval behind a small memory service owned by the main process, with gaze-accessible review, edit, forget, and clear-all controls.
 
 Keep unsaved conversation context session-only and camera frames out of diagnostic logs. Save memories only through explicit user action or an enabled retention policy; review model-extracted facts before persisting them. Record provenance and timestamps, retrieve only relevant records within a context budget, and let current user instructions override older memories. Cloud-model permission applies to retrieved memories even when their storage is local. Cloud memory storage or synchronization requires its own explicit setting.
 

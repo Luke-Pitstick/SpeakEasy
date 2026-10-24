@@ -29,7 +29,7 @@ afterEach(() => {
 function launch(): { event: object; close: () => void } {
   const closed: (() => void)[] = []
   const frame = { url: 'file:///speakeasy/index.html' }
-  const contents = { mainFrame: frame, getURL: () => frame.url, on: vi.fn() }
+  const contents = { mainFrame: frame, getURL: () => frame.url, on: vi.fn(), send: vi.fn() }
   const window = {
     isDestroyed: () => false,
     webContents: contents,
@@ -68,4 +68,41 @@ it('restores Gemini consent and general settings after closing and creating a ne
   const third = launch()
   expect(mocked.handlers.get('gemini:status')!(third.event)).toMatchObject({ enabled: false })
   third.close()
+})
+
+it('retrieves locked sentences before speech without cloud access and rejects untrusted saves', async () => {
+  vi.stubEnv('OPENROUTER_TOKEN', '')
+  mocked.folder = mkdtempSync(join(tmpdir(), 'speakeasy-cache-ipc-'))
+  const app = launch()
+  const save = mocked.handlers.get('preferences:update')!
+  const commit = { type: 'commit', id: 'one', text: 'I want a coffee', conversation: [] }
+  await expect(save({}, commit)).rejects.toThrow('Unauthorized')
+  await expect(save(app.event, { ...commit, text: '' })).rejects.toThrow('Invalid')
+  await save(app.event, commit)
+  const input = {
+    id: 'cached',
+    revision: 0,
+    purpose: 'expansion',
+    draft: '',
+    target: { start: 0, end: 0 },
+    conversation: [],
+    tokens: [...'iwac'].map((value, i) => ({ id: String(i), kind: 'initial', value }))
+  }
+  mocked.handlers.get('gemini:start')!(app.event, input)
+  const send = (app.event as { sender: { send: ReturnType<typeof vi.fn> } }).sender.send
+  expect(send).toHaveBeenLastCalledWith(
+    'gemini:result',
+    expect.objectContaining({
+      status: 'success',
+      complete: true,
+      candidates: [expect.objectContaining({ text: 'I want a coffee' })]
+    })
+  )
+  mocked.handlers.get('gemini:clear-cache')!(app.event)
+  mocked.handlers.get('gemini:start')!(app.event, input)
+  expect(send).toHaveBeenLastCalledWith(
+    'gemini:result',
+    expect.objectContaining({ status: 'error' })
+  )
+  app.close()
 })

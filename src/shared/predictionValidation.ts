@@ -19,6 +19,7 @@ export function validRequest(value: unknown): value is PredictionRequest {
     Number(value.revision) < 0 ||
     !['expansion', 'refinement', 'completion'].includes(String(value.purpose)) ||
     !bounded(value.draft, 500) ||
+    (value.conversationSummary !== undefined && !bounded(value.conversationSummary, 2000)) ||
     !Array.isArray(value.tokens) ||
     value.tokens.length > 24 ||
     !record(value.target) ||
@@ -83,7 +84,8 @@ export function lexicalWords(text: string): string[] {
 export function candidateFor(
   request: PredictionRequest,
   raw: string,
-  index: number
+  index: number,
+  cacheInitials?: string
 ): PhraseCandidate | null {
   const replacement = request.purpose === 'completion' ? raw.trimEnd() : raw.trim()
   if (
@@ -96,7 +98,10 @@ export function candidateFor(
     return null
   const words = lexicalWords(replacement)
   if (!words.length) return null
+  if (cacheInitials !== undefined && cacheMatch(request, replacement, cacheInitials) === null)
+    return null
   if (
+    cacheInitials === undefined &&
     request.purpose === 'expansion' &&
     (words.length !== request.tokens.length ||
       !request.tokens.every((token, i) =>
@@ -116,7 +121,36 @@ export function candidateFor(
   const separator = prefix && !/\s$/.test(prefix) && request.purpose === 'expansion' ? ' ' : ''
   const text = prefix + separator + replacement + request.draft.slice(request.target.end)
   if (text.length > 500) return null
-  return { id: `${request.id}:${index}`, text, replacement }
+  return {
+    id: `${request.id}:${index}`,
+    text,
+    replacement,
+    ...(cacheInitials !== undefined ? { cacheInitials } : {})
+  }
+}
+
+/** Fuzzy initials never loosen explicit word or prefix constraints. */
+export function cacheMatch(request: PredictionRequest, text: string, saved: string): number | null {
+  if (request.purpose !== 'expansion' || !/^[a-z]{1,24}$/.test(saved)) return null
+  const query = request.tokens.map((t) => t.value[0].toLowerCase()).join('')
+  const words = lexicalWords(text)
+  if (
+    request.tokens.some(
+      (t, i) =>
+        t.kind !== 'initial' &&
+        (words.length !== request.tokens.length ||
+          (t.kind === 'word'
+            ? words[i] !== t.value.toLowerCase()
+            : !words[i]?.startsWith(t.value.toLowerCase())))
+    )
+  )
+    return null
+  const distance = (key: string): number =>
+    key.length !== query.length
+      ? Infinity
+      : [...query].filter((letter, i) => letter !== key[i]).length
+  const score = Math.min(distance(saved), distance(words.map((word) => word[0]).join('')))
+  return score === 0 || (query.length >= 4 && score === 1) ? score : null
 }
 export function validateResult(request: PredictionRequest, result: unknown): PredictionResult {
   const base = {
@@ -153,7 +187,14 @@ export function validateResult(request: PredictionRequest, result: unknown): Pre
   for (const item of result.candidates) {
     if (!record(item) || typeof item.replacement !== 'string')
       return fail('Invalid suggestion response.')
-    const candidate = candidateFor(request, item.replacement, candidates.length),
+    if (item.cacheInitials !== undefined && typeof item.cacheInitials !== 'string')
+      return fail('Invalid cached suggestion.')
+    const candidate = candidateFor(
+        request,
+        item.replacement,
+        candidates.length,
+        item.cacheInitials as string | undefined
+      ),
       key = lexicalWords(item.replacement).join(' ')
     if (!candidate || seen.has(key))
       return fail('Suggestions did not preserve your constraints. Keep spelling or try again.')
@@ -165,6 +206,7 @@ export function validateResult(request: PredictionRequest, result: unknown): Pre
     status: 'success',
     candidates,
     complete: result.complete,
+    ...(bounded(result.message, 300) ? { message: result.message } : {}),
     elapsedMs:
       typeof result.elapsedMs === 'number' && Number.isFinite(result.elapsedMs)
         ? Math.max(0, result.elapsedMs)
