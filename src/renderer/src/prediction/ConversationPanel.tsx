@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { useComposition, useCompositionDispatch } from '../composition/state'
 import { ActionButton } from '../interaction/controls'
 import type { usePredictions } from './usePredictions'
+import { MemoryPanel } from './MemoryPanel'
 
 export function ConversationPanel({
   predictions
@@ -11,6 +12,7 @@ export function ConversationPanel({
   const state = useComposition(),
     dispatch = useCompositionDispatch()
   const [message, setMessage] = useState('')
+  const [cacheNotice, setCacheNotice] = useState('')
   const add = (speaker: 'me' | 'partner', text: string): void => {
     dispatch({ type: 'conversation-add', speaker, text })
     setMessage('')
@@ -21,6 +23,32 @@ export function ConversationPanel({
         Gemini uses your current message constraints and the conversation listed here to suggest six
         replies. These are sent through OpenRouter. Nothing is spoken or accepted automatically.
       </p>
+      <p>
+        Locked sentences and their initials are saved on this device immediately, before speech,
+        including corrections. Matching phrases appear first; Gemini generates only the remaining
+        suggestions. Exact matches rank ahead of one-letter differences in initials of four or more
+        letters. When Gemini is enabled, matching saved phrases are included in the request to avoid
+        duplicates.
+      </p>
+      <ActionButton
+        identity="clear-phrase-cache"
+        onAction={() => {
+          dispatch({ type: 'dismiss' })
+          if (!window.gemini) {
+            setCacheNotice('Open the desktop app to clear saved phrases.')
+            return
+          }
+          void window.gemini
+            .clearPhraseCache()
+            .then(() => setCacheNotice('Saved phrases cleared.'))
+            .catch(() =>
+              setCacheNotice('Could not clear saved phrases. Check local storage and retry.')
+            )
+        }}
+      >
+        Clear saved phrases
+      </ActionButton>
+      {cacheNotice && <p role="status">{cacheNotice}</p>}
       <ActionButton
         identity={`cloud-${state.cloudEnabled}`}
         selected={state.cloudEnabled}
@@ -37,9 +65,39 @@ export function ConversationPanel({
             : 'Set OPENROUTER_TOKEN in the app .env and restart to connect Gemini.')}
       </p>
       <p>
-        Session only · Keeps the eight most recent turns · {state.conversation.length}/8 turns ·
-        Clear or edit a turn to cancel suggestions using old context.
+        Session only · Locked sentences and spoken messages stay here as you compose your next
+        reply. Keeps eight recent turns plus a temporary summary of earlier dialogue ·{' '}
+        {state.conversation.length}/8 turns · Clear or edit a turn to cancel suggestions using old
+        context.
       </p>
+      <p>
+        With Gemini enabled, older turns are summarized through OpenRouter. The summary is
+        session-only, helps with follow-ups, and is not saved as a preference. Clear conversation
+        removes both.
+      </p>
+      <p aria-label="Conversation summary">
+        {state.conversationSummary || 'No earlier conversation summarized yet.'}
+      </p>
+      {!!state.summaryPending.length && (
+        <p>{state.summaryPending.length} earlier turns waiting for summary.</p>
+      )}
+      {state.summaryError && <p role="status">{state.summaryError}</p>}
+      {!!state.summaryPending.length && (
+        <ActionButton
+          identity="retry-conversation-summary"
+          onAction={() => dispatch({ type: 'summary-retry' })}
+        >
+          Retry summary
+        </ActionButton>
+      )}
+      {(state.conversationSummary || state.summaryPending.length > 0) && (
+        <ActionButton
+          identity="forget-conversation-summary"
+          onAction={() => dispatch({ type: 'summary-reset' })}
+        >
+          Forget earlier context
+        </ActionButton>
+      )}
       <ol className="conversation-turns">
         {state.conversation.map((turn, index) => (
           <li key={turn.id}>
@@ -108,6 +166,7 @@ export function ConversationPanel({
         New message keeps this conversation; Clear conversation forgets it.
       </p>
       {state.validationError && <p role="alert">{state.validationError}</p>}
+      <MemoryPanel />
     </div>
   )
 }

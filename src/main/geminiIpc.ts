@@ -1,3 +1,5 @@
+import { summarizeConversation } from './conversationSummary'
+import { summaryRequestSchema } from '../shared/conversationSummary'
 import {
   app,
   ipcMain,
@@ -9,11 +11,34 @@ import { readFileSync } from 'node:fs'
 import { parseEnv } from 'node:util'
 import { join } from 'node:path'
 import { streamGemini } from './gemini'
+import { PhraseCache } from './phraseCache'
 import { validRequest } from '../shared/predictionValidation'
 import type { GeminiStatus } from '../shared/prediction'
 import type { SettingsStore } from './settings'
+import { MemoryStore } from './memory'
+import { installPreferenceIpc } from './preferenceIpc'
+import {
+  emptyMemory,
+  validCorrection,
+  validMemoryWord,
+  type MemoryOperation,
+  type MemorySnapshot
+} from '../shared/memory'
 
 export function installGeminiIpc(window: BrowserWindow, settings: SettingsStore | null): void {
+  let phraseCache: PhraseCache | null = null
+  try {
+    phraseCache = new PhraseCache(join(app.getPath('userData'), 'phrase-cache.json'))
+  } catch {
+    /* Saving reports an actionable error; generation remains available. */
+  }
+  let memory: MemoryStore | null = null
+  let memoryError = ''
+  try {
+    memory = new MemoryStore(join(app.getPath('userData'), 'memory.sqlite'))
+  } catch {
+    memoryError = 'Memory storage is unavailable. Composition still works without personalization.'
+  }
   let key = process.env.OPENROUTER_TOKEN ?? ''
   if (!key) {
     try {
@@ -28,27 +53,130 @@ export function installGeminiIpc(window: BrowserWindow, settings: SettingsStore 
     active?.controller.abort()
     active = null
   }
+  let summaryJob: AbortController | null = null
+  const cancelSummary = (): void => {
+    summaryJob?.abort()
+    summaryJob = null
+  }
   const status = (): GeminiStatus => ({ configured: !!key, enabled })
+  const preferences = installPreferenceIpc(window, key, cancel, phraseCache)
   const own = (event: IpcMainInvokeEvent | IpcMainEvent): boolean =>
     !window.isDestroyed() &&
     event.sender === window.webContents &&
     event.senderFrame === window.webContents.mainFrame &&
     event.senderFrame.url === window.webContents.getURL()
+  const readMemory = (): MemorySnapshot => {
+    try {
+      if (memory) return { ...memory.read(), error: memoryError || undefined }
+    } catch {
+      memoryError = 'Could not read memory. Restart or continue without personalization.'
+    }
+    return {
+      learning: false,
+      cloud: false,
+      revision: 0,
+      records: [],
+      forgottenWords: [],
+      error: memoryError
+    }
+  }
+  ipcMain.handle('memory:read', (event) => {
+    if (!own(event)) throw Error('Unauthorized sender')
+    return readMemory()
+  })
+  ipcMain.handle('memory:update', (event, value: unknown) => {
+    if (!own(event) || !value || typeof value !== 'object') throw Error('Invalid memory operation')
+    const op = value as MemoryOperation
+    const validId = (id: unknown): id is string =>
+      typeof id === 'string' && /^[a-zA-Z0-9:-]{1,150}$/.test(id)
+    const valid =
+      op.type === 'clear' ||
+      (op.type === 'forget-word' && validMemoryWord(op.word)) ||
+      (op.type === 'settings' &&
+        typeof op.learning === 'boolean' &&
+        typeof op.cloud === 'boolean') ||
+      (op.type === 'learn' && validId(op.id) && validCorrection(op.correction)) ||
+      (op.type === 'edit' &&
+        validId(op.id) &&
+        typeof op.text === 'string' &&
+        op.text.trim().length > 0 &&
+        op.text.length <= 500 &&
+        ![...op.text].some((c) => c.charCodeAt(0) < 32)) ||
+      (op.type === 'forget' &&
+        Array.isArray(op.ids) &&
+        op.ids.length <= 100 &&
+        op.ids.every(validId))
+    if (!valid) throw Error('Invalid memory operation')
+    cancel()
+    try {
+      if (!memory) throw Error('Unavailable')
+      memory.update(op)
+      memoryError = ''
+    } catch {
+      memoryError =
+        'Could not update memory. Storage may be unavailable or full (2,000 corrections). Retry or continue without learning.'
+    }
+    window.webContents.send('memory:changed')
+    return readMemory()
+  })
+  ipcMain.handle('gemini:summarize', async (event, value: unknown) => {
+    if (!own(event) || !enabled || !key) throw Error('Enable Gemini to summarize conversation')
+    const input = summaryRequestSchema.parse(value)
+    cancelSummary()
+    const controller = new AbortController()
+    summaryJob = controller
+    try {
+      const summary = await summarizeConversation(key, input, controller.signal)
+      if (controller.signal.aborted) throw Error('Summary cancelled')
+      return summary
+    } finally {
+      if (summaryJob === controller) summaryJob = null
+    }
+  })
+  const onCancelSummary = (event: IpcMainEvent): void => {
+    if (own(event)) cancelSummary()
+  }
+  ipcMain.on('gemini:cancel-summary', onCancelSummary)
+  window.webContents.on('did-start-navigation', cancelSummary)
+  window.webContents.on('render-process-gone', cancelSummary)
   ipcMain.handle('gemini:status', (event) => {
     if (!own(event)) throw new Error('Unauthorized sender')
     return status()
+  })
+  ipcMain.handle('gemini:clear-cache', (event) => {
+    if (!own(event)) throw Error('Unauthorized sender')
+    cancel()
+    if (!phraseCache) throw Error('Phrase cache unavailable')
+    phraseCache.clear()
   })
   ipcMain.handle('gemini:enabled', (event, value: unknown) => {
     if (!own(event) || typeof value !== 'boolean') throw new Error('Invalid settings request')
     if (!settings) throw new Error('Settings storage is unavailable')
     settings.save({ geminiEnabled: value })
     enabled = value
-    if (!enabled) cancel()
+    if (!enabled) {
+      cancel()
+      cancelSummary()
+    }
     return status()
   })
   ipcMain.handle('gemini:start', (event, value: unknown) => {
     if (!own(event) || !validRequest(value)) throw new Error('Invalid prediction request')
     cancel()
+    const cached = phraseCache?.lookup(value) ?? []
+    if (cached.length && (!enabled || !key || cached.length === 6)) {
+      event.sender.send('gemini:result', {
+        requestId: value.id,
+        revision: value.revision,
+        purpose: value.purpose,
+        provider: 'gemini',
+        elapsedMs: 0,
+        status: 'success',
+        candidates: cached,
+        complete: true
+      })
+      return
+    }
     if (!enabled || !key) {
       event.sender.send('gemini:result', {
         requestId: value.id,
@@ -65,10 +193,43 @@ export function installGeminiIpc(window: BrowserWindow, settings: SettingsStore 
     }
     const controller = new AbortController()
     active = { id: value.id, controller }
-    void streamGemini(value, key, controller.signal, (result) => {
-      if (active?.controller === controller && !controller.signal.aborted && !window.isDestroyed())
-        window.webContents.send('gemini:result', result)
-    }).finally(() => {
+    let personalMemory = emptyMemory()
+    try {
+      personalMemory = memoryError ? personalMemory : (memory?.retrieve(value) ?? personalMemory)
+    } catch {
+      memoryError = 'Could not retrieve memory. Suggestions continue without personalization.'
+    }
+    if (cached.length)
+      window.webContents.send('gemini:result', {
+        requestId: value.id,
+        revision: value.revision,
+        purpose: value.purpose,
+        provider: 'gemini',
+        elapsedMs: 0,
+        status: 'success',
+        candidates: cached,
+        complete: false
+      })
+    void (async () => {
+      const facts = (await preferences?.retrieve(value, controller.signal)) ?? []
+      if (controller.signal.aborted || active?.controller !== controller) return
+      await streamGemini(
+        value,
+        key,
+        controller.signal,
+        (result) => {
+          if (
+            active?.controller === controller &&
+            !controller.signal.aborted &&
+            !window.isDestroyed()
+          )
+            window.webContents.send('gemini:result', result)
+        },
+        fetch,
+        { ...personalMemory, facts },
+        cached
+      )
+    })().finally(() => {
       if (active?.controller === controller) active = null
     })
   })
@@ -80,7 +241,18 @@ export function installGeminiIpc(window: BrowserWindow, settings: SettingsStore 
   window.webContents.on('render-process-gone', cancel)
   window.on('closed', () => {
     cancel()
-    for (const channel of ['gemini:status', 'gemini:enabled', 'gemini:start'])
+    cancelSummary()
+    ipcMain.removeHandler('gemini:summarize')
+    ipcMain.removeListener('gemini:cancel-summary', onCancelSummary)
+    memory?.close()
+    ipcMain.removeHandler('gemini:clear-cache')
+    for (const channel of [
+      'gemini:status',
+      'gemini:enabled',
+      'gemini:start',
+      'memory:read',
+      'memory:update'
+    ])
       ipcMain.removeHandler(channel)
     ipcMain.removeListener('gemini:cancel', onCancel)
   })

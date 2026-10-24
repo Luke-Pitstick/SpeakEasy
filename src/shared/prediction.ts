@@ -1,3 +1,5 @@
+import type { SummaryRequest } from './conversationSummary'
+
 export const EXPANSION_MODEL = 'google/gemini-3-flash-preview'
 export const CANDIDATE_LIMIT = 6
 export type AbbreviationToken = { id: string; kind: 'initial' | 'prefix' | 'word'; value: string }
@@ -17,11 +19,13 @@ export interface PredictionRequest {
   tokens: AbbreviationToken[]
   target: TextRange
   conversation: ConversationTurn[]
+  conversationSummary?: string
 }
 export interface PhraseCandidate {
   id: string
   text: string
   replacement: string
+  cacheInitials?: string
 }
 export type PredictionResult = {
   requestId: string
@@ -30,7 +34,7 @@ export type PredictionResult = {
   provider: 'gemini'
   elapsedMs: number
 } & (
-  | { status: 'success'; candidates: PhraseCandidate[]; complete: boolean }
+  | { status: 'success'; candidates: PhraseCandidate[]; complete: boolean; message?: string }
   | { status: 'error'; message: string }
 )
 export interface GeminiStatus {
@@ -38,6 +42,9 @@ export interface GeminiStatus {
   enabled: boolean
 }
 export interface GeminiApi {
+  summarize(request: SummaryRequest): Promise<string>
+  cancelSummary(): void
+  clearPhraseCache(): Promise<void>
   status(): Promise<GeminiStatus>
   setEnabled(enabled: boolean): Promise<GeminiStatus>
   start(request: PredictionRequest): Promise<void>

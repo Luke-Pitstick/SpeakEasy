@@ -1,4 +1,7 @@
 import { wordInitials } from '../../../shared/initialsPpm'
+import { lexicalWords } from '../../../shared/predictionValidation'
+import { validCorrection, type MemoryOperation } from '../../../shared/memory'
+import type { PreferenceOperation } from '../../../shared/preferences'
 import type {
   ConversationTurn,
   AbbreviationToken,
@@ -12,6 +15,10 @@ import type {
 export type EntryMode = 'initials' | 'literal' | 'keyword' | 'replacement'
 export interface Content {
   lockedSentences: string[]
+  savedSentences: string[]
+  phraseInitials: string
+  correctionOrigin: string | null
+  learnedCorrections: string[]
   draft: string
   phrase: string | null
   editor: 'entry' | 'keywords' | 'phrase'
@@ -28,7 +35,14 @@ export interface EntrySession {
   before: Content
 }
 export interface CompositionState extends Content {
+  sentenceEvents: { sequence: number; operation: PreferenceOperation }[]
+  memoryEvents: { sequence: number; operation: MemoryOperation }[]
+  memoryNotice: string
   conversation: ConversationTurn[]
+  conversationSummary: string
+  summaryPending: ConversationTurn[]
+  summaryVersion: number
+  summaryError: string
   contextEpoch: number
   cloudEnabled: boolean
   workspace: 'dasher' | 'phrases'
@@ -47,6 +61,10 @@ export interface CompositionState extends Content {
 export function contentOf(state: Content): Content {
   return {
     lockedSentences: [...state.lockedSentences],
+    savedSentences: [...state.savedSentences],
+    phraseInitials: state.phraseInitials,
+    correctionOrigin: state.correctionOrigin,
+    learnedCorrections: [...state.learnedCorrections],
     draft: state.draft,
     phrase: state.phrase,
     editor: state.editor,
@@ -83,6 +101,10 @@ export function canLockSentence(state: Content): boolean {
 export function initialState(): CompositionState {
   const content: Content = {
     lockedSentences: [],
+    savedSentences: [],
+    phraseInitials: '',
+    correctionOrigin: null,
+    learnedCorrections: [],
     draft: '',
     phrase: null,
     editor: 'entry',
@@ -94,7 +116,14 @@ export function initialState(): CompositionState {
   }
   return {
     ...content,
+    memoryEvents: [],
+    sentenceEvents: [],
+    memoryNotice: '',
     conversation: [],
+    conversationSummary: '',
+    summaryPending: [],
+    summaryVersion: 0,
+    summaryError: '',
     contextEpoch: 0,
     cloudEnabled: false,
     workspace: 'dasher',
@@ -112,11 +141,18 @@ export function initialState(): CompositionState {
 }
 
 export type Action =
+  | { type: 'lock-sentence' }
+  | { type: 'memory-changed' }
+  | { type: 'memory-notice'; text: string }
   | { type: 'cloud'; enabled: boolean }
   | { type: 'conversation-add'; speaker: 'me' | 'partner'; text: string }
   | { type: 'conversation-edit'; id: string; text: string }
   | { type: 'conversation-remove'; id: string }
   | { type: 'conversation-clear' }
+  | { type: 'summary-result'; version: number; ids: string[]; summary: string }
+  | { type: 'summary-error'; version: number }
+  | { type: 'summary-reset' }
+  | { type: 'summary-retry' }
   | { type: 'workspace'; workspace: 'dasher' | 'phrases' }
   | { type: 'open-keywords' }
   | { type: 'keep-entering' }
@@ -227,13 +263,53 @@ function applyInput(state: CompositionState, text: string): Partial<Content> {
 
 function reduceComposition(state: CompositionState, action: Action): CompositionState {
   switch (action.type) {
+    case 'lock-sentence':
+      return state.phrase === null && state.mode === 'literal' && state.draft.trim()
+        ? edit(state, {})
+        : state
+    case 'memory-changed':
+      return { ...edit(state, {}, false), memoryNotice: '' }
+    case 'memory-notice':
+      return { ...state, memoryNotice: action.text }
     case 'cloud':
       return {
         ...edit(state, {}, false),
         cloudEnabled: action.enabled,
         notice: action.enabled
-          ? 'Gemini enabled. Only your message constraints and listed conversation are sent.'
+          ? 'Gemini enabled. Sends constraints, listed conversation, and personal memory if permitted.'
           : 'Cloud suggestions are off. Exact spelling remains available.'
+      }
+    case 'summary-result':
+      if (
+        action.version !== state.summaryVersion ||
+        action.summary.length > 2000 ||
+        !action.ids.length ||
+        !action.ids.every((id, i) => state.summaryPending[i]?.id === id)
+      )
+        return state
+      return {
+        ...state,
+        conversationSummary: action.summary,
+        summaryPending: state.summaryPending.slice(action.ids.length),
+        summaryError: ''
+      }
+    case 'summary-error':
+      return action.version === state.summaryVersion
+        ? {
+            ...state,
+            summaryError:
+              'Could not update the conversation summary. Earlier turns are waiting; retry when Gemini is available.'
+          }
+        : state
+    case 'summary-retry':
+      return { ...state, summaryVersion: state.summaryVersion + 1, summaryError: '' }
+    case 'summary-reset':
+      return {
+        ...edit(state, {}, false),
+        conversationSummary: '',
+        summaryPending: [],
+        summaryVersion: state.summaryVersion + 1,
+        summaryError: ''
       }
     case 'conversation-add': {
       const text = action.text.trim()
@@ -241,6 +317,10 @@ function reduceComposition(state: CompositionState, action: Action): Composition
         return { ...state, validationError: 'Use a conversation turn of at most 1,000 characters.' }
       const next: CompositionState = {
         ...edit(state, {}, false),
+        summaryPending: [
+          ...state.summaryPending,
+          ...state.conversation.slice(0, Math.max(0, state.conversation.length - 7))
+        ],
         conversation: [
           ...state.conversation.slice(-7),
           { id: `turn-${state.revision + 1}`, speaker: action.speaker, text }
@@ -260,6 +340,7 @@ function reduceComposition(state: CompositionState, action: Action): Composition
     case 'conversation-edit':
       return {
         ...edit(state, {}, false),
+        summaryVersion: state.summaryVersion + 1,
         conversation: state.conversation.map((t) =>
           t.id === action.id ? { ...t, text: action.text.slice(0, 1000) } : t
         )
@@ -267,12 +348,17 @@ function reduceComposition(state: CompositionState, action: Action): Composition
     case 'conversation-remove':
       return {
         ...edit(state, {}, false),
+        summaryVersion: state.summaryVersion + 1,
         conversation: state.conversation.filter((t) => t.id !== action.id)
       }
     case 'conversation-clear':
       return {
         ...edit(state, {}, false),
         conversation: [],
+        conversationSummary: '',
+        summaryPending: [],
+        summaryVersion: state.summaryVersion + 1,
+        summaryError: '',
         contextEpoch: state.contextEpoch + 1,
         notice: 'Conversation cleared. Pending suggestions were cancelled.'
       }
@@ -284,6 +370,7 @@ function reduceComposition(state: CompositionState, action: Action): Composition
       ) {
         const next = edit(state, {
           lockedSentences: [...state.lockedSentences, (state.phrase ?? state.draft).trim()],
+          phraseInitials: '',
           draft: '',
           phrase: null,
           editor: 'entry',
@@ -451,7 +538,11 @@ function reduceComposition(state: CompositionState, action: Action): Composition
       return {
         ...edit(state, {
           lockedSentences: [],
+          phraseInitials: '',
           draft: '',
+          savedSentences: [],
+          correctionOrigin: null,
+          learnedCorrections: [],
           phrase: null,
           editor: 'entry',
           tokens: [],
@@ -515,6 +606,13 @@ function reduceComposition(state: CompositionState, action: Action): Composition
           state,
           {
             phrase,
+            phraseInitials:
+              candidate && state.request?.purpose === 'expansion'
+                ? lexicalWords(state.request.draft)
+                    .map((word) => word[0])
+                    .join('') + state.request.tokens.map((t) => t.value[0].toLowerCase()).join('')
+                : state.phraseInitials,
+            correctionOrigin: phrase,
             tokens:
               candidate && state.request?.purpose === 'expansion'
                 ? state.request.tokens
@@ -583,6 +681,7 @@ function reduceComposition(state: CompositionState, action: Action): Composition
             draft: phrase,
             lockedMessage: next.lockedSentences.join(' '),
             conversation: next.conversation.filter((t) => t.text.trim()).map((t) => ({ ...t })),
+            conversationSummary: next.conversationSummary,
             tokens: next.tokens,
             target: action.range
           }
@@ -695,6 +794,7 @@ function reduceComposition(state: CompositionState, action: Action): Composition
           draft,
           lockedMessage: next.lockedSentences.join(' '),
           conversation: next.conversation.filter((t) => t.text.trim()).map((t) => ({ ...t })),
+          conversationSummary: next.conversationSummary,
           tokens: tokens.map((token) => ({ ...token })),
           target:
             action.purpose === 'refinement'
@@ -736,11 +836,13 @@ function reduceComposition(state: CompositionState, action: Action): Composition
         ...state,
         candidates: result.candidates,
         status: !result.complete ? 'loading' : result.candidates.length ? 'ready' : 'empty',
-        notice: !result.complete
-          ? `${result.candidates.length} of six suggestions ready; Gemini is still streaming…`
-          : result.candidates.length
-            ? 'Choose a phrase to review or edit. Speech only starts when you choose Speak.'
-            : 'No suggestions preserved your constraints. Keep entering, lock a word, or retry.'
+        notice:
+          result.message ??
+          (!result.complete
+            ? `${result.candidates.length} of six suggestions ready; Gemini is still streaming…`
+            : result.candidates.length
+              ? 'Choose a phrase to review or edit. Speech only starts when you choose Speak.'
+              : 'No suggestions preserved your constraints. Keep entering, lock a word, or retry.')
       }
     }
     case 'accept': {
@@ -752,6 +854,15 @@ function reduceComposition(state: CompositionState, action: Action): Composition
       }
       const next = edit(state, {
         draft: candidate.text,
+        phraseInitials:
+          request.purpose === 'expansion'
+            ? lexicalWords(request.draft)
+                .map((word) => word[0])
+                .join('') + request.tokens.map((t) => t.value[0].toLowerCase()).join('')
+            : request.purpose === 'completion'
+              ? ''
+              : state.phraseInitials,
+        correctionOrigin: null,
         tokens: request.tokens,
         phrase: null,
         editor: 'entry',
@@ -777,8 +888,92 @@ function reduceComposition(state: CompositionState, action: Action): Composition
 
 /** Workspace changes follow explicit actions, never prediction completion or inactivity. */
 export function reducer(state: CompositionState, action: Action): CompositionState {
-  const next = reduceComposition(state, action)
+  let next = reduceComposition(state, action)
   if (next === state) return state
+  const autoLocked =
+    action.type === 'workspace' && next.lockedSentences.length > state.lockedSentences.length
+  const committedText = autoLocked ? next.lockedSentences.at(-1)! : next.draft
+  const sentenceCommitted =
+    autoLocked ||
+    action.type === 'lock-sentence' ||
+    action.type === 'use-phrase' ||
+    (action.type === 'accept' && next.phrase === null) ||
+    (action.type === 'done' && state.mode === 'replacement' && state.phrase === null)
+  if (sentenceCommitted && !next.validationError && committedText.trim()) {
+    const id = `sentence-${next.revision}`
+    next = {
+      ...next,
+      savedSentences: [...next.savedSentences, id],
+      summaryPending: [
+        ...next.summaryPending,
+        ...next.conversation.slice(0, Math.max(0, next.conversation.length - 7))
+      ],
+      conversation: [
+        ...next.conversation.slice(-7),
+        { id, speaker: 'me', text: committedText.trim().slice(0, 1000) }
+      ],
+      sentenceEvents: [
+        ...next.sentenceEvents,
+        {
+          sequence: next.revision,
+          operation: {
+            type: 'commit' as const,
+            id,
+            text: committedText,
+            conversation: next.conversation.map(({ speaker, text }) => ({ speaker, text }))
+          }
+        }
+      ].slice(-100)
+    }
+  }
+  const commit =
+    autoLocked ||
+    action.type === 'use-phrase' ||
+    (action.type === 'done' && state.mode === 'replacement' && state.phrase === null) ||
+    (action.type === 'accept' && state.request?.purpose === 'refinement' && state.phrase === null)
+  if (commit && !next.validationError) {
+    const correction = { before: state.correctionOrigin ?? state.draft, after: committedText }
+    if (validCorrection(correction)) {
+      const id = `correction-${next.revision}`
+      next = {
+        ...next,
+        correctionOrigin: null,
+        learnedCorrections: [...next.learnedCorrections, id],
+        memoryEvents: [
+          ...next.memoryEvents,
+          { sequence: next.revision, operation: { type: 'learn' as const, id, correction } }
+        ].slice(-100)
+      }
+    }
+  }
+  if (action.type === 'undo' || action.type === 'back') {
+    const sentencesRemoved = state.savedSentences.filter((id) => !next.savedSentences.includes(id))
+    if (sentencesRemoved.length)
+      next = {
+        ...next,
+        conversation: next.conversation.filter((turn) => !sentencesRemoved.includes(turn.id)),
+        // Compacted prose has no reliable per-sentence provenance; undo discards it.
+        conversationSummary: '',
+        summaryPending: next.summaryPending.filter((turn) => !sentencesRemoved.includes(turn.id)),
+        summaryVersion: next.summaryVersion + 1,
+        sentenceEvents: [
+          ...next.sentenceEvents,
+          {
+            sequence: next.revision,
+            operation: { type: 'forget-sentences' as const, ids: sentencesRemoved }
+          }
+        ].slice(-100)
+      }
+    const removed = state.learnedCorrections.filter((id) => !next.learnedCorrections.includes(id))
+    if (removed.length)
+      next = {
+        ...next,
+        memoryEvents: [
+          ...next.memoryEvents,
+          { sequence: next.revision, operation: { type: 'forget' as const, ids: removed } }
+        ].slice(-100)
+      }
+  }
   let workspace = next.workspace
   switch (action.type) {
     case 'spell':

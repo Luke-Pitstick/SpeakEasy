@@ -27,7 +27,9 @@
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
     "@mediapipe/tasks-vision": "^1.1.1",
-    "ws": "^8.22.0"
+    "@sapphi-red/web-noise-suppressor": "0.4.1",
+    "ws": "^8.22.0",
+    "zod": "^4.6.7"
   },
   "devDependencies": {
     "@electron-toolkit/eslint-config-prettier": "^3.0.1",

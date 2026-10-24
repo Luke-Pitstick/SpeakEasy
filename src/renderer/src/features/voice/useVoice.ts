@@ -287,7 +287,11 @@ export function useVoice(): VoiceController {
         if (current?.request.id !== request.id) return
         active.current = null
         if (origin === 'speak' && current.started) {
-          enqueue('me', text, current.epoch)
+          // A locked sentence already entered the session before playback.
+          const alreadyCommitted = state.conversation.some(
+            (turn) => turn.id === state.savedSentences.at(-1) && turn.text === text.trim()
+          )
+          if (!alreadyCommitted) enqueue('me', text, current.epoch)
           dispatch({ type: 'speech-completed', text, revision })
         }
         setSpeechStatus('Finished')

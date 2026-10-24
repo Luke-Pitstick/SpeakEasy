@@ -433,6 +433,7 @@ export function DraftPanel({ status }: { status?: ReactNode }): React.JSX.Elemen
             {state.validationError}
           </p>
         )}
+        {state.memoryNotice && <p role="status">{state.memoryNotice}</p>}
       </div>
       {state.workspace === 'dasher' && spelling ? (
         <>
@@ -451,12 +452,22 @@ export function DraftPanel({ status }: { status?: ReactNode }): React.JSX.Elemen
           </ActionButton>
         </>
       ) : state.draft && state.phrase === null && !spelling ? (
-        <ActionButton
-          identity={`edit-draft-${state.revision}-${state.workspace}`}
-          onAction={() => dispatch({ type: 'edit-draft' })}
-        >
-          Edit message
-        </ActionButton>
+        <>
+          {state.mode === 'literal' && (
+            <ActionButton
+              identity={`lock-sentence-${state.revision}`}
+              onAction={() => dispatch({ type: 'lock-sentence' })}
+            >
+              Lock sentence
+            </ActionButton>
+          )}
+          <ActionButton
+            identity={`edit-draft-${state.revision}-${state.workspace}`}
+            onAction={() => dispatch({ type: 'edit-draft' })}
+          >
+            Edit message
+          </ActionButton>
+        </>
       ) : null}
     </section>
   )

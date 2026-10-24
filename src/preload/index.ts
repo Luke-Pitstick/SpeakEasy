@@ -2,12 +2,41 @@ import { contextBridge, ipcRenderer } from 'electron'
 import type { VoiceApi, VoiceEvent } from '../shared/voice'
 import type { GeminiApi, PredictionResult } from '../shared/prediction'
 import type { SettingsApi } from '../shared/settings'
+import type { MemoryApi } from '../shared/memory'
+import type { PreferenceApi } from '../shared/preferences'
+const preferences: PreferenceApi = {
+  read: () => ipcRenderer.invoke('preferences:read'),
+  update: (operation) => ipcRenderer.invoke('preferences:update', operation),
+  onChanged: (listener) => {
+    const receive = (_event: Electron.IpcRendererEvent, invalidate: boolean): void =>
+      listener(invalidate)
+    ipcRenderer.on('preferences:changed', receive)
+    return () => {
+      ipcRenderer.removeListener('preferences:changed', receive)
+    }
+  }
+}
+contextBridge.exposeInMainWorld('preferences', preferences)
+const memory: MemoryApi = {
+  read: () => ipcRenderer.invoke('memory:read'),
+  update: (operation) => ipcRenderer.invoke('memory:update', operation),
+  onChanged: (listener) => {
+    ipcRenderer.on('memory:changed', listener)
+    return () => {
+      ipcRenderer.removeListener('memory:changed', listener)
+    }
+  }
+}
+contextBridge.exposeInMainWorld('memory', memory)
 const settings: SettingsApi = {
   load: () => ipcRenderer.invoke('settings:load'),
   save: (patch) => ipcRenderer.invoke('settings:save', patch)
 }
 contextBridge.exposeInMainWorld('settings', settings)
 const gemini: GeminiApi = {
+  summarize: (request) => ipcRenderer.invoke('gemini:summarize', request),
+  cancelSummary: () => ipcRenderer.send('gemini:cancel-summary'),
+  clearPhraseCache: () => ipcRenderer.invoke('gemini:clear-cache'),
   status: () => ipcRenderer.invoke('gemini:status'),
   setEnabled: (enabled) => ipcRenderer.invoke('gemini:enabled', enabled),
   start: (request) => ipcRenderer.invoke('gemini:start', request),
