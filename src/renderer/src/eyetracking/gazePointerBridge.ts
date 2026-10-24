@@ -9,27 +9,32 @@ import type { GazePoint } from './types'
  *
  * While active, hover events from the real mouse are blocked so the two don't fight over dwell;
  * mouse clicks still work. Losing the face cancels the pointer (pointercancel + leave), which
- * cancels pending dwell, as tracking loss must. Looking or pointing past the top edge stays on
- * the top row (pressing the full-width cue there); past the other edges it leaves like a mouse
- * leaving the window (no element entered), which doesn't pause steering.
+ * cancels pending dwell, as tracking loss must. Looking or pointing past the top or bottom edge
+ * presses the full-width cue there (the top row, if the top cue isn't showing); past the sides it
+ * leaves like a mouse leaving the window (no element entered), which doesn't pause steering.
  */
 
 // Distinct from the real mouse (pointerId 1) so handlers can tell them apart if they need to.
 const POINTER_ID = 31
 const HOVER_EVENTS = ['pointerover', 'pointerout', 'pointerenter', 'pointerleave', 'pointermove']
-// The top cue ([data-gaze-top-cue]) is the main hands-free switch, so its hit zone is forgiving:
-// it starts this far below the cue, and once on it you stay on it until this far below, so
-// jitter at the boundary can't reset its dwell. At or past the top edge it's always pressed.
-// The entry margin is kept modest because the header's buttons sit directly below the cue.
-const TOP_CUE_ENTER_MARGIN = 24
-const TOP_CUE_EXIT_MARGIN = 64
+// The edge cues are the main hands-free controls: the top cue ([data-gaze-top-cue]) switches
+// between writing and phrases, the bottom cue ([data-gaze-bottom-cue]) opens the menu. Their hit
+// zones are forgiving: each starts this far inside the screen past the cue, and once on it you
+// stay on it until this far, so jitter at the boundary can't reset its dwell. At or past its
+// screen edge a cue is always pressed. The entry margin is kept modest because other controls
+// (the header's buttons, the phrase footer) sit right next to the cues.
+const CUE_ENTER_MARGIN = 24
+const CUE_EXIT_MARGIN = 64
 
-/** The enabled top-cue button and the bottom of its region, if the cue is showing. */
-function topCue(): { button: Element; bottom: number } | null {
-  const region = document.querySelector('[data-gaze-top-cue]')
+type Edge = 'top' | 'bottom'
+
+/** The enabled button in an edge cue and its region's bounds, if the cue is showing. */
+function edgeCue(edge: Edge): { button: Element; top: number; bottom: number } | null {
+  const region = document.querySelector(`[data-gaze-${edge}-cue]`)
   const button = region?.querySelector('button:not(:disabled)')
   if (!region || !button) return null
-  return { button, bottom: region.getBoundingClientRect().bottom }
+  const { top, bottom } = region.getBoundingClientRect()
+  return { button, top, bottom }
 }
 
 function ancestors(el: Element | null): Element[] {
@@ -40,7 +45,7 @@ function ancestors(el: Element | null): Element[] {
 
 export class GazePointerBridge {
   private current: Element | null = null
-  private onTopCue = false
+  private onCue: Edge | null = null
   private last: { x: number; y: number } | null = null
   private offGaze: (() => void) | null = null
   private offState: (() => void) | null = null
@@ -67,17 +72,27 @@ export class GazePointerBridge {
   private handle(gaze: GazePoint): void {
     // A blink keeps the pointer where it was rather than leaving the target.
     if (gaze.blinking) return
-    const cue = topCue()
-    // Decided from the unassisted gaze, so aim assist toward nearby header buttons can't pull
-    // the pointer out of the cue's zone.
-    const reach = this.onTopCue ? TOP_CUE_EXIT_MARGIN : TOP_CUE_ENTER_MARGIN
-    this.onTopCue = !!cue && (gaze.rawY <= 0 || gaze.y <= 0 || gaze.rawY < cue.bottom + reach)
+    const top = edgeCue('top')
+    const bottom = edgeCue('bottom')
+    const limit = window.innerHeight - 1
+    // Decided from the unassisted gaze, so aim assist toward nearby buttons can't pull the
+    // pointer out of a cue's zone.
+    const reach = (edge: Edge): number => (this.onCue === edge ? CUE_EXIT_MARGIN : CUE_ENTER_MARGIN)
+    if (top && (gaze.rawY <= 0 || gaze.y <= 0 || gaze.rawY < top.bottom + reach('top')))
+      this.onCue = 'top'
+    else if (
+      bottom &&
+      (gaze.rawY >= limit || gaze.y >= limit || gaze.rawY > bottom.top - reach('bottom'))
+    )
+      this.onCue = 'bottom'
+    else this.onCue = null
+    const cue = this.onCue === 'top' ? top : this.onCue === 'bottom' ? bottom : null
     let x = gaze.x
     let y = gaze.y
     let target: Element | null
-    if (cue && this.onTopCue) {
+    if (cue) {
       x = Math.max(0, Math.min(window.innerWidth - 1, gaze.x))
-      y = Math.max(0, Math.min(cue.bottom - 1, gaze.y))
+      y = Math.max(cue.top, Math.min(cue.bottom - 1, gaze.y))
       target = cue.button
     } else if (gaze.y <= 0) {
       // At or past the top edge the pointer is on the top row, whatever spans it.

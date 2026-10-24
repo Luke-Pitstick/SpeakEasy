@@ -198,3 +198,71 @@ describe('top cue', () => {
     expect(onHeader).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('bottom cue', () => {
+  /** The bottom cue region (the last 48 px) with its button, and a footer button right above it. */
+  function setupCue(onCue: () => void, onFooter: () => void): ReturnType<typeof fakeTracker> {
+    render(
+      <InteractionProvider>
+        <ActionButton identity="footer" onAction={onFooter}>
+          None of these
+        </ActionButton>
+        <div data-gaze-bottom-cue>
+          <ActionButton identity="cue" onAction={onCue}>
+            Menu
+          </ActionButton>
+        </div>
+      </InteractionProvider>
+    )
+    const top = window.innerHeight - 48
+    const region = document.querySelector('[data-gaze-bottom-cue]') as HTMLElement
+    region.getBoundingClientRect = () => ({ top, bottom: window.innerHeight }) as DOMRect
+    const cue = screen.getByRole('button', { name: 'Menu' })
+    const footer = screen.getByRole('button', { name: 'None of these' })
+    document.elementFromPoint = (_x: number, y: number) => (y >= top ? cue : footer)
+    const fake = fakeTracker()
+    bridge = new GazePointerBridge(fake.tracker)
+    bridge.start()
+    return fake
+  }
+
+  it('is pressed at and below the lower limit of the page', () => {
+    const onCue = vi.fn()
+    const { look } = setupCue(onCue, vi.fn())
+    look(400, window.innerHeight - 1)
+    vi.advanceTimersByTime(500)
+    look(400, window.innerHeight + 300)
+    vi.advanceTimersByTime(600)
+    expect(onCue).toHaveBeenCalledTimes(1)
+  })
+
+  it('counts a pointer just above the cue as on it', () => {
+    const onCue = vi.fn()
+    const { look } = setupCue(onCue, vi.fn())
+    look(400, window.innerHeight - 48 - 20)
+    vi.advanceTimersByTime(1100)
+    expect(onCue).toHaveBeenCalledTimes(1)
+  })
+
+  it('keeps the dwell going through jitter near its edge', () => {
+    const onCue = vi.fn()
+    const { look } = setupCue(onCue, vi.fn())
+    for (let i = 0; i < 10; i++) {
+      look(400, i % 2 ? window.innerHeight - 48 - 55 : window.innerHeight - 30)
+      vi.advanceTimersByTime(110)
+    }
+    expect(onCue).toHaveBeenCalledTimes(1)
+  })
+
+  it('lets go once the pointer moves clearly away, leaving the footer button reachable', () => {
+    const onCue = vi.fn()
+    const onFooter = vi.fn()
+    const { look } = setupCue(onCue, onFooter)
+    look(400, window.innerHeight - 20)
+    vi.advanceTimersByTime(500)
+    look(400, window.innerHeight - 48 - 80)
+    vi.advanceTimersByTime(1100)
+    expect(onCue).not.toHaveBeenCalled()
+    expect(onFooter).toHaveBeenCalledTimes(1)
+  })
+})

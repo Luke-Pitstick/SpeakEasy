@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, beforeEach, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import App from '../src/renderer/src/App'
 
 beforeEach(() => {
@@ -49,10 +49,54 @@ it('keeps steering when the pointer leaves the window', () => {
   expect(surface.getAttribute('aria-label')).toBe('Pause Dasher')
 })
 
-it('pauses when the pointer moves onto other controls', () => {
+it('holds instead of pausing when the pointer moves onto other controls', () => {
   const surface = startWriting()
-  fireEvent.pointerLeave(surface, {
-    relatedTarget: screen.getByRole('button', { name: 'Menu', exact: true })
+  const menu = screen.getByRole('button', { name: 'Menu', exact: true })
+  fireEvent.pointerLeave(surface, { relatedTarget: menu })
+  fireEvent.pointerEnter(screen.getByLabelText('Message and controls'))
+  expect(surface.getAttribute('aria-label')).toBe('Pause Dasher')
+})
+
+/** Runs queued animation frames at a fixed 16 ms cadence. */
+function frames(): (ms: number) => void {
+  let queued: FrameRequestCallback[] = []
+  let now = 0
+  vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
+    queued.push(callback)
+    return queued.length
   })
+  return (ms) => {
+    for (const end = now + ms; now < end;) {
+      now += 16
+      const pending = queued
+      queued = []
+      act(() => pending.forEach((callback) => callback(now)))
+    }
+  }
+}
+
+it('resumes when the pointer rests near the crosshair after a pause', () => {
+  const run = frames()
+  const surface = startWriting()
+  fireEvent.click(surface, { clientX: 900, clientY: 165 })
   expect(surface.getAttribute('aria-label')).toBe('Resume Dasher')
+  run(100)
+  fireEvent.pointerMove(surface, { clientX: 560, clientY: 170 })
+  run(300)
+  expect(surface.getAttribute('aria-label')).toBe('Resume Dasher')
+  run(300)
+  expect(surface.getAttribute('aria-label')).toBe('Pause Dasher')
+})
+
+it('does not undo a pause made at the crosshair until the pointer has moved away', () => {
+  const run = frames()
+  const surface = startWriting()
+  fireEvent.click(surface, { clientX: 550, clientY: 165 })
+  run(1000)
+  expect(surface.getAttribute('aria-label')).toBe('Resume Dasher')
+  fireEvent.pointerMove(surface, { clientX: 900, clientY: 165 })
+  run(50)
+  fireEvent.pointerMove(surface, { clientX: 550, clientY: 165 })
+  run(600)
+  expect(surface.getAttribute('aria-label')).toBe('Pause Dasher')
 })

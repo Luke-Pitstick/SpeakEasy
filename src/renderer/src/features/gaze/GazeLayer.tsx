@@ -60,7 +60,7 @@ export function GazeLayer({ input, overlay, onOverlayDone, showDot }: Props): Re
     if (driving && !faceDetected) {
       dispatch({
         type: 'pause',
-        notice: 'Eye tracking lost. Paused until you start writing again.'
+        notice: 'Eye tracking lost. Paused until you look at the crosshair or start writing again.'
       })
     }
   }, [driving, faceDetected, dispatch])

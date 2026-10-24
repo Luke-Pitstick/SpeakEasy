@@ -214,7 +214,17 @@ it('keeps nested labels above rectangles and box colors stable when depth change
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
   const renderer = new SvgRenderer(svg)
   const geometry = new Geometry(1280, 600)
-  const region = { id: 1, label: 'a', text: 'a', left: -100, top: -100, height: 200, depth: 2 }
+  const region = {
+    id: 1,
+    label: 'a',
+    text: 'a',
+    left: -100,
+    top: -100,
+    height: 200,
+    depth: 2,
+    likelihood: 0,
+    selected: false
+  }
   renderer.draw([region], geometry)
   const color = svg.querySelector('[data-region="a"]')!.getAttribute('class')
   renderer.draw([{ ...region, depth: 0 }], geometry)
@@ -229,9 +239,39 @@ it('culls small continuation boxes until they grow, without a fixed layer limit'
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
   const renderer = new SvgRenderer(svg)
   const geometry = new Geometry(1280, 600)
-  const parent = { id: 1, label: 'a', text: 'a', left: -100, top: -100, height: 200, depth: 0 }
-  const child = { id: 2, label: 'b', text: 'ab', left: 100, top: -50, height: 40, depth: 1 }
-  const preview = { id: 3, label: 'c', text: 'abc', left: 400, top: -40, height: 8, depth: 2 }
+  const parent = {
+    id: 1,
+    label: 'a',
+    text: 'a',
+    left: -100,
+    top: -100,
+    height: 200,
+    depth: 0,
+    likelihood: 0,
+    selected: false
+  }
+  const child = {
+    id: 2,
+    label: 'b',
+    text: 'ab',
+    left: 100,
+    top: -50,
+    height: 40,
+    depth: 1,
+    likelihood: 0,
+    selected: false
+  }
+  const preview = {
+    id: 3,
+    label: 'c',
+    text: 'abc',
+    left: 400,
+    top: -40,
+    height: 8,
+    depth: 2,
+    likelihood: 0,
+    selected: false
+  }
   renderer.draw([parent, child, preview], geometry)
   expect(svg.querySelectorAll('rect')).toHaveLength(2)
   expect(svg.querySelectorAll('text')).toHaveLength(2)
@@ -247,7 +287,7 @@ it('culls small continuation boxes until they grow, without a fixed layer limit'
   renderer.dispose()
 })
 
-it('fits boxes on resize and resumes once after an intentional layout change', () => {
+it('fits boxes on resize and keeps writing through layout changes', () => {
   let notifyResize = (): void => {}
   vi.stubGlobal(
     'ResizeObserver',
@@ -278,14 +318,12 @@ it('fits boxes on resize and resumes once after an intentional layout change', (
   fireEvent.click(surface)
   height = 700
   act(() => notifyResize())
-  expect(screen.getByRole('button', { name: 'Resume Dasher' })).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'Pause Dasher' })).toBeTruthy()
   expect(surface.querySelector('svg')!.getAttribute('viewBox')).toBe('-640 -350 1280 700')
   height = 800
-  fireEvent.click(surface)
-  expect(screen.getByRole('button', { name: 'Pause Dasher' })).toBeTruthy()
-  expect(surface.querySelector('svg')!.getAttribute('viewBox')).toBe('-640 -400 1280 800')
   act(() => notifyResize())
   expect(screen.getByRole('button', { name: 'Pause Dasher' })).toBeTruthy()
+  expect(surface.querySelector('svg')!.getAttribute('viewBox')).toBe('-640 -400 1280 800')
   bounds.mockRestore()
 })
 
@@ -414,9 +452,11 @@ describe('top-edge review cue', () => {
     render(<App />)
     fireEvent.click(screen.getByRole('button', { name: 'Menu', exact: true }))
     fireEvent.click(screen.getByRole('button', { name: 'Settings', exact: true }))
-    fireEvent.change(screen.getByLabelText('Top-edge target size'), { target: { value: '88' } })
-    const cue = screen.getByRole('button', { name: 'Show phrases' })
-    expect(cue.hasAttribute('disabled')).toBe(true)
-    expect(cue.parentElement?.style.height).toBe('88px')
+    fireEvent.change(screen.getByLabelText('Edge target size'), { target: { value: '88' } })
+    for (const name of ['Show phrases', 'Menu']) {
+      const cue = screen.getByRole('button', { name, exact: true })
+      expect(cue.hasAttribute('disabled')).toBe(true)
+      expect(cue.parentElement?.style.height).toBe('88px')
+    }
   })
 })

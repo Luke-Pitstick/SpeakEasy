@@ -33,6 +33,8 @@ function steer(engine: DasherEngine, wanted: string, alphabet = INITIAL_ALPHABET
         label: character,
         text: prefix + character,
         depth: 1,
+        likelihood: 0,
+        selected: false,
         height,
         left: engine.geometry.solveLeft(height),
         top:
@@ -120,6 +122,37 @@ it('sizes initials by word context instead of forcing equal letter boxes', () =>
     expect(engine.step(16.67)).toBeNull()
     expect(engine.text).toBe(before)
   }
+})
+
+it('ranks box likelihood from the least to the most probable sibling', () => {
+  const ppm = new DasherEngine(1280, 600, 'i')
+  const letters = ppm.regions().filter((region) => region.depth === 1)
+  const fractions = ppm.root.fractions
+  const most = fractions.indexOf(Math.max(...fractions))
+  const least = fractions.indexOf(Math.min(...fractions))
+  expect(letters[most].likelihood).toBe(1)
+  expect(letters[least].likelihood).toBe(0)
+  for (const region of ppm.regions()) {
+    expect(region.likelihood).toBeGreaterThanOrEqual(0)
+    expect(region.likelihood).toBeLessThanOrEqual(1)
+  }
+  const uniform = new DasherEngine(1280, 600, '', false, 'uniform')
+  expect(uniform.regions().every((region) => region.likelihood === 1)).toBe(true)
+})
+
+it('selects exactly the entered letters on the path to the output', () => {
+  const engine = new DasherEngine(1280, 600)
+  expect(engine.regions().some((region) => region.selected)).toBe(false)
+  engine.resume()
+  engine.setSample(engine.geometry.width * 0.4, 0)
+  for (let frame = 0; frame < 2000 && engine.text.length < 2; frame++) engine.step(16.67)
+  expect(engine.text.length).toBeGreaterThanOrEqual(2)
+  const selected = engine.regions().filter((region) => region.selected)
+  expect(selected.map((region) => region.text)).toContain(engine.text)
+  for (const region of selected) expect(engine.text.startsWith(region.text)).toBe(true)
+  const unselected = engine.regions().filter((region) => region.label && !region.selected)
+  expect(unselected.length).toBeGreaterThan(0)
+  for (const region of unselected) expect(engine.text.startsWith(region.text)).toBe(false)
 })
 
 it('starts with all 26 first initials visible in a-z order before any steering', () => {
