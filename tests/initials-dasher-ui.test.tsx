@@ -21,7 +21,6 @@ afterEach(() => {
 
 it('identifies the trained predictor and pauses before changing the prediction condition', () => {
   render(<App />)
-  fireEvent.click(screen.getByRole('button', { name: 'Keep writing' }))
   fireEvent.click(screen.getByRole('button', { name: 'Start writing' }))
   expect(screen.getByTestId('dasher-surface').getAttribute('aria-label')).toBe('Pause Dasher')
   fireEvent.click(screen.getByRole('button', { name: 'Menu', exact: true }), { detail: 1 })
@@ -37,7 +36,6 @@ it('identifies the trained predictor and pauses before changing the prediction c
 
 it('keeps exact spelling on the character predictor', () => {
   render(<App />)
-  fireEvent.click(screen.getByRole('button', { name: 'Keep writing' }))
   fireEvent.click(screen.getByRole('button', { name: 'Menu', exact: true }), { detail: 1 })
   fireEvent.click(screen.getByRole('button', { name: 'Exact spelling', exact: true }))
   fireEvent.click(screen.getByRole('button', { name: 'Menu', exact: true }), { detail: 1 })

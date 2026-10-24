@@ -35,7 +35,6 @@ afterEach(() => {
 
 function startWriting(): HTMLElement {
   render(<App />)
-  fireEvent.click(screen.getByRole('button', { name: 'Keep writing' }))
   fireEvent.click(screen.getByRole('button', { name: 'Start writing' }))
   const surface = screen.getByTestId('dasher-surface')
   fireEvent.pointerMove(surface, { clientX: 700, clientY: 165 })

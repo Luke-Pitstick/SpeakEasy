@@ -6,6 +6,19 @@ import App from '../src/renderer/src/App'
 import { DasherEngine } from '../src/renderer/src/features/dasher/engine'
 import { INITIAL_ALPHABET, LITERAL_ALPHABET } from '../src/renderer/src/features/dasher/prediction'
 
+const speak = vi.hoisted(() => vi.fn())
+vi.mock('../src/renderer/src/features/voice/useVoice', () => ({
+  useVoice: () => ({
+    configured: true,
+    settings: { voiceId: 'test-voice', speed: 1, tone: 'neutral' },
+    speaking: false,
+    listening: 'Test voice',
+    speechStatus: 'Idle',
+    speak,
+    stop: vi.fn()
+  })
+}))
+
 // Synthetic gaze: real dwell controls, real Dasher frame loop and engine, real
 // reducer and asynchronous demo provider. No clicks, key events or input changes.
 function gazeWorkspace(): {
@@ -61,10 +74,9 @@ function gazeWorkspace(): {
     act(() => vi.advanceTimersByTime(1000))
     fireEvent.pointerLeave(target)
   }
-  expect(screen.getByRole('region', { name: 'SpeakFaster phrase composition' })).toBeTruthy()
-  expect(screen.queryByRole('button', { name: 'Resume Dasher' })).toBeNull()
-  expect(screen.getByRole('button', { name: 'Start writing' }).hasAttribute('disabled')).toBe(true)
-  dwell('Keep writing')
+  expect(screen.queryByRole('region', { name: 'SpeakFaster phrase composition' })).toBeNull()
+  expect(screen.getByLabelText('Message preview').textContent).toBe('Your message')
+  expect(screen.getByRole('button', { name: 'Start writing' }).hasAttribute('disabled')).toBe(false)
   expect(screen.getByRole('button', { name: 'Resume Dasher' })).toBeTruthy()
   return {
     dwell,
@@ -129,6 +141,7 @@ function gazeWorkspace(): {
 
 afterEach(() => {
   cleanup()
+  speak.mockClear()
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
   vi.useRealTimers()
@@ -136,19 +149,26 @@ afterEach(() => {
 
 it('enters initials, rejects, spells a prefix, and edits an unaccepted phrase through gaze alone', async () => {
   const gaze = gazeWorkspace()
+  const start = vi.spyOn(window.gemini!, 'start')
   gaze.spell('iwac')
   await gaze.review()
+  expect(start).toHaveBeenCalledOnce()
+  expect(start.mock.calls[0][0].purpose).toBe('expansion')
   expect(screen.getByText('I want a coffee')).toBeTruthy()
   gaze.dwell('None of these')
   gaze.dwell('Word 4 c Initial')
   gaze.spell('co', true)
   await gaze.review()
+  expect(start.mock.calls.at(-1)?.[0]).toMatchObject({
+    purpose: 'expansion',
+    tokens: [{ value: 'i' }, { value: 'w' }, { value: 'a' }, { kind: 'prefix', value: 'co' }]
+  })
   expect(screen.queryByText('I want another cushion')).toBeNull()
   expect(screen.getByText('I want a coffee')).toBeTruthy()
   expect(screen.getByLabelText('Message preview').getAttribute('aria-description')).toBe(
     'Accepted message: Your message'
   )
-  gaze.dwell('Edit 1')
+  gaze.dwell('I want a coffee')
   gaze.dwell('Word 4 coffee Change word')
   await act(async () => {
     await vi.advanceTimersByTimeAsync(500)
@@ -162,13 +182,17 @@ it('enters initials, rejects, spells a prefix, and edits an unaccepted phrase th
   expect(screen.getByLabelText('Message preview').getAttribute('aria-description')).toBe(
     'Accepted message: I want a cocoa'
   )
+  expect(speak).not.toHaveBeenCalled()
+  gaze.dwell('Speak')
+  expect(speak).toHaveBeenCalledExactlyOnceWith('I want a cocoa', expect.any(Number))
 }, 30000)
 
 it('spells an uncommon replacement, cancels, retries, accepts and undoes using only gaze', async () => {
   const gaze = gazeWorkspace()
   gaze.spell('iwac')
   await gaze.review()
-  gaze.dwell('Use 1')
+  gaze.dwell('I want a coffee')
+  gaze.dwell('Use phrase')
   gaze.dwell('Edit message')
   gaze.dwell('Word 4 coffee Change word')
   gaze.dwell('Spell word')
@@ -243,7 +267,8 @@ it('switches explicitly, preserves the draft and initials, and resumes writing o
   // Resuming starts a new entry session, which invalidates the earlier suggestions; switching
   // again requests fresh ones, so wait for them.
   await gaze.review()
-  gaze.dwell('Use 1')
+  gaze.dwell('I want a coffee')
+  gaze.dwell('Use phrase')
   gaze.dwell('Keep writing')
   expect(screen.getByLabelText('Message preview').getAttribute('aria-description')).toBe(
     'Accepted message: I want a coffee'
@@ -260,7 +285,7 @@ it('returns to Dasher from phrase editing without losing the tentative phrase', 
   const gaze = gazeWorkspace()
   gaze.spell('iwac')
   await gaze.review()
-  gaze.dwell('Edit 1')
+  gaze.dwell('I want a coffee')
   gaze.dwell('Keep writing')
   expect(screen.getByLabelText('Message preview').textContent).toBe('I want a coffee')
   expect(screen.getByLabelText('Message preview').getAttribute('aria-description')).toBe(

@@ -11,8 +11,9 @@ import { join } from 'node:path'
 import { streamGemini } from './gemini'
 import { validRequest } from '../shared/predictionValidation'
 import type { GeminiStatus } from '../shared/prediction'
+import type { SettingsStore } from './settings'
 
-export function installGeminiIpc(window: BrowserWindow): void {
+export function installGeminiIpc(window: BrowserWindow, settings: SettingsStore | null): void {
   let key = process.env.OPENROUTER_TOKEN ?? ''
   if (!key) {
     try {
@@ -21,7 +22,7 @@ export function installGeminiIpc(window: BrowserWindow): void {
       /* Missing .env is surfaced through the configuration status, never a log. */
     }
   }
-  let enabled = false
+  let enabled = settings?.read().geminiEnabled ?? false
   let active: { id: string; controller: AbortController } | null = null
   const cancel = (): void => {
     active?.controller.abort()
@@ -39,6 +40,8 @@ export function installGeminiIpc(window: BrowserWindow): void {
   })
   ipcMain.handle('gemini:enabled', (event, value: unknown) => {
     if (!own(event) || typeof value !== 'boolean') throw new Error('Invalid settings request')
+    if (!settings) throw new Error('Settings storage is unavailable')
+    settings.save({ geminiEnabled: value })
     enabled = value
     if (!enabled) cancel()
     return status()

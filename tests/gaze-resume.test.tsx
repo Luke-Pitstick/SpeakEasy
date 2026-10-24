@@ -81,7 +81,6 @@ function dwellTime(): void {
 it('pauses for phrases and resumes writing on coming back', () => {
   render(<App />)
   layout()
-  fireEvent.click(screen.getByRole('button', { name: 'Keep writing' }))
   fireEvent.click(screen.getByRole('button', { name: 'Start writing' }))
   const surface = screen.getByTestId('dasher-surface')
   bridge!.start()
@@ -104,7 +103,6 @@ it('pauses for phrases and resumes writing on coming back', () => {
 it('stays paused on coming back if writing was paused before', () => {
   render(<App />)
   layout()
-  fireEvent.click(screen.getByRole('button', { name: 'Keep writing' }))
   bridge!.start()
   look(700, 300)
   look(500, 10)
@@ -126,7 +124,6 @@ it('pauses for the menu and resumes writing on going back', () => {
         : y < 100
           ? screen.getByRole('button', { name: 'Menu', exact: true })
           : screen.getByTestId('dasher-surface')
-  fireEvent.click(screen.getByRole('button', { name: 'Keep writing' }))
   fireEvent.click(screen.getByRole('button', { name: 'Start writing' }))
   bridge!.start()
   look(700, 300)

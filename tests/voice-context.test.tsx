@@ -10,7 +10,9 @@ import { useVoice } from '../src/renderer/src/features/voice/useVoice'
 import { DEFAULT_VOICE, type VoiceApi, type VoiceEvent } from '../src/shared/voice'
 vi.mock('../src/renderer/src/features/voice/audio', () => ({
   captureMicrophone: vi.fn(async () => ({ rate: 48000, close: vi.fn() })),
-  SpeechPlayer: vi.fn()
+  SpeechPlayer: vi.fn(function (_context, _volume, started: () => void, done: () => void) {
+    return { push: started, done, stop: vi.fn() }
+  })
 }))
 let current: ReturnType<typeof useComposition>,
   dispatch: ReturnType<typeof useCompositionDispatch>,
@@ -36,6 +38,13 @@ function emit(text: string, final = true, session?: string): void {
     callback({ type: 'transcript', session: id, id: `${id}-1`, text, final })
 }
 beforeEach(() => {
+  vi.stubGlobal(
+    'AudioContext',
+    class {
+      resume = vi.fn().mockResolvedValue(undefined)
+      close = vi.fn().mockResolvedValue(undefined)
+    }
+  )
   events = new Set()
   api = {
     status: vi.fn().mockResolvedValue({ configured: true, settings: DEFAULT_VOICE }),
@@ -66,6 +75,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   delete window.voice
+  vi.unstubAllGlobals()
 })
 async function setup(): Promise<void> {
   render(
@@ -78,6 +88,39 @@ async function setup(): Promise<void> {
   await waitFor(() => expect(api.listen).toHaveBeenCalledOnce())
 }
 describe('always-on context bridge', () => {
+  it.each(['completed', 'stopped', 'failed', 'preview'] as const)(
+    'clears initials only after successful spoken playback: %s',
+    async (outcome) => {
+      await setup()
+      act(() => {
+        dispatch({ type: 'example', initials: 'iwac' })
+        dispatch({ type: 'mode', mode: 'literal' })
+        dispatch({ type: 'input', text: 'I want a coffee' })
+      })
+      await act(async () => {
+        await voice.speak(
+          current.draft,
+          current.revision,
+          outcome === 'preview' ? 'preview' : 'speak'
+        )
+      })
+      expect(current.tokens).toHaveLength(4)
+      const id = vi.mocked(api.speak).mock.calls.at(-1)![0].id
+      act(() => {
+        for (const callback of events) callback({ type: 'audio', id, samples: new Uint8Array(4) })
+      })
+      expect(current.tokens).toHaveLength(4)
+      act(() => {
+        if (outcome === 'stopped') voice.stop()
+        else
+          for (const callback of events)
+            callback({ type: 'speech', id, status: outcome === 'failed' ? 'failed' : 'generated' })
+      })
+      expect(current.tokens).toHaveLength(outcome === 'completed' ? 0 : 4)
+      expect(current.draft).toBe('I want a coffee')
+      expect(current.mode).toBe(outcome === 'completed' ? 'initials' : 'literal')
+    }
+  )
   it('starts automatically, keeps partials out of Gemini and refreshes expansion after finalized speech', async () => {
     await setup()
     act(() => {

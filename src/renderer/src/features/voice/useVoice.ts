@@ -286,7 +286,10 @@ export function useVoice(): VoiceController {
         const current = active.current
         if (current?.request.id !== request.id) return
         active.current = null
-        if (origin === 'speak' && current.started) enqueue('me', text, current.epoch)
+        if (origin === 'speak' && current.started) {
+          enqueue('me', text, current.epoch)
+          dispatch({ type: 'speech-completed', text })
+        }
         setSpeechStatus('Finished')
         setTimeout(() => {
           if (mounted.current && !active.current) setSpeaking(false)

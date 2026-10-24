@@ -15,6 +15,11 @@ import { ConversationPanel } from './prediction/ConversationPanel'
 import { usePredictions } from './prediction/usePredictions'
 import { useVoice } from './features/voice/useVoice'
 import { VoiceSettings } from './features/voice/VoiceSettings'
+import {
+  DEFAULT_SETTINGS,
+  type AppSettings,
+  type GeneralSettingsPatch
+} from '../../shared/settings'
 
 // How fast Dasher zooms and pans for a given pointer offset; the engine accepts 0.3-2.
 const STEERING_SPEEDS: DwellOption<number>[] = [
@@ -31,22 +36,27 @@ const STEERING_SPEEDS: DwellOption<number>[] = [
 interface WorkspaceProps {
   input: InputSource
   onInput: (input: InputSource) => void
+  settings: AppSettings
+  onSettings: (patch: GeneralSettingsPatch) => void
+  settingsError: string
 }
 
-function Workspace({ input, onInput }: WorkspaceProps): React.JSX.Element {
+function Workspace({
+  input,
+  onInput,
+  settings,
+  onSettings,
+  settingsError
+}: WorkspaceProps): React.JSX.Element {
   const state = useComposition()
   const dispatch = useCompositionDispatch()
   const interaction = useInteraction()
-  const [menu, setMenu] = useState<'closed' | 'more' | 'settings' | 'conversation'>('closed')
-  const [theme, setTheme] = useState<'system' | 'light' | 'dark'>('system')
-  const [speed, setSpeed] = useState(0.6)
-  const [edgeHeight, setEdgeHeight] = useState(48)
-  const [weighting, setWeighting] = useState<'uniform' | 'ppm'>('ppm')
+  const [menu, setMenu] = useState<'closed' | 'more' | 'settings'>('closed')
+  const { theme, speed, edgeHeight, weighting, showGazeDot } = settings
   const predictions = usePredictions()
   const voice = useVoice()
-  const [settingsTab, setSettingsTab] = useState<'general' | 'voice'>('general')
+  const [settingsTab, setSettingsTab] = useState<'general' | 'voice' | 'gemini'>('general')
   const [gazeOverlay, setGazeOverlay] = useState<GazeOverlay>('none')
-  const [showGazeDot, setShowGazeDot] = useState(true)
   const closeGazeOverlay = useCallback(() => setGazeOverlay('none'), [])
   // Going to a menu or to phrases pauses writing; coming back resumes it if you were writing.
   // Hovering the header or top cue already pauses, so "were you writing" is captured there.
@@ -95,6 +105,7 @@ function Workspace({ input, onInput }: WorkspaceProps): React.JSX.Element {
   }
   return (
     <main className="workspace" data-theme={theme}>
+      {settingsError && <p role="alert">{settingsError}</p>}
       <div className="top-edge-region" data-gaze-top-cue style={{ height: edgeHeight }}>
         <ActionButton
           className="top-edge-cue"
@@ -104,8 +115,8 @@ function Workspace({ input, onInput }: WorkspaceProps): React.JSX.Element {
             if (state.workspace === 'dasher') {
               leaveWriting()
               dispatch({ type: 'workspace', workspace: 'phrases' })
-              if (!state.request && state.editor === 'entry')
-                predictions.request(state.mode === 'initials' ? 'expansion' : 'completion')
+              if (!state.request && state.phrase === null && state.mode !== 'replacement')
+                predictions.request(state.mode === 'literal' ? 'completion' : 'expansion')
             } else dispatch({ type: 'workspace', workspace: 'dasher' })
           }}
         >
@@ -122,7 +133,48 @@ function Workspace({ input, onInput }: WorkspaceProps): React.JSX.Element {
       >
         <div className="message-strip" inert={menu !== 'closed' || undefined}>
           <DraftPanel />
+          <span
+            className="listening-indicator"
+            role="status"
+            title={voice.listening}
+            aria-label={voice.listening}
+          >
+            <span aria-hidden="true" className="listening-dot" />
+            {voice.listening === 'Listening to conversation'
+              ? 'Listening'
+              : voice.speaking
+                ? 'Mic paused during speech'
+                : voice.listening.startsWith('Connecting')
+                  ? 'Connecting mic…'
+                  : 'Microphone unavailable'}
+          </span>
+          {voice.error && (
+            <p className="strip-error" role="alert">
+              {voice.error}
+            </p>
+          )}
         </div>
+        <ActionButton
+          identity={`speak-${state.draft}-${voice.settings.voiceId}-${voice.settings.speed}-${voice.settings.tone}`}
+          disabled={
+            !voice.configured ||
+            voice.speaking ||
+            !state.draft.trim() ||
+            state.phrase !== null ||
+            state.mode === 'keyword' ||
+            state.mode === 'replacement' ||
+            menu !== 'closed'
+          }
+          onAction={() => {
+            dispatch({ type: 'pause' })
+            void voice.speak(state.draft, state.revision)
+          }}
+        >
+          Speak
+        </ActionButton>
+        <ActionButton identity="stop-speech" disabled={!voice.speaking} onAction={voice.stop}>
+          Stop
+        </ActionButton>
         <ActionButton
           className="header-writing"
           identity={`writing-${state.paused}-${state.editor}-${state.mode}-${state.selectedToken ?? ''}-${state.selection?.start ?? ''}`}
@@ -150,38 +202,6 @@ function Workspace({ input, onInput }: WorkspaceProps): React.JSX.Element {
           Menu
         </ActionButton>
       </header>
-      <div className="voice-strip" aria-label="Voice controls">
-        <div className="voice-live">
-          <span role="status">{voice.listening}</span>
-          <span className="voice-live-transcript">
-            {voice.partial || voice.error || voice.speechStatus}
-          </span>
-        </div>
-        <span className="voice-tone">
-          {voice.settings.tone} · {voice.settings.speed}×
-        </span>
-        <ActionButton
-          identity={`speak-${state.draft}-${voice.settings.voiceId}-${voice.settings.speed}-${voice.settings.tone}`}
-          disabled={
-            !voice.configured ||
-            voice.speaking ||
-            !state.draft.trim() ||
-            state.phrase !== null ||
-            state.mode === 'keyword' ||
-            state.mode === 'replacement' ||
-            menu !== 'closed'
-          }
-          onAction={() => {
-            dispatch({ type: 'pause' })
-            void voice.speak(state.draft, state.revision)
-          }}
-        >
-          Speak message
-        </ActionButton>
-        <ActionButton identity="stop-speech" disabled={!voice.speaking} onAction={voice.stop}>
-          Stop speech
-        </ActionButton>
-      </div>
       <div
         className="workspace-body"
         inert={menu !== 'closed' || undefined}
@@ -203,20 +223,12 @@ function Workspace({ input, onInput }: WorkspaceProps): React.JSX.Element {
             aria-labelledby="menu-title"
           >
             <div className="menu-heading">
-              <h2 id="menu-title">
-                {menu === 'settings'
-                  ? 'Settings'
-                  : menu === 'conversation'
-                    ? 'Conversation'
-                    : 'SpeakEasy'}
-              </h2>
+              <h2 id="menu-title">{menu === 'settings' ? 'Settings' : 'SpeakEasy'}</h2>
               <ActionButton identity="close-menu" onAction={closeMenu}>
                 Back
               </ActionButton>
             </div>
-            {menu === 'conversation' ? (
-              <ConversationPanel predictions={predictions} />
-            ) : menu === 'more' ? (
+            {menu === 'more' ? (
               <div className="more-grid">
                 <ActionButton
                   identity={`undo-${state.revision}`}
@@ -269,9 +281,6 @@ function Workspace({ input, onInput }: WorkspaceProps): React.JSX.Element {
                 >
                   New message
                 </ActionButton>
-                <ActionButton identity="conversation" onAction={() => setMenu('conversation')}>
-                  Conversation & Gemini
-                </ActionButton>
                 <ActionButton identity="settings" onAction={() => setMenu('settings')}>
                   Settings
                 </ActionButton>
@@ -302,9 +311,18 @@ function Workspace({ input, onInput }: WorkspaceProps): React.JSX.Element {
                   >
                     Voice
                   </ActionButton>
+                  <ActionButton
+                    identity="settings-gemini"
+                    selected={settingsTab === 'gemini'}
+                    onAction={() => setSettingsTab('gemini')}
+                  >
+                    Gemini
+                  </ActionButton>
                 </div>
                 {settingsTab === 'voice' ? (
                   <VoiceSettings voice={voice} />
+                ) : settingsTab === 'gemini' ? (
+                  <ConversationPanel predictions={predictions} />
                 ) : (
                   <div className="settings-grid">
                     <GazeSettings
@@ -323,14 +341,14 @@ function Workspace({ input, onInput }: WorkspaceProps): React.JSX.Element {
                         })
                       }
                       showDot={showGazeDot}
-                      onShowDot={setShowGazeDot}
+                      onShowDot={(value) => onSettings({ showGazeDot: value })}
                     />
                     <label>
                       Appearance
                       <select
                         value={theme}
                         onChange={(event) =>
-                          configure(() => setTheme(event.target.value as typeof theme))
+                          configure(() => onSettings({ theme: event.target.value as typeof theme }))
                         }
                       >
                         <option value="system">System</option>
@@ -343,14 +361,16 @@ function Workspace({ input, onInput }: WorkspaceProps): React.JSX.Element {
                       identity="steering-speed"
                       value={speed}
                       options={STEERING_SPEEDS}
-                      onChange={(value) => configure(() => setSpeed(value))}
+                      onChange={(value) => configure(() => onSettings({ speed: value }))}
                     />
                     <label>
                       Letter prediction
                       <select
                         value={weighting}
                         onChange={(event) =>
-                          configure(() => setWeighting(event.target.value as typeof weighting))
+                          configure(() =>
+                            onSettings({ weighting: event.target.value as typeof weighting })
+                          )
                         }
                       >
                         <option value="ppm">PPM (trained initials)</option>
@@ -381,7 +401,7 @@ function Workspace({ input, onInput }: WorkspaceProps): React.JSX.Element {
                       <select
                         value={edgeHeight}
                         onChange={(event) =>
-                          configure(() => setEdgeHeight(Number(event.target.value)))
+                          configure(() => onSettings({ edgeHeight: Number(event.target.value) }))
                         }
                       >
                         <option value={48}>Compact — 48 px</option>
@@ -402,16 +422,6 @@ function Workspace({ input, onInput }: WorkspaceProps): React.JSX.Element {
                         <option value={1500}>1.5 seconds</option>
                       </select>
                     </label>
-                    <ActionButton
-                      identity="gemini-settings"
-                      onAction={() => setMenu('conversation')}
-                    >
-                      Conversation & Gemini
-                    </ActionButton>
-                    <p className="settings-note">
-                      Gemini suggests wording using your approved conversation. Cartesia voice
-                      controls are in the Voice tab.
-                    </p>
                   </div>
                 )}
               </>
@@ -429,7 +439,29 @@ function Workspace({ input, onInput }: WorkspaceProps): React.JSX.Element {
   )
 }
 
-export default function App(): React.JSX.Element {
+export default function App({
+  initialSettings = DEFAULT_SETTINGS,
+  initialSettingsError = ''
+}: {
+  initialSettings?: AppSettings
+  initialSettingsError?: string
+}): React.JSX.Element {
+  const [settings, setSettings] = useState(initialSettings)
+  const [settingsError, setSettingsError] = useState(initialSettingsError)
+  const changeSettings = useCallback((patch: GeneralSettingsPatch) => {
+    setSettings((current) => ({ ...current, ...patch }))
+    if (!window.settings) {
+      setSettingsError('Settings could not be saved. Open the desktop app to save preferences.')
+      return
+    }
+    void window.settings.save(patch).then(
+      () => setSettingsError(''),
+      () =>
+        setSettingsError(
+          'Settings could not be saved. Check storage access before closing SpeakEasy.'
+        )
+    )
+  }, [])
   const [input, setInput] = useState<InputSource>(loadInputSource)
   const changeInput = useCallback((value: InputSource) => {
     saveInputSource(value)
@@ -437,9 +469,22 @@ export default function App(): React.JSX.Element {
   }, [])
   return (
     <CompositionProvider>
-      <InteractionProvider>
+      <InteractionProvider
+        preferences={{
+          dwell: settings.dwell,
+          duration: settings.duration,
+          setDwell: (value) => changeSettings({ dwell: value }),
+          setDuration: (value) => changeSettings({ duration: value })
+        }}
+      >
         <GazeProvider active={input !== 'mouse'}>
-          <Workspace input={input} onInput={changeInput} />
+          <Workspace
+            input={input}
+            onInput={changeInput}
+            settings={settings}
+            onSettings={changeSettings}
+            settingsError={settingsError}
+          />
         </GazeProvider>
       </InteractionProvider>
     </CompositionProvider>

@@ -39,6 +39,14 @@ const example = (): CompositionState =>
   reducer(initialState(), { type: 'example', initials: 'iwac' })
 
 describe('shared composition', () => {
+  it('preserves a new message when an older utterance finishes', () => {
+    let state = reducer(example(), { type: 'mode', mode: 'literal' })
+    state = reducer(state, { type: 'input', text: 'I want a coffee' })
+    const next = reducer(state, { type: 'example', initials: 'insw' })
+    expect(reducer(next, { type: 'speech-completed', text: state.draft })).toBe(next)
+    const edited = reducer(state, { type: 'input', text: 'A different message' })
+    expect(reducer(edited, { type: 'speech-completed', text: state.draft })).toBe(edited)
+  })
   it('expands initials without changing text until explicit acceptance', async () => {
     const choices = await suggest(example())
     expect(choices.candidates).toHaveLength(4)

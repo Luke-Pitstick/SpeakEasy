@@ -86,7 +86,7 @@ export function initialState(): CompositionState {
     conversation: [],
     contextEpoch: 0,
     cloudEnabled: false,
-    workspace: 'phrases',
+    workspace: 'dasher',
     revision: 0,
     session: { id: 0, sequence: -1, seed: '', before: contentOf(content) },
     paused: true,
@@ -124,6 +124,7 @@ export type Action =
   | { type: 'undo' }
   | { type: 'back' }
   | { type: 'clear' }
+  | { type: 'speech-completed'; text: string }
   | { type: 'example'; initials: string }
   | { type: 'select-token'; id: string }
   | { type: 'select-span'; range: TextRange }
@@ -394,6 +395,24 @@ function reduceComposition(state: CompositionState, action: Action): Composition
           }
         : state
     }
+    case 'speech-completed':
+      if (
+        state.draft !== action.text ||
+        state.phrase !== null ||
+        state.editor !== 'entry' ||
+        state.mode !== 'literal'
+      )
+        return state
+      return {
+        ...edit(state, {
+          tokens: [],
+          buffer: '',
+          mode: 'initials',
+          selection: null,
+          selectedToken: null
+        }),
+        notice: 'Message spoken. Enter initials for your next phrase.'
+      }
     case 'clear':
       return {
         ...edit(state, {
@@ -683,7 +702,7 @@ function reduceComposition(state: CompositionState, action: Action): Composition
         notice: !result.complete
           ? `${result.candidates.length} of six suggestions ready; Gemini is still streaming…`
           : result.candidates.length
-            ? 'Edit a suggestion, or choose Use to accept it.'
+            ? 'Choose a phrase to review or edit. Speech only starts when you choose Speak.'
             : 'No suggestions preserved your constraints. Keep entering, lock a word, or retry.'
       }
     }

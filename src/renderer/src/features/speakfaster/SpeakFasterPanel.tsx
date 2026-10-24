@@ -57,7 +57,7 @@ export function SpeakFasterPanel({
           ? 'Dasher replaces the highlighted word. Use word keeps your spelling; Cancel word restores it.'
           : 'Choose a same-initial replacement below, or Spell word with Dasher.'
         : 'Choose a word to change. Use phrase accepts this version into your message.'
-      : 'Return to Dasher to enter text. Spell opens the abbreviation as editable chips.'
+      : 'Choose a phrase to review or change a word. Spell adds detail to your initials.'
 
   return (
     <section className="speakfaster-panel" aria-label="SpeakFaster phrase composition">
@@ -264,24 +264,19 @@ export function SpeakFasterPanel({
                           {candidate.replacement}
                         </ActionButton>
                       ) : (
-                        <div className="candidate-card">
+                        <ActionButton
+                          className="candidate phrase-candidate"
+                          identity={`phrase-${candidate.id}-${version}`}
+                          onAction={() => {
+                            setPage(0)
+                            dispatch({ type: 'edit-candidate', id: candidate.id })
+                          }}
+                        >
+                          <span className="candidate-number" aria-hidden="true">
+                            {index + 1}
+                          </span>
                           <span className="candidate-text">{candidate.text}</span>
-                          <ActionButton
-                            identity={`edit-${candidate.id}`}
-                            onAction={() => {
-                              setPage(0)
-                              dispatch({ type: 'edit-candidate', id: candidate.id })
-                            }}
-                          >
-                            Edit {index + 1}
-                          </ActionButton>
-                          <ActionButton
-                            identity={`use-${candidate.id}`}
-                            onAction={() => dispatch({ type: 'accept', id: candidate.id })}
-                          >
-                            Use {index + 1}
-                          </ActionButton>
-                        </div>
+                        </ActionButton>
                       ))}
                   </div>
                 )
@@ -295,7 +290,7 @@ export function SpeakFasterPanel({
                   ? state.notice
                   : phrase !== null
                     ? 'Your edited phrase is a suggestion until you choose Use phrase.'
-                    : 'Gemini suggestions appear here. Enable Gemini and add context in Menu → Conversation.'}
+                    : 'Gemini suggestions appear here. Enable Gemini and add context in Settings → Gemini.'}
             </p>
           )}
         </div>

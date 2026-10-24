@@ -98,11 +98,12 @@ export function usePredictions(): {
     wasWriting.current = !state.paused
     if (
       justPaused &&
+      !state.request &&
       state.session.sequence >= 0 &&
       (state.mode === 'initials' || state.mode === 'keyword')
     )
       dispatch({ type: 'predict', purpose: 'expansion', id: `pause-${state.revision}` })
-  }, [state.paused, state.mode, state.revision, state.session.sequence, dispatch])
+  }, [state.paused, state.mode, state.revision, state.session.sequence, state.request, dispatch])
   return {
     request,
     waiting: !!staged && busy && staged.requestId === pending?.id && state.status === 'loading',

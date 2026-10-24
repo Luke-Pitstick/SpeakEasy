@@ -1,6 +1,12 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type { VoiceApi, VoiceEvent } from '../shared/voice'
 import type { GeminiApi, PredictionResult } from '../shared/prediction'
+import type { SettingsApi } from '../shared/settings'
+const settings: SettingsApi = {
+  load: () => ipcRenderer.invoke('settings:load'),
+  save: (patch) => ipcRenderer.invoke('settings:save', patch)
+}
+contextBridge.exposeInMainWorld('settings', settings)
 const gemini: GeminiApi = {
   status: () => ipcRenderer.invoke('gemini:status'),
   setEnabled: (enabled) => ipcRenderer.invoke('gemini:enabled', enabled),

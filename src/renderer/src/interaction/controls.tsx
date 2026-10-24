@@ -1,12 +1,25 @@
 import { InteractionContext, useInteraction } from './state'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 
-export function InteractionProvider({ children }: { children: ReactNode }): React.JSX.Element {
+export function InteractionProvider({
+  children,
+  preferences
+}: {
+  children: ReactNode
+  preferences?: {
+    dwell: boolean
+    duration: number
+    setDwell: (value: boolean) => void
+    setDuration: (value: number) => void
+  }
+}): React.JSX.Element {
   const [dwell, setDwell] = useState(true)
   const [duration, setDuration] = useState(1000)
   const [busy, setBusy] = useState(false)
   return (
-    <InteractionContext.Provider value={{ dwell, setDwell, duration, setDuration, busy, setBusy }}>
+    <InteractionContext.Provider
+      value={{ dwell, setDwell, duration, setDuration, ...preferences, busy, setBusy }}
+    >
       {children}
     </InteractionContext.Provider>
   )

@@ -179,13 +179,12 @@ select:focus-visible {
 .candidate-list {
   height: 100%;
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  grid-template-rows: repeat(3, minmax(0, 1fr));
-  gap: 8px 16px;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: repeat(6, minmax(64px, 1fr));
+  gap: 8px;
 }
 .candidate-slot {
-  min-height: 52px;
-  border-top: 1px solid var(--border);
+  min-height: 64px;
 }
 .candidate.action-button {
   width: 100%;
@@ -526,25 +525,23 @@ h2 {
   padding-bottom: 8px;
 }
 .speakfaster-panel .choice-area {
-  min-height: 0;
+  min-height: 424px;
 }
-.candidate-card {
+.phrase-candidate .action-content {
   display: flex;
-  height: 100%;
   align-items: center;
-  gap: 8px;
+  gap: 20px;
+  width: 100%;
+}
+.candidate-number {
+  flex: 0 0 24px;
+  color: var(--muted);
+  font-size: 15px;
 }
 .candidate-text {
-  overflow-y: auto;
-  max-height: 100%;
   flex: 1;
   min-width: 0;
-  font-size: 19px;
-}
-.candidate-card .action-button {
-  min-height: 52px;
-  padding: 8px 12px;
-  font-size: 17px;
+  overflow-wrap: anywhere;
 }
 .header-writing {
   min-width: 164px;
@@ -652,35 +649,22 @@ h2 {
   gap: 8px;
 }
 
-/* Stable voice controls stay outside the changing phrase targets. */
-.voice-strip {
-  display: flex;
+/* Compact microphone status stays with the message; speech actions use header targets. */
+.listening-indicator {
+  display: inline-flex;
   align-items: center;
-  gap: 12px;
-  padding: 8px 16px;
-  height: 88px;
-  flex-shrink: 0;
-  border-bottom: 1px solid var(--border);
-}
-.voice-live {
-  flex: 1;
-  min-width: 0;
-  display: grid;
   gap: 6px;
-  font-size: 13px;
-}
-.voice-live-transcript {
-  display: block;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  margin-top: 4px;
+  max-width: 100%;
   color: var(--muted);
+  font-size: 12px;
 }
-.voice-tone {
-  font-size: 13px;
-}
-.voice-strip .action-button {
-  min-height: 60px;
+.listening-dot {
+  width: 6px;
+  height: 6px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: currentColor;
 }
 .settings-tabs,
 .voice-actions {
