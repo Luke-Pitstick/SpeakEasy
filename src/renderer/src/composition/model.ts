@@ -11,6 +11,7 @@ import type {
 
 export type EntryMode = 'initials' | 'literal' | 'keyword' | 'replacement'
 export interface Content {
+  lockedSentences: string[]
   draft: string
   phrase: string | null
   editor: 'entry' | 'keywords' | 'phrase'
@@ -45,6 +46,7 @@ export interface CompositionState extends Content {
 
 export function contentOf(state: Content): Content {
   return {
+    lockedSentences: [...state.lockedSentences],
     draft: state.draft,
     phrase: state.phrase,
     editor: state.editor,
@@ -70,8 +72,17 @@ export function entryText(state: Content): string {
     .join('')
 }
 
+export function messageText(state: Content): string {
+  return [...state.lockedSentences, state.phrase ?? state.draft].filter(Boolean).join(' ')
+}
+
+export function canLockSentence(state: Content): boolean {
+  return state.mode === 'literal' && !state.selection && !!(state.phrase ?? state.draft).trim()
+}
+
 export function initialState(): CompositionState {
   const content: Content = {
+    lockedSentences: [],
     draft: '',
     phrase: null,
     editor: 'entry',
@@ -124,7 +135,7 @@ export type Action =
   | { type: 'undo' }
   | { type: 'back' }
   | { type: 'clear' }
-  | { type: 'speech-completed'; text: string }
+  | { type: 'speech-completed'; text: string; revision: number }
   | { type: 'example'; initials: string }
   | { type: 'select-token'; id: string }
   | { type: 'select-span'; range: TextRange }
@@ -266,8 +277,32 @@ function reduceComposition(state: CompositionState, action: Action): Composition
         notice: 'Conversation cleared. Pending suggestions were cancelled.'
       }
     case 'workspace': {
-      // Returning with a selected word starts its exact replacement. Without a
-      // selection, Dasher can continue editing the tentative phrase as text.
+      if (
+        state.workspace === 'phrases' &&
+        action.workspace === 'dasher' &&
+        canLockSentence(state)
+      ) {
+        const next = edit(state, {
+          lockedSentences: [...state.lockedSentences, (state.phrase ?? state.draft).trim()],
+          draft: '',
+          phrase: null,
+          editor: 'entry',
+          mode: 'initials',
+          tokens: [],
+          buffer: '',
+          selectedToken: null,
+          selection: null
+        })
+        return {
+          ...next,
+          workspace: 'dasher',
+          branches: [],
+          notice: 'Sentence locked. Enter initials for the next sentence.'
+        }
+      }
+
+      // Returning with a selected word starts its exact replacement; otherwise
+      // preserve unfinished initials and keyword editing.
       const next =
         action.workspace === 'dasher' &&
         state.editor === 'phrase' &&
@@ -396,26 +431,26 @@ function reduceComposition(state: CompositionState, action: Action): Composition
         : state
     }
     case 'speech-completed':
-      if (
-        state.draft !== action.text ||
-        state.phrase !== null ||
-        state.editor !== 'entry' ||
-        state.mode !== 'literal'
-      )
-        return state
+      if (state.revision !== action.revision || messageText(state) !== action.text) return state
       return {
         ...edit(state, {
+          lockedSentences: [],
+          draft: '',
+          phrase: null,
+          editor: 'entry',
           tokens: [],
           buffer: '',
           mode: 'initials',
           selection: null,
           selectedToken: null
         }),
-        notice: 'Message spoken. Enter initials for your next phrase.'
+        branches: [],
+        notice: 'Message spoken. Enter initials for a new message.'
       }
     case 'clear':
       return {
         ...edit(state, {
+          lockedSentences: [],
           draft: '',
           phrase: null,
           editor: 'entry',
@@ -546,6 +581,7 @@ function reduceComposition(state: CompositionState, action: Action): Composition
             revision: next.revision,
             purpose: 'refinement',
             draft: phrase,
+            lockedMessage: next.lockedSentences.join(' '),
             conversation: next.conversation.filter((t) => t.text.trim()).map((t) => ({ ...t })),
             tokens: next.tokens,
             target: action.range
@@ -657,6 +693,7 @@ function reduceComposition(state: CompositionState, action: Action): Composition
           revision: next.revision,
           purpose: action.purpose,
           draft,
+          lockedMessage: next.lockedSentences.join(' '),
           conversation: next.conversation.filter((t) => t.text.trim()).map((t) => ({ ...t })),
           tokens: tokens.map((token) => ({ ...token })),
           target:

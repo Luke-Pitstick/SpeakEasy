@@ -19,6 +19,7 @@ export function validRequest(value: unknown): value is PredictionRequest {
     Number(value.revision) < 0 ||
     !['expansion', 'refinement', 'completion'].includes(String(value.purpose)) ||
     !bounded(value.draft, 500) ||
+    !bounded(value.lockedMessage, 2000) ||
     !Array.isArray(value.tokens) ||
     value.tokens.length > 24 ||
     !record(value.target) ||

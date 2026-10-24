@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { PredictionPurpose, PredictionRequest } from '../src/shared/prediction'
 import {
   entrySeed,
+  messageText,
   initialState,
   reducer,
   type CompositionState
@@ -19,6 +20,7 @@ function requestFor(
     purpose,
     tokens: state.tokens,
     conversation: state.conversation,
+    lockedMessage: state.lockedSentences.join(' '),
     draft: state.draft,
     target: state.selection ?? { start: state.draft.length, end: state.draft.length }
   }
@@ -43,9 +45,13 @@ describe('shared composition', () => {
     let state = reducer(example(), { type: 'mode', mode: 'literal' })
     state = reducer(state, { type: 'input', text: 'I want a coffee' })
     const next = reducer(state, { type: 'example', initials: 'insw' })
-    expect(reducer(next, { type: 'speech-completed', text: state.draft })).toBe(next)
+    expect(
+      reducer(next, { type: 'speech-completed', text: state.draft, revision: state.revision })
+    ).toBe(next)
     const edited = reducer(state, { type: 'input', text: 'A different message' })
-    expect(reducer(edited, { type: 'speech-completed', text: state.draft })).toBe(edited)
+    expect(
+      reducer(edited, { type: 'speech-completed', text: state.draft, revision: state.revision })
+    ).toBe(edited)
   })
   it('expands initials without changing text until explicit acceptance', async () => {
     const choices = await suggest(example())
@@ -318,4 +324,57 @@ it('keeps Delete inside an unaccepted phrase until explicit acceptance', async (
   expect(state.draft).toBe('Keep this message.')
   expect(reducer(state, { type: 'undo' }).phrase).toBe('Keep this message. I want a coffee')
   expect(reducer(state, { type: 'back' }).draft).toBe('Keep this message.')
+})
+
+describe('multi-sentence composition', () => {
+  it('locks three sentences with fresh entry, cumulative context, undo and stale-session rejection', () => {
+    let state = initialState()
+    for (const text of ['First sentence.', 'Second sentence.', 'Third sentence.']) {
+      state = reducer(state, { type: 'mode', mode: 'literal' })
+      state = reducer(state, { type: 'input', text })
+      state = reducer(state, { type: 'workspace', workspace: 'phrases' })
+      const before = state
+      state = reducer(state, { type: 'workspace', workspace: 'dasher' })
+      expect(entrySeed(state)).toBe('')
+      expect(state.tokens).toEqual([])
+      expect(state.draft).toBe('')
+      expect(reducer(state, { type: 'workspace', workspace: 'dasher' }).lockedSentences).toEqual(
+        state.lockedSentences
+      )
+      expect(reducer(state, { type: 'undo' }).draft).toBe(text)
+      expect(
+        reducer(state, {
+          type: 'engine',
+          sessionId: before.session.id,
+          sequence: 10,
+          text: 'stale'
+        })
+      ).toBe(state)
+    }
+    expect(messageText(state)).toBe('First sentence. Second sentence. Third sentence.')
+    state = reducer(state, { type: 'input', text: 'iwac' })
+    state = reducer(state, { type: 'predict', purpose: 'expansion', id: 'next' })
+    expect(state.request?.lockedMessage).toBe('First sentence. Second sentence. Third sentence.')
+    expect(state.request?.draft).toBe('')
+    expect(state.request?.target).toEqual({ start: 0, end: 0 })
+  })
+  it('clears only the exact completed revision and preserves locked text during spelling', () => {
+    let state = reducer(initialState(), { type: 'mode', mode: 'literal' })
+    state = reducer(state, { type: 'input', text: 'First.' })
+    state = reducer(state, { type: 'workspace', workspace: 'phrases' })
+    state = reducer(state, { type: 'workspace', workspace: 'dasher' })
+    const spoken = state
+    state = reducer(state, { type: 'input', text: 'iwac' })
+    expect(
+      reducer(state, { type: 'speech-completed', text: 'First.', revision: spoken.revision })
+    ).toBe(state)
+    expect(state.lockedSentences).toEqual(['First.'])
+    const complete = reducer(spoken, {
+      type: 'speech-completed',
+      text: 'First.',
+      revision: spoken.revision
+    })
+    expect(messageText(complete)).toBe('')
+    expect(entrySeed(complete)).toBe('')
+  })
 })

@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { streamGemini } from '../src/main/gemini'
+import { predictionMessages, streamGemini } from '../src/main/gemini'
 import { candidateFor, validRequest, validateResult } from '../src/shared/predictionValidation'
 import {
   EXPANSION_MODEL,
@@ -12,6 +12,7 @@ const request = (): PredictionRequest => ({
   id: 'test',
   revision: 1,
   purpose: 'expansion',
+  lockedMessage: '',
   draft: '',
   target: { start: 0, end: 0 },
   tokens: [...'iwac'].map((value, i) => ({ id: String(i), kind: 'initial', value })),
@@ -236,4 +237,14 @@ describe('conversation and constraint safety', () => {
     expect(state.conversation).toEqual([])
     expect(reducer(state, { type: 'result', result: success(input, true) })).toBe(state)
   })
+})
+
+it('passes locked sentences as context outside the editable draft and validates the context bound', () => {
+  const input = { ...request(), lockedMessage: 'I am tired.' }
+  expect(validRequest(input)).toBe(true)
+  const payload = JSON.parse(predictionMessages(input)[1].content)
+  expect(payload.lockedMessage).toBe('I am tired.')
+  expect(payload.draft).toBe('')
+  expect(candidateFor(input, 'I want a coffee', 0)?.text).toBe('I want a coffee')
+  expect(validRequest({ ...input, lockedMessage: 'x'.repeat(2001) })).toBe(false)
 })

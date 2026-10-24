@@ -2,7 +2,7 @@
 // and abbreviation-refinement (MIT, TeamGleason). See docs/speakfaster-translation.md.
 import { useState } from 'react'
 import { useComposition, useCompositionDispatch } from '../../composition/state'
-import { entryText } from '../../composition/model'
+import { entryText, messageText } from '../../composition/model'
 import { ActionButton } from '../../interaction/controls'
 import type { usePredictions } from '../../prediction/usePredictions'
 
@@ -56,7 +56,7 @@ export function SpeakFasterPanel({
         ? state.mode === 'replacement'
           ? 'Dasher replaces the highlighted word. Use word keeps your spelling; Cancel word restores it.'
           : 'Choose a same-initial replacement below, or Spell word with Dasher.'
-        : 'Choose a word to change. Use phrase accepts this version into your message.'
+        : 'Choose a word to change. Look at the top to lock this sentence and keep writing, or choose Speak.'
       : 'Choose a phrase to review or change a word. Spell adds detail to your initials.'
 
   return (
@@ -351,8 +351,11 @@ export function DraftPanel(): React.JSX.Element {
         <div
           className="draft-text"
           aria-label="Message preview"
-          aria-description={`Accepted message: ${state.draft || 'Your message'}`}
+          aria-description={`Accepted message: ${[...state.lockedSentences, state.draft].filter(Boolean).join(' ') || 'Your message'}`}
         >
+          {state.workspace === 'phrases' && state.lockedSentences.length > 0 && (
+            <span className="accepted-prefix">{state.lockedSentences.join(' ')} </span>
+          )}
           {replacing && state.selection ? (
             <>
               {phrase.slice(0, state.selection.start)}
@@ -373,14 +376,14 @@ export function DraftPanel(): React.JSX.Element {
               </span>
             ))
           ) : (
-            <>
-              {state.mode === 'initials' && state.draft && (
-                <span className="accepted-prefix">{state.draft} · </span>
-              )}
-              {entryText(state) || <span className="placeholder">Your message</span>}
-            </>
+            <>{entryText(state) || <span className="placeholder">Your message</span>}</>
           )}
         </div>
+        {messageText(state).length > 2000 && (
+          <p role="alert">
+            Speech supports up to 2,000 characters. Undo or shorten the message before speaking.
+          </p>
+        )}
         {state.validationError && (
           <p className="strip-error" role="alert">
             {state.validationError}

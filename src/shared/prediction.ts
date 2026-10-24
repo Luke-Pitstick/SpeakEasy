@@ -12,6 +12,7 @@ export interface PredictionRequest {
   id: string
   revision: number
   purpose: PredictionPurpose
+  lockedMessage: string
   draft: string
   tokens: AbbreviationToken[]
   target: TextRange

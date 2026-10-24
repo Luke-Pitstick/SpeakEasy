@@ -117,7 +117,8 @@ describe('always-on context bridge', () => {
             callback({ type: 'speech', id, status: outcome === 'failed' ? 'failed' : 'generated' })
       })
       expect(current.tokens).toHaveLength(outcome === 'completed' ? 0 : 4)
-      expect(current.draft).toBe('I want a coffee')
+      expect(current.draft).toBe(outcome === 'completed' ? '' : 'I want a coffee')
+      if (outcome === 'completed') expect(current.conversation.at(-1)?.text).toBe('I want a coffee')
       expect(current.mode).toBe(outcome === 'completed' ? 'initials' : 'literal')
     }
   )

@@ -288,7 +288,7 @@ export function useVoice(): VoiceController {
         active.current = null
         if (origin === 'speak' && current.started) {
           enqueue('me', text, current.epoch)
-          dispatch({ type: 'speech-completed', text })
+          dispatch({ type: 'speech-completed', text, revision })
         }
         setSpeechStatus('Finished')
         setTimeout(() => {

@@ -269,7 +269,7 @@ it('switches explicitly, preserves the draft and initials, and resumes writing o
   await gaze.review()
   gaze.dwell('I want a coffee')
   gaze.dwell('Use phrase')
-  gaze.dwell('Keep writing')
+  gaze.dwell('Lock sentence & keep writing')
   expect(screen.getByLabelText('Message preview').getAttribute('aria-description')).toBe(
     'Accepted message: I want a coffee'
   )
@@ -281,19 +281,23 @@ it('switches explicitly, preserves the draft and initials, and resumes writing o
   )
 }, 30000)
 
-it('returns to Dasher from phrase editing without losing the tentative phrase', async () => {
+it('locks a sentence, spells fresh initials, and speaks the assembled message', async () => {
   const gaze = gazeWorkspace()
+  const start = vi.spyOn(window.gemini!, 'start')
   gaze.spell('iwac')
   await gaze.review()
   gaze.dwell('I want a coffee')
-  gaze.dwell('Keep writing')
-  expect(screen.getByLabelText('Message preview').textContent).toBe('I want a coffee')
-  expect(screen.getByLabelText('Message preview').getAttribute('aria-description')).toBe(
-    'Accepted message: Your message'
-  )
-  gaze.spell('I want a cookie', true)
-  gaze.dwell('Use phrase')
-  expect(screen.getByLabelText('Message preview').getAttribute('aria-description')).toBe(
-    'Accepted message: I want a cookie'
+  gaze.dwell('Lock sentence & keep writing')
+  expect(screen.getByLabelText('Message preview').textContent).toBe('Your message')
+  expect(speak).not.toHaveBeenCalled()
+  gaze.spell('iwac')
+  expect(screen.getByLabelText('Message preview').textContent).toBe('iwac')
+  await gaze.review()
+  expect(start.mock.calls.at(-1)?.[0].lockedMessage).toBe('I want a coffee')
+  gaze.dwell('I want a coffee')
+  gaze.dwell('Speak')
+  expect(speak).toHaveBeenCalledExactlyOnceWith(
+    'I want a coffee I want a coffee',
+    expect.any(Number)
   )
 }, 30000)

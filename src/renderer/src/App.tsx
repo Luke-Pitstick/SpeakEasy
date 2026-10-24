@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { canLockSentence, messageText } from './composition/model'
 import { CompositionProvider } from './composition/context'
 import { useComposition, useCompositionDispatch } from './composition/state'
 import { DasherPanel } from './features/dasher/DasherPanel'
@@ -100,7 +101,7 @@ function Workspace({
       <div className="top-edge-region" data-gaze-top-cue style={{ height: edgeHeight }}>
         <ActionButton
           className="top-edge-cue"
-          identity={`next-${state.workspace}-${state.mode}-${state.editor}`}
+          identity={`next-${state.workspace}-${state.mode}-${state.editor}-${state.revision}`}
           disabled={menu !== 'closed'}
           onAction={() => {
             if (state.workspace === 'dasher') {
@@ -111,7 +112,13 @@ function Workspace({
             } else dispatch({ type: 'workspace', workspace: 'dasher' })
           }}
         >
-          <span>{state.workspace === 'dasher' ? 'Show phrases' : 'Keep writing'}</span>
+          <span>
+            {state.workspace === 'dasher'
+              ? 'Show phrases'
+              : canLockSentence(state)
+                ? 'Lock sentence & keep writing'
+                : 'Keep writing'}
+          </span>
           <span className="edge-instruction" aria-hidden="true">
             {interaction.dwell ? 'Hold here · look away to cancel' : 'Click to switch'}
           </span>
@@ -142,19 +149,20 @@ function Workspace({
           )}
         </div>
         <ActionButton
-          identity={`speak-${state.draft}-${voice.settings.voiceId}-${voice.settings.speed}-${voice.settings.tone}`}
+          identity={`speak-${messageText(state)}-${voice.settings.voiceId}-${voice.settings.speed}-${voice.settings.tone}`}
           disabled={
             !voice.configured ||
             voice.speaking ||
-            !state.draft.trim() ||
-            state.phrase !== null ||
+            !messageText(state).trim() ||
+            messageText(state).length > 2000 ||
+            (state.mode === 'initials' && state.tokens.length > 0) ||
             state.mode === 'keyword' ||
             state.mode === 'replacement' ||
             menu !== 'closed'
           }
           onAction={() => {
             dispatch({ type: 'pause' })
-            void voice.speak(state.draft, state.revision)
+            void voice.speak(messageText(state), state.revision)
           }}
         >
           Speak
@@ -259,7 +267,7 @@ function Workspace({
                 </ActionButton>
                 <ActionButton
                   identity={`new-${state.revision}`}
-                  disabled={!state.draft && !state.tokens.length}
+                  disabled={!messageText(state) && !state.tokens.length}
                   onAction={() => {
                     dispatch({ type: 'clear' })
                     closeMenu()
