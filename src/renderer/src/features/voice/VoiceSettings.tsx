@@ -72,40 +72,42 @@ export function VoiceSettings({ voice }: { voice: VoiceController }): React.JSX.
           </ActionButton>
         </div>
       </section>
-      <DwellSelect
-        label="Speaking speed"
-        identity="voice-speed"
-        value={voice.settings.speed}
-        options={[0.6, 0.8, 1, 1.2, 1.5].map((value) => ({
-          value,
-          label: value === 1 ? 'Normal' : `${value}×`
-        }))}
-        onChange={(speed) => voice.update({ speed })}
-      />
-      <DwellSelect
-        label="Playback volume"
-        identity="voice-volume"
-        value={voice.settings.volume}
-        options={[0, 0.25, 0.5, 0.75, 1].map((value) => ({ value, label: `${value * 100}%` }))}
-        onChange={(volume) => voice.update({ volume })}
-      />
-      <DwellSelect
-        label="Delivery tone"
-        identity="voice-tone"
-        value={voice.settings.tone}
-        options={VOICE_TONES.map((value) => ({
-          value,
-          label: value[0].toUpperCase() + value.slice(1)
-        }))}
-        onChange={(tone) => voice.update({ tone })}
-      />
-      <DwellSelect
-        label="Microphone"
-        identity="voice-microphone"
-        value={voice.settings.microphoneId}
-        options={voice.devices}
-        onChange={(microphoneId) => voice.update({ microphoneId })}
-      />
+      <div className="settings-grid">
+        <DwellSelect
+          label="Speaking speed"
+          identity="voice-speed"
+          value={voice.settings.speed}
+          options={[0.6, 0.8, 1, 1.2, 1.5].map((value) => ({
+            value,
+            label: value === 1 ? 'Normal' : `${value}×`
+          }))}
+          onChange={(speed) => voice.update({ speed })}
+        />
+        <DwellSelect
+          label="Playback volume"
+          identity="voice-volume"
+          value={voice.settings.volume}
+          options={[0, 0.25, 0.5, 0.75, 1].map((value) => ({ value, label: `${value * 100}%` }))}
+          onChange={(volume) => voice.update({ volume })}
+        />
+        <DwellSelect
+          label="Delivery tone"
+          identity="voice-tone"
+          value={voice.settings.tone}
+          options={VOICE_TONES.map((value) => ({
+            value,
+            label: value[0].toUpperCase() + value.slice(1)
+          }))}
+          onChange={(tone) => voice.update({ tone })}
+        />
+        <DwellSelect
+          label="Microphone"
+          identity="voice-microphone"
+          value={voice.settings.microphoneId}
+          options={voice.devices}
+          onChange={(microphoneId) => voice.update({ microphoneId })}
+        />
+      </div>
       <p role="status">{voice.listening}</p>
       <p className="voice-transcript">
         {voice.partial ||

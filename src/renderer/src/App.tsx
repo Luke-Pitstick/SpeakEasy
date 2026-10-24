@@ -349,20 +349,29 @@ function Workspace({
                       options={STEERING_SPEEDS}
                       onChange={(value) => configure(() => onSettings({ speed: value }))}
                     />
-                    <label>
-                      Letter prediction
-                      <select
-                        value={weighting}
-                        onChange={(event) =>
-                          configure(() =>
-                            onSettings({ weighting: event.target.value as typeof weighting })
-                          )
-                        }
-                      >
-                        <option value="ppm">PPM (trained initials)</option>
-                        <option value="uniform">Uniform</option>
-                      </select>
-                    </label>
+                    <div className="settings-field">
+                      <label>
+                        Letter prediction
+                        <select
+                          value={weighting}
+                          onChange={(event) =>
+                            configure(() =>
+                              onSettings({ weighting: event.target.value as typeof weighting })
+                            )
+                          }
+                        >
+                          <option value="ppm">PPM (trained initials)</option>
+                          <option value="uniform">Uniform</option>
+                        </select>
+                      </label>
+                      <p className="settings-hint" role="status">
+                        {weighting === 'uniform'
+                          ? 'Uniform letters'
+                          : state.mode === 'initials'
+                            ? trainedInitials.status
+                            : 'Character PPM'}
+                      </p>
+                    </div>
                     <label>
                       Dwell activation
                       <select
@@ -373,26 +382,6 @@ function Workspace({
                       >
                         <option value="false">Off — click to select</option>
                         <option value="true">On — look to select</option>
-                      </select>
-                    </label>
-                    <p className="settings-note" role="status">
-                      {weighting === 'uniform'
-                        ? 'Uniform letters'
-                        : state.mode === 'initials'
-                          ? trainedInitials.status
-                          : 'Character PPM'}
-                    </p>
-                    <label>
-                      Edge target size
-                      <select
-                        value={edgeHeight}
-                        onChange={(event) =>
-                          configure(() => onSettings({ edgeHeight: Number(event.target.value) }))
-                        }
-                      >
-                        <option value={48}>Compact — 48 px</option>
-                        <option value={64}>Large — 64 px</option>
-                        <option value={88}>Extra large — 88 px</option>
                       </select>
                     </label>
                     <label>
@@ -406,6 +395,19 @@ function Workspace({
                         <option value={700}>700 ms</option>
                         <option value={1000}>1 second</option>
                         <option value={1500}>1.5 seconds</option>
+                      </select>
+                    </label>
+                    <label>
+                      Edge target size
+                      <select
+                        value={edgeHeight}
+                        onChange={(event) =>
+                          configure(() => onSettings({ edgeHeight: Number(event.target.value) }))
+                        }
+                      >
+                        <option value={48}>Compact — 48 px</option>
+                        <option value={64}>Large — 64 px</option>
+                        <option value={88}>Extra large — 88 px</option>
                       </select>
                     </label>
                   </div>
