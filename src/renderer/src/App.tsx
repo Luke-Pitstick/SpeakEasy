@@ -46,21 +46,13 @@ function Workspace({ input, onInput }: WorkspaceProps): React.JSX.Element {
   const [showGazeDot, setShowGazeDot] = useState(true)
   const closeGazeOverlay = useCallback(() => setGazeOverlay('none'), [])
   // Going to a menu or to phrases pauses writing; coming back resumes it if you were writing.
-  // Hovering the header or top cue already pauses, so "were you writing" is captured there.
-  const writingBeforeHover = useRef(false)
+  // Hovering the header or an edge cue only holds Dasher still, so writing is still running here.
   const resumeOnReturn = useRef(false)
-  const pauseForControls = (): void => {
-    writingBeforeHover.current = state.workspace === 'dasher' && !state.paused
-    dispatch({ type: 'pause' })
-  }
   const leaveWriting = (): void => {
-    // Hovering the top cue doesn't pause, so writing may still be running when it activates.
-    resumeOnReturn.current ||=
-      writingBeforeHover.current || (state.workspace === 'dasher' && !state.paused)
+    resumeOnReturn.current ||= state.workspace === 'dasher' && !state.paused
   }
   const cancelResume = (): void => {
     resumeOnReturn.current = false
-    writingBeforeHover.current = false
   }
   useEffect(() => {
     if (
@@ -77,7 +69,6 @@ function Workspace({ input, onInput }: WorkspaceProps): React.JSX.Element {
     const pause = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') {
         resumeOnReturn.current = false
-        writingBeforeHover.current = false
         dispatch({ type: 'pause', notice: 'Paused.' })
         setMenu('closed')
       }
@@ -112,11 +103,7 @@ function Workspace({ input, onInput }: WorkspaceProps): React.JSX.Element {
           </span>
         </ActionButton>
       </div>
-      <header
-        className="app-header"
-        aria-label="Message and controls"
-        onPointerEnter={pauseForControls}
-      >
+      <header className="app-header" aria-label="Message and controls">
         <div className="message-strip" inert={menu !== 'closed' || undefined}>
           <DraftPanel />
         </div>
@@ -135,8 +122,16 @@ function Workspace({ input, onInput }: WorkspaceProps): React.JSX.Element {
         >
           {state.paused ? 'Start writing' : 'Pause writing'}
         </ActionButton>
+      </header>
+      <div className="workspace-body" inert={menu !== 'closed' || undefined}>
+        {state.workspace === 'phrases' && <SpeakFasterPanel predictions={predictions} />}
+        <div className="dasher-workspace" hidden={state.workspace !== 'dasher'}>
+          <DasherPanel speed={speed} weighting={weighting} />
+        </div>
+      </div>
+      <div className="bottom-edge-region" data-gaze-bottom-cue style={{ height: edgeHeight }}>
         <ActionButton
-          className="header-menu"
+          className="bottom-edge-cue"
           identity={`more-${menu}`}
           disabled={menu !== 'closed'}
           onAction={() => {
@@ -144,20 +139,11 @@ function Workspace({ input, onInput }: WorkspaceProps): React.JSX.Element {
             configure(() => setMenu('more'))
           }}
         >
-          Menu
+          <span>Menu</span>
+          <span className="edge-instruction" aria-hidden="true">
+            {interaction.dwell ? 'Hold here · look away to cancel' : 'Click to open'}
+          </span>
         </ActionButton>
-      </header>
-      <div
-        className="workspace-body"
-        inert={menu !== 'closed' || undefined}
-        onPointerEnter={() => {
-          writingBeforeHover.current = false
-        }}
-      >
-        {state.workspace === 'phrases' && <SpeakFasterPanel predictions={predictions} />}
-        <div className="dasher-workspace" hidden={state.workspace !== 'dasher'}>
-          <DasherPanel speed={speed} weighting={weighting} />
-        </div>
       </div>
       {menu !== 'closed' && (
         <div className="menu-scrim">
@@ -311,7 +297,7 @@ function Workspace({ input, onInput }: WorkspaceProps): React.JSX.Element {
                       : 'Character PPM'}
                 </p>
                 <label>
-                  Top-edge target size
+                  Edge target size
                   <select
                     value={edgeHeight}
                     onChange={(event) => configure(() => setEdgeHeight(Number(event.target.value)))}

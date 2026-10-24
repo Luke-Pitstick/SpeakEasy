@@ -22,18 +22,20 @@ beforeEach(() => {
   )
   vi.stubGlobal('requestAnimationFrame', () => 1)
   vi.stubGlobal('cancelAnimationFrame', () => {})
-  // The top cue's region is the top 40 px; everything else spans the window.
+  // The top cue's region is the top 40 px, the bottom cue's the last 40 px; everything else
+  // spans the window.
   vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (
     this: HTMLElement
   ) {
+    const top = this.matches('[data-gaze-bottom-cue]') ? 560 : 0
     const bottom = this.matches('[data-gaze-top-cue]') ? 40 : 600
     return {
       x: 0,
-      y: 0,
+      y: top,
       left: 0,
-      top: 0,
+      top,
       width: 1100,
-      height: bottom,
+      height: bottom - top,
       right: 1100,
       bottom,
       toJSON: () => ({})

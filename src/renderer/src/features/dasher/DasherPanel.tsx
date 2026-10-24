@@ -60,7 +60,7 @@ export function DasherPanel({
     let point = { x: 0, y: 0 }
     let seededContext = current.current.context
 
-    const resize = (continuing = false): void => {
+    const resize = (): void => {
       const nextBounds = container.getBoundingClientRect()
       // Hidden workspaces must not resize away the preserved navigation position.
       if (!nextBounds.width || !nextBounds.height) return
@@ -71,7 +71,6 @@ export function DasherPanel({
       bounds = nextBounds
       pointer.resize(Math.max(1, bounds.width), Math.max(1, bounds.height))
       pointer.hide()
-      inside = continuing && inside
       if (engine.current)
         engine.current.resize(Math.max(1, bounds.width), Math.max(1, bounds.height))
       else
@@ -87,11 +86,9 @@ export function DasherPanel({
       seededContext = current.current.context
       engine.current.setSpeed(current.current.speed)
       renderer.draw(engine.current.regions(), engine.current.geometry)
-      if (initialized && !current.current.paused && !continuing)
-        dispatch({
-          type: 'pause',
-          notice: 'Layout changed. Your text is safe; click anywhere in Dasher to continue.'
-        })
+      // A layout change holds steering for a frame (the engine resets its pointer) rather
+      // than pausing: the next tick re-reads the pointer against the new bounds.
+      if (!current.current.paused) engine.current.resume()
       initialized = true
     }
     engine.current = null
@@ -106,8 +103,8 @@ export function DasherPanel({
         initialized = false
       }
       // An explicit resume can collapse phrase choices. Fit that layout before
-      // starting the engine; later external resizes still require another click.
-      resize(!current.current.paused)
+      // starting the engine.
+      resize()
     }
     const observer = new ResizeObserver(() => resize())
     observer.observe(container)
@@ -128,37 +125,47 @@ export function DasherPanel({
       if (event.detail || event.clientX || event.clientY) move(event)
       dispatch({ type: current.current.paused ? 'resume' : 'pause' })
     }
-    const leave = (): void => {
+    // Holding stops steering without pausing: nothing moves or is typed until the pointer
+    // is back on the surface, and then writing continues at once.
+    const hold = (): void => {
       inside = false
       pointer.hide()
-      engine.current?.pause()
-      if (!current.current.paused)
-        dispatch({
-          type: 'pause',
-          notice: 'Steering paused. Click anywhere in Dasher to continue.'
-        })
     }
     // Leaving the window (no element entered) keeps steering from the last position, which is
-    // still inside the panel: looking or pointing off-screen shouldn't stop writing. Hovering
-    // the top-edge switch holds steering without pausing: nothing is typed during its dwell,
-    // and coming back continues at once (completing the switch pauses). Moving onto other UI,
-    // such as the header, pauses.
+    // still inside the panel: looking or pointing off-screen shouldn't stop writing. Moving onto
+    // other UI, such as the top-edge switch or the header controls, holds. Activating a control
+    // that takes you away (the switch, the menu) pauses, and coming back resumes.
     const pointerLeave = (event: PointerEvent): void => {
-      const to = event.relatedTarget as Element | null
-      if (inside && to === null) return
-      if (to?.closest?.('[data-gaze-top-cue]')) {
-        inside = false
-        pointer.hide()
-        return
-      }
-      leave()
+      if (inside && event.relatedTarget === null) return
+      hold()
     }
     const blur = (): void => {
-      leave()
+      hold()
       dispatch({
         type: 'pause',
-        notice: 'Input paused after focus or tracking changed. Click anywhere in Dasher when ready.'
+        notice: 'Input paused after focus or tracking changed. Look at the crosshair to continue.'
       })
+    }
+    // While paused, resting near the crosshair resumes, so you don't have to click. It arms only
+    // once the pointer has been away from the center since the pause, so a pause made (or
+    // tracking lost) at the center isn't undone immediately.
+    let wasPaused = current.current.paused
+    let centerArmed = false
+    let centerSince: number | null = null
+    const resumeAtCenter = (now: number): void => {
+      const sample = localSample({ ...point, timestamp: now, valid: true }, bounds, now)
+      const radius = Math.max(40, Math.min(bounds.width, bounds.height) * 0.1)
+      if (!sample || Math.hypot(sample.x, sample.y) > radius) {
+        centerArmed = true
+        centerSince = null
+      } else if (centerArmed) {
+        centerSince ??= now
+        if (now - centerSince >= 500) {
+          centerArmed = false
+          centerSince = null
+          dispatch({ type: 'resume' })
+        }
+      }
     }
     container.addEventListener('pointermove', move)
     container.addEventListener('click', click)
@@ -169,6 +176,12 @@ export function DasherPanel({
     document.addEventListener('visibilitychange', blur)
     const tick = (now: number): void => {
       const active = engine.current
+      if (current.current.paused && !wasPaused) {
+        centerArmed = false
+        centerSince = null
+      }
+      wasPaused = current.current.paused
+      if (active && current.current.paused && inside) resumeAtCenter(now)
       if (active && !current.current.paused && inside) {
         // A stationary mouse remains a valid sample; future tracker adapters supply their own timestamps.
         const sample = localSample(
@@ -176,7 +189,8 @@ export function DasherPanel({
           bounds,
           now
         )
-        if (!sample) blur()
+        // Off the (possibly resized) surface: hold. A hidden window pauses via visibilitychange.
+        if (!sample) hold()
         else {
           active.setSample(sample.x, sample.y)
           pointer.update(sample, false)
@@ -252,7 +266,7 @@ export function DasherPanel({
         </div>
         <svg ref={pointerSvg} className="pointer-overlay" aria-hidden="true" />
         <span className="pause-hint">
-          {state.paused ? 'Click anywhere to resume' : 'Click anywhere to pause'}
+          {state.paused ? 'Look at the crosshair or click to resume' : 'Click anywhere to pause'}
         </span>
       </div>
     </section>

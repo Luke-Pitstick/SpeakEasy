@@ -13,6 +13,10 @@ export interface Region {
   top: number
   height: number
   depth: number
+  /** 0 for the least likely sibling, 1 for the most likely; 1 when all are equal. */
+  likelihood: number
+  /** A letter already entered, or being entered, on the path to the current output. */
+  selected: boolean
 }
 interface Choice {
   label: string
@@ -207,7 +211,9 @@ export class DasherEngine {
     const x = Math.abs(this.pointer.x) < 12 ? 0 : this.pointer.x
     // One continuous camera transform for the whole hierarchy. Switching to a
     // newly spawned child must not change the rate or recenter the viewport.
-    const factor = Math.exp((x / this.geometry.width) * 0.18 * dt)
+    // A 1.5 power curve keeps the edge rate but damps gaze jitter near center.
+    const reach = x / (this.geometry.width / 2)
+    const factor = Math.exp(Math.sign(reach) * Math.abs(reach) ** 1.5 * 0.5 * 0.18 * dt)
     const rootHeight = this.root.height * factor
     if (rootHeight >= this.geometry.height * 0.45 || this.ancestors.length) {
       this.root.top =
@@ -267,7 +273,7 @@ export class DasherEngine {
 
   regions(): Region[] {
     const result: Region[] = []
-    const walk = (box: Box, depth: number): void => {
+    const walk = (box: Box, depth: number, likelihood: number): void => {
       // The empty root is the visible parent of the first alphabet. It follows
       // the same camera transform as its letters, but contributes no character.
       result.push({
@@ -277,11 +283,20 @@ export class DasherEngine {
         left: box.left,
         top: box.top,
         height: box.height,
-        depth
+        depth,
+        likelihood,
+        selected: box.label !== '' && this.output.startsWith(box.text)
       })
-      for (const child of box.children) if (child) walk(child, depth + 1)
+      // Rank within siblings. The square root lightens mid-probability letters so the
+      // rarest stay most saturated when one prediction dominates a skewed distribution.
+      const min = Math.min(...box.fractions)
+      const range = Math.max(...box.fractions) - min
+      box.children.forEach((child, index) => {
+        if (child)
+          walk(child, depth + 1, range > 0 ? Math.sqrt((box.fractions[index] - min) / range) : 1)
+      })
     }
-    walk(this.root, 0)
+    walk(this.root, 0, 1)
     return result
   }
   get text(): string {

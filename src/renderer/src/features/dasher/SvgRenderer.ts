@@ -44,12 +44,16 @@ export class SvgRenderer {
         this.nodes.set(region.id, node)
       }
       const { group, rect, label, labelGroup } = node
+      // Text length, unlike depth, survives root promotion, so selected tones never flicker.
       group.setAttribute(
         'class',
-        region.label
-          ? `dasher-region shade-${(region.text.length + region.label.codePointAt(0)!) % 4}`
-          : 'dasher-region dasher-root'
+        !region.label
+          ? 'dasher-region dasher-root'
+          : region.selected
+            ? `dasher-region selected tone-${region.text.length % 2}`
+            : 'dasher-region'
       )
+      group.style.setProperty('--likelihood', region.likelihood.toFixed(2))
       labelGroup.setAttribute('class', 'dasher-region')
       group.setAttribute('data-region', region.label)
       rect.setAttribute('x', String(left))
