@@ -52,6 +52,7 @@ button:disabled {
 .message-strip {
   flex: 1;
   min-width: 0;
+  position: relative;
 }
 .top-edge-region,
 .bottom-edge-region {
@@ -761,22 +762,34 @@ h2 {
   grid-column: 1 / -1;
 }
 
-/* Compact microphone status stays with the message; speech actions use header targets. */
+/* Compact microphone status sits in the message box's label row, so it never changes the
+   header's height or centering; speech actions use header targets. */
 .listening-indicator {
+  position: absolute;
+  top: 7px;
+  right: 16px;
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  margin-top: 4px;
-  max-width: 100%;
+  max-width: 50%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
   color: var(--muted);
-  font-size: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  pointer-events: none;
 }
 .listening-dot {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
   flex-shrink: 0;
   border-radius: 50%;
   background: currentColor;
+}
+.listening-indicator.is-live .listening-dot {
+  background: var(--live);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--live) 25%, transparent);
 }
 .settings-tabs,
 .voice-actions {

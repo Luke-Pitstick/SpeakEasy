@@ -121,7 +121,7 @@ function Workspace({
         <div className="message-strip" inert={menu !== 'closed' || undefined}>
           <DraftPanel />
           <span
-            className="listening-indicator"
+            className={`listening-indicator${voice.listening === 'Listening to conversation' ? ' is-live' : ''}`}
             role="status"
             title={voice.listening}
             aria-label={voice.listening}
