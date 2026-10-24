@@ -1,0 +1,165 @@
+.gaze-cursor {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 28px;
+  height: 28px;
+  margin: -14px 0 0 -14px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 92, 92, 0.9);
+  background: rgba(255, 92, 92, 0.25);
+  pointer-events: none;
+  z-index: 1000;
+  opacity: 0;
+  transition: opacity 150ms;
+  will-change: transform;
+}
+
+.gaze-cursor--visible {
+  opacity: 1;
+}
+
+.gaze-cursor--blink {
+  opacity: 0.35;
+}
+
+.calibration {
+  position: fixed;
+  inset: 0;
+  z-index: 2000;
+  background: var(--color-background);
+  cursor: none;
+}
+
+.calibration__message {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  font-size: 20px;
+}
+
+.calibration__hint {
+  font-size: 14px;
+  color: var(--ev-c-text-2);
+}
+
+.calibration__dot {
+  position: absolute;
+  width: 36px;
+  height: 36px;
+  margin: -18px 0 0 -18px;
+  border-radius: 50%;
+  background: #6988e6;
+  transition:
+    left 500ms ease,
+    top 500ms ease,
+    transform 300ms ease;
+}
+
+/* Small bright centre gives the eyes a precise point to fixate. */
+.calibration__dot::after {
+  content: '';
+  position: absolute;
+  inset: 14px;
+  border-radius: 50%;
+  background: #fff;
+}
+
+.calibration__dot--collecting {
+  transform: scale(0.55);
+}
+
+.et-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border-radius: 12px;
+  background: var(--color-background-soft);
+}
+
+.et-panel__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.et-panel button {
+  border: none;
+  border-radius: 16px;
+  padding: 6px 14px;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ev-button-alt-text);
+  background: var(--ev-button-alt-bg);
+  cursor: pointer;
+}
+
+.et-panel button:hover:not(:disabled) {
+  background: var(--ev-button-alt-hover-bg);
+}
+
+.et-panel button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.et-panel__status {
+  padding: 2px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  background: var(--ev-c-gray-3);
+}
+
+.et-panel__status--running {
+  background: #1f6f43;
+}
+
+.et-panel__status--error {
+  background: #8a2a2a;
+}
+
+.et-panel__ok {
+  color: #5fd38d;
+  font-size: 14px;
+}
+
+.et-panel__warn {
+  color: #f0b44c;
+  font-size: 14px;
+}
+
+.et-panel__error {
+  color: #ff8a8a;
+  font-size: 14px;
+}
+
+.et-panel__muted {
+  color: var(--ev-c-text-2);
+  font-size: 14px;
+}
+
+.et-panel__mono {
+  font-family: ui-monospace, Menlo, monospace;
+  font-size: 13px;
+}
+
+.gaze-source-video {
+  position: fixed;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.camera-preview {
+  width: 240px;
+  border-radius: 8px;
+  transform: scaleX(-1);
+}
