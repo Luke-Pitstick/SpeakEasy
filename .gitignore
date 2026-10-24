@@ -5,3 +5,6 @@ out
 .eslintcache
 .cache/initials-ppm/
 *.log*
+
+
+.env
