@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { afterEach, expect, it, vi } from 'vitest'
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
+import { installGeminiMock } from './prediction-fixture'
 import App from '../src/renderer/src/App'
 import { DasherEngine } from '../src/renderer/src/features/dasher/engine'
 import { INITIAL_ALPHABET, LITERAL_ALPHABET } from '../src/renderer/src/features/dasher/prediction'
@@ -12,6 +13,7 @@ function gazeWorkspace(): {
   spell: (text: string, literal?: boolean) => void
   review: () => Promise<void>
 } {
+  installGeminiMock()
   vi.useFakeTimers()
   vi.stubGlobal('PointerEvent', MouseEvent)
   const frames = new Map<number, FrameRequestCallback>()

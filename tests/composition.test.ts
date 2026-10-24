@@ -6,7 +6,7 @@ import {
   reducer,
   type CompositionState
 } from '../src/renderer/src/composition/model'
-import { DemoPhrasePredictor, validateResult } from '../src/renderer/src/prediction/demo'
+import { TestPhrasePredictor, validateResult } from './prediction-fixture'
 
 function requestFor(
   state: CompositionState,
@@ -18,6 +18,7 @@ function requestFor(
     revision: state.revision,
     purpose,
     tokens: state.tokens,
+    conversation: state.conversation,
     draft: state.draft,
     target: state.selection ?? { start: state.draft.length, end: state.draft.length }
   }
@@ -28,7 +29,7 @@ async function suggest(
 ): Promise<CompositionState> {
   const request = requestFor(state, purpose)
   const pending = reducer(state, { type: 'request', request })
-  const result = await new DemoPhrasePredictor('normal', 0).predict(
+  const result = await new TestPhrasePredictor('normal', 0).predict(
     request,
     new AbortController().signal
   )
@@ -69,7 +70,7 @@ describe('shared composition', () => {
   it('discards late results after edits, undo, cancellation, and retry', async () => {
     let state = example()
     const request = requestFor(state)
-    const response = await new DemoPhrasePredictor('normal', 0).predict(
+    const response = await new TestPhrasePredictor('normal', 0).predict(
       request,
       new AbortController().signal
     )
@@ -142,8 +143,9 @@ describe('provider boundary', () => {
       requestId: request.id,
       revision: request.revision,
       purpose: request.purpose,
-      provider: 'demo',
+      provider: 'gemini',
       status: 'success',
+      complete: true,
       candidates: [{ replacement: 'unrelated phrase' }]
     }
     expect(validateResult(request, base).status).toBe('error')
@@ -151,10 +153,7 @@ describe('provider boundary', () => {
     expect(validateResult(request, null).status).toBe('error')
     const result = validateResult(request, {
       ...base,
-      candidates: [
-        { replacement: 'I want a coffee', text: 'MALICIOUS FULL DRAFT' },
-        { replacement: 'I want a coffee' }
-      ]
+      candidates: [{ replacement: 'I want a coffee', text: 'MALICIOUS FULL DRAFT' }]
     })
     expect(result.status).toBe('success')
     if (result.status === 'success')
@@ -163,10 +162,10 @@ describe('provider boundary', () => {
   it('cancels asynchronous generation and reports explicit errors', async () => {
     const request = requestFor(example())
     const controller = new AbortController()
-    const promise = new DemoPhrasePredictor('normal', 100).predict(request, controller.signal)
+    const promise = new TestPhrasePredictor('normal', 100).predict(request, controller.signal)
     controller.abort()
     await expect(promise).rejects.toMatchObject({ name: 'AbortError' })
-    const error = await new DemoPhrasePredictor('error', 0).predict(
+    const error = await new TestPhrasePredictor('error', 0).predict(
       request,
       new AbortController().signal
     )
@@ -245,7 +244,7 @@ it('translates upstream FillMask selection without accepting a candidate', async
     draft: 'I want a coffee',
     target: { start: 9, end: 15 }
   })
-  const result = await new DemoPhrasePredictor('normal', 0).predict(
+  const result = await new TestPhrasePredictor('normal', 0).predict(
     state.request!,
     new AbortController().signal
   )
@@ -291,9 +290,10 @@ it('rejects a FillMask replacement with the wrong initial and preserves punctuat
     requestId: request.id,
     revision: request.revision,
     purpose: 'refinement',
-    provider: 'demo',
+    provider: 'gemini',
     status: 'success',
-    candidates: [{ replacement: 'sad' }, { replacement: 'good' }]
+    complete: true,
+    candidates: [{ replacement: 'good' }]
   })
   expect(result.status).toBe('success')
   if (result.status === 'success')

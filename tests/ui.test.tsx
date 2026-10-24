@@ -7,7 +7,7 @@ import App from '../src/renderer/src/App'
 import { CompositionProvider } from '../src/renderer/src/composition/context'
 import { useComposition, useCompositionDispatch } from '../src/renderer/src/composition/state'
 import { usePredictions } from '../src/renderer/src/prediction/usePredictions'
-import { DemoPhrasePredictor, validateResult } from '../src/renderer/src/prediction/demo'
+import { TestPhrasePredictor, validateResult, installGeminiMock } from './prediction-fixture'
 import type { PredictionRequest, PredictionResult } from '../src/shared/prediction'
 import { PointerOverlay } from '../src/renderer/src/features/dasher/PointerOverlay'
 import { SvgRenderer } from '../src/renderer/src/features/dasher/SvgRenderer'
@@ -15,6 +15,7 @@ import { Geometry } from '../src/renderer/src/features/dasher/geometry'
 import { DasherEngine } from '../src/renderer/src/features/dasher/engine'
 
 beforeEach(() => {
+  installGeminiMock()
   vi.stubGlobal(
     'ResizeObserver',
     class {
@@ -295,7 +296,7 @@ function PredictionHarness(): React.JSX.Element {
   const state = useComposition()
   const dispatch = useCompositionDispatch()
   const { setBusy } = useInteraction()
-  const { request } = usePredictions('normal')
+  const { request } = usePredictions()
   return (
     <>
       <button
@@ -318,7 +319,7 @@ function PredictionHarness(): React.JSX.Element {
 it('does not let a late canceled response replace the current result staged behind dwell', async () => {
   const responses: { request: PredictionRequest; resolve: (result: PredictionResult) => void }[] =
     []
-  const prediction = vi.spyOn(DemoPhrasePredictor.prototype, 'predict').mockImplementation(
+  const prediction = vi.spyOn(TestPhrasePredictor.prototype, 'predict').mockImplementation(
     (request) =>
       new Promise((resolve) => {
         responses.push({ request, resolve })
@@ -341,8 +342,9 @@ it('does not let a late canceled response replace the current result staged behi
         requestId: request.id,
         revision: request.revision,
         purpose: request.purpose,
-        provider: 'demo',
+        provider: 'gemini',
         status: 'success',
+        complete: true,
         candidates: [{ replacement }]
       })
     await act(async () => current.resolve(result(current.request, 'I want a cookie')))

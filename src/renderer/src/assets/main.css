@@ -180,7 +180,7 @@ select:focus-visible {
   height: 100%;
   display: grid;
   grid-template-columns: 1fr 1fr;
-  grid-template-rows: 1fr 1fr;
+  grid-template-rows: repeat(3, minmax(0, 1fr));
   gap: 8px 16px;
 }
 .candidate-slot {
@@ -535,6 +535,8 @@ h2 {
   gap: 8px;
 }
 .candidate-text {
+  overflow-y: auto;
+  max-height: 100%;
   flex: 1;
   min-width: 0;
   font-size: 19px;
@@ -614,4 +616,38 @@ h2 {
 }
 .phrase-tools .action-button {
   min-height: 64px;
+}
+
+.conversation-panel {
+  display: grid;
+  gap: 16px;
+  overflow-y: auto;
+}
+.conversation-panel label {
+  display: grid;
+  gap: 8px;
+}
+.conversation-panel textarea {
+  width: 100%;
+  min-height: 76px;
+  padding: 12px;
+  font: inherit;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+}
+.conversation-turns {
+  display: grid;
+  gap: 16px;
+  padding-left: 24px;
+}
+.conversation-turns li {
+  display: grid;
+  gap: 8px;
+}
+.conversation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }

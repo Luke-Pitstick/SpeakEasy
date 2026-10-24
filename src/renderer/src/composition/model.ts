@@ -1,5 +1,6 @@
 import { wordInitials } from '../../../shared/initialsPpm'
 import type {
+  ConversationTurn,
   AbbreviationToken,
   PhraseCandidate,
   PredictionRequest,
@@ -26,6 +27,9 @@ export interface EntrySession {
   before: Content
 }
 export interface CompositionState extends Content {
+  conversation: ConversationTurn[]
+  contextEpoch: number
+  cloudEnabled: boolean
   workspace: 'dasher' | 'phrases'
   revision: number
   session: EntrySession
@@ -79,6 +83,9 @@ export function initialState(): CompositionState {
   }
   return {
     ...content,
+    conversation: [],
+    contextEpoch: 0,
+    cloudEnabled: false,
     workspace: 'phrases',
     revision: 0,
     session: { id: 0, sequence: -1, seed: '', before: contentOf(content) },
@@ -89,11 +96,16 @@ export function initialState(): CompositionState {
     candidates: [],
     status: 'idle',
     validationError: null,
-    notice: 'Enter initials below, or try the coffee example.'
+    notice: 'Enter initials, then expand with Gemini. Add context in Conversation.'
   }
 }
 
 export type Action =
+  | { type: 'cloud'; enabled: boolean }
+  | { type: 'conversation-add'; speaker: 'me' | 'partner'; text: string }
+  | { type: 'conversation-edit'; id: string; text: string }
+  | { type: 'conversation-remove'; id: string }
+  | { type: 'conversation-clear' }
   | { type: 'workspace'; workspace: 'dasher' | 'phrases' }
   | { type: 'open-keywords' }
   | { type: 'keep-entering' }
@@ -203,6 +215,55 @@ function applyInput(state: CompositionState, text: string): Partial<Content> {
 
 function reduceComposition(state: CompositionState, action: Action): CompositionState {
   switch (action.type) {
+    case 'cloud':
+      return {
+        ...edit(state, {}, false),
+        cloudEnabled: action.enabled,
+        notice: action.enabled
+          ? 'Gemini enabled. Only your message constraints and listed conversation are sent.'
+          : 'Cloud suggestions are off. Exact spelling remains available.'
+      }
+    case 'conversation-add': {
+      const text = action.text.trim()
+      if (!text || text.length > 1000)
+        return { ...state, validationError: 'Use a conversation turn of at most 1,000 characters.' }
+      const next: CompositionState = {
+        ...edit(state, {}, false),
+        conversation: [
+          ...state.conversation.slice(-7),
+          { id: `turn-${state.revision + 1}`, speaker: action.speaker, text }
+        ],
+        notice: 'Conversation updated for your next request.'
+      }
+      // External finalized turns must be dispatched at a safe interaction boundary.
+      // Refresh only an existing expansion, never accepted text or an edited phrase.
+      return action.speaker === 'partner' &&
+        state.cloudEnabled &&
+        state.paused &&
+        state.request?.purpose === 'expansion' &&
+        state.phrase === null
+        ? reducer(next, { type: 'predict', purpose: 'expansion', id: `context-${next.revision}` })
+        : next
+    }
+    case 'conversation-edit':
+      return {
+        ...edit(state, {}, false),
+        conversation: state.conversation.map((t) =>
+          t.id === action.id ? { ...t, text: action.text.slice(0, 1000) } : t
+        )
+      }
+    case 'conversation-remove':
+      return {
+        ...edit(state, {}, false),
+        conversation: state.conversation.filter((t) => t.id !== action.id)
+      }
+    case 'conversation-clear':
+      return {
+        ...edit(state, {}, false),
+        conversation: [],
+        contextEpoch: state.contextEpoch + 1,
+        notice: 'Conversation cleared. Pending suggestions were cancelled.'
+      }
     case 'workspace': {
       // Returning with a selected word starts its exact replacement. Without a
       // selection, Dasher can continue editing the tentative phrase as text.
@@ -359,7 +420,7 @@ function reduceComposition(state: CompositionState, action: Action): Composition
           selection: null,
           selectedToken: null
         }),
-        notice: 'Example initials loaded. Choose Expand to see demo phrases.'
+        notice: 'Example initials loaded. Enable Gemini, then choose Expand.'
       }
     case 'keep-entering': {
       const next =
@@ -466,6 +527,7 @@ function reduceComposition(state: CompositionState, action: Action): Composition
             revision: next.revision,
             purpose: 'refinement',
             draft: phrase,
+            conversation: next.conversation.filter((t) => t.text.trim()).map((t) => ({ ...t })),
             tokens: next.tokens,
             target: action.range
           }
@@ -576,6 +638,7 @@ function reduceComposition(state: CompositionState, action: Action): Composition
           revision: next.revision,
           purpose: action.purpose,
           draft,
+          conversation: next.conversation.filter((t) => t.text.trim()).map((t) => ({ ...t })),
           tokens: tokens.map((token) => ({ ...token })),
           target:
             action.purpose === 'refinement'
@@ -592,33 +655,42 @@ function reduceComposition(state: CompositionState, action: Action): Composition
             request: action.request,
             candidates: [],
             status: 'loading',
-            notice: 'Preparing demo suggestions…'
+            notice: 'Gemini is preparing six suggestions…'
           }
         : state
     case 'result': {
       const result = action.result
       if (
         !state.request ||
+        state.status !== 'loading' ||
         state.request.id !== result.requestId ||
         state.revision !== result.revision ||
         state.request.purpose !== result.purpose
       )
         return state
       if (result.status === 'error') return { ...state, status: 'error', notice: result.message }
+      if (
+        result.candidates.length < state.candidates.length ||
+        state.candidates.some(
+          (c, i) => c.id !== result.candidates[i]?.id || c.text !== result.candidates[i]?.text
+        )
+      )
+        return state
       return {
         ...state,
         candidates: result.candidates,
-        status: result.candidates.length ? 'ready' : 'empty',
-        notice: result.candidates.length
-          ? 'Edit a suggestion, or choose Use to accept it.'
-          : 'No demo match. Keep entering, lock a word, or use exact spelling.'
+        status: !result.complete ? 'loading' : result.candidates.length ? 'ready' : 'empty',
+        notice: !result.complete
+          ? `${result.candidates.length} of six suggestions ready; Gemini is still streaming…`
+          : result.candidates.length
+            ? 'Edit a suggestion, or choose Use to accept it.'
+            : 'No suggestions preserved your constraints. Keep entering, lock a word, or retry.'
       }
     }
     case 'accept': {
       const candidate = state.candidates.find((item) => item.id === action.id)
       const request = state.request
-      if (!candidate || !request || request.revision !== state.revision || state.status !== 'ready')
-        return state
+      if (!candidate || !request || request.revision !== state.revision) return state
       if (request.purpose === 'refinement' && state.phrase !== null) {
         return edit(state, { phrase: candidate.text, selection: null, buffer: '', mode: 'literal' })
       }

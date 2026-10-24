@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import type { DemoScenario } from '../../shared/prediction'
 import { CompositionProvider } from './composition/context'
 import { useComposition, useCompositionDispatch } from './composition/state'
 import { DasherPanel } from './features/dasher/DasherPanel'
@@ -12,6 +11,7 @@ import { GazeProvider } from './eyetracking/GazeProvider'
 import { ActionButton, InteractionProvider } from './interaction/controls'
 import { DwellSelect, type DwellOption } from './interaction/DwellSelect'
 import { useInteraction } from './interaction/state'
+import { ConversationPanel } from './prediction/ConversationPanel'
 import { usePredictions } from './prediction/usePredictions'
 
 // How fast Dasher zooms and pans for a given pointer offset; the engine accepts 0.3-2.
@@ -35,13 +35,12 @@ function Workspace({ input, onInput }: WorkspaceProps): React.JSX.Element {
   const state = useComposition()
   const dispatch = useCompositionDispatch()
   const interaction = useInteraction()
-  const [menu, setMenu] = useState<'closed' | 'more' | 'settings'>('closed')
+  const [menu, setMenu] = useState<'closed' | 'more' | 'settings' | 'conversation'>('closed')
   const [theme, setTheme] = useState<'system' | 'light' | 'dark'>('system')
   const [speed, setSpeed] = useState(0.6)
   const [edgeHeight, setEdgeHeight] = useState(48)
   const [weighting, setWeighting] = useState<'uniform' | 'ppm'>('ppm')
-  const [scenario, setScenario] = useState<DemoScenario>('normal')
-  const predictions = usePredictions(scenario)
+  const predictions = usePredictions()
   const [gazeOverlay, setGazeOverlay] = useState<GazeOverlay>('none')
   const [showGazeDot, setShowGazeDot] = useState(true)
   const closeGazeOverlay = useCallback(() => setGazeOverlay('none'), [])
@@ -168,12 +167,20 @@ function Workspace({ input, onInput }: WorkspaceProps): React.JSX.Element {
             aria-labelledby="menu-title"
           >
             <div className="menu-heading">
-              <h2 id="menu-title">{menu === 'settings' ? 'Settings' : 'SpeakEasy'}</h2>
+              <h2 id="menu-title">
+                {menu === 'settings'
+                  ? 'Settings'
+                  : menu === 'conversation'
+                    ? 'Conversation'
+                    : 'SpeakEasy'}
+              </h2>
               <ActionButton identity="close-menu" onAction={closeMenu}>
                 Back
               </ActionButton>
             </div>
-            {menu === 'more' ? (
+            {menu === 'conversation' ? (
+              <ConversationPanel predictions={predictions} />
+            ) : menu === 'more' ? (
               <div className="more-grid">
                 <ActionButton
                   identity={`undo-${state.revision}`}
@@ -226,6 +233,9 @@ function Workspace({ input, onInput }: WorkspaceProps): React.JSX.Element {
                 >
                   New message
                 </ActionButton>
+                <ActionButton identity="conversation" onAction={() => setMenu('conversation')}>
+                  Conversation & Gemini
+                </ActionButton>
                 <ActionButton identity="settings" onAction={() => setMenu('settings')}>
                   Settings
                 </ActionButton>
@@ -236,7 +246,7 @@ function Workspace({ input, onInput }: WorkspaceProps): React.JSX.Element {
                     closeMenu()
                   }}
                 >
-                  Load demo initials
+                  Load example initials
                 </ActionButton>
               </div>
             ) : (
@@ -334,25 +344,11 @@ function Workspace({ input, onInput }: WorkspaceProps): React.JSX.Element {
                     <option value={1500}>1.5 seconds</option>
                   </select>
                 </label>
-                <label>
-                  Demo response
-                  <select
-                    value={scenario}
-                    onChange={(event) => {
-                      dispatch({ type: 'dismiss' })
-                      setScenario(event.target.value as DemoScenario)
-                    }}
-                  >
-                    <option value="normal">Normal</option>
-                    <option value="empty">No matches</option>
-                    <option value="error">Error</option>
-                    <option value="timeout">Timeout</option>
-                    <option value="late">Late response</option>
-                    <option value="invalid">Invalid response</option>
-                  </select>
-                </label>
+                <ActionButton identity="gemini-settings" onAction={() => setMenu('conversation')}>
+                  Conversation & Gemini
+                </ActionButton>
                 <p className="settings-note">
-                  Phrase suggestions use demo data. No LLM or speech service is connected.
+                  Gemini suggests wording using your approved conversation. Speech is not connected.
                 </p>
               </div>
             )}

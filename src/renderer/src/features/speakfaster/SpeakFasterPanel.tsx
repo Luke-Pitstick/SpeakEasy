@@ -250,10 +250,10 @@ export function SpeakFasterPanel({
         >
           {state.candidates.length ? (
             <div className="candidate-list">
-              {[0, 1, 2, 3].map((index) => {
+              {[0, 1, 2, 3, 4, 5].map((index) => {
                 const candidate = state.candidates[index]
                 return (
-                  <div className="candidate-slot" key={candidate?.id ?? `empty-${index}`}>
+                  <div className="candidate-slot" key={index}>
                     {candidate &&
                       (state.request?.purpose === 'refinement' ? (
                         <ActionButton
@@ -295,7 +295,7 @@ export function SpeakFasterPanel({
                   ? state.notice
                   : phrase !== null
                     ? 'Your edited phrase is a suggestion until you choose Use phrase.'
-                    : 'Offline demo suggestions appear here.'}
+                    : 'Gemini suggestions appear here. Enable Gemini and add context in Menu → Conversation.'}
             </p>
           )}
         </div>

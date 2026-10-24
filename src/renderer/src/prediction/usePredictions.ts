@@ -1,57 +1,97 @@
 import { useEffect, useRef, useState } from 'react'
-import type { DemoScenario, PredictionPurpose, PredictionResult } from '../../../shared/prediction'
+import type { GeminiStatus, PredictionPurpose, PredictionResult } from '../../../shared/prediction'
+import { validateResult } from '../../../shared/predictionValidation'
 import { useComposition, useCompositionDispatch } from '../composition/state'
 import { useInteraction } from '../interaction/state'
-import { DemoPhrasePredictor, validateResult } from './demo'
 
-export function usePredictions(scenario: DemoScenario): {
+export function usePredictions(): {
   request: (purpose: PredictionPurpose) => void
   waiting: boolean
+  connection: GeminiStatus | null
+  connectionError: string
+  setEnabled: (enabled: boolean) => Promise<void>
 } {
-  const state = useComposition()
-  const dispatch = useCompositionDispatch()
-  const { busy } = useInteraction()
+  const state = useComposition(),
+    dispatch = useCompositionDispatch(),
+    { busy } = useInteraction()
   const [staged, setStaged] = useState<PredictionResult | null>(null)
-  const counter = useRef(0)
-  const delivered = useRef<PredictionResult | null>(null)
+  const [connection, setConnection] = useState<GeminiStatus | null>(null)
+  const [connectionError, setConnectionError] = useState(() =>
+    window.gemini ? '' : 'Open the desktop app to connect Gemini.'
+  )
+  const counter = useRef(0),
+    delivered = useRef<PredictionResult | null>(null)
   const pending = state.request
   useEffect(() => {
-    if (!pending) return
-    const controller = new AbortController()
-    const provider = new DemoPhrasePredictor(scenario)
-    provider
-      .predict(pending, controller.signal)
-      .then((result) => {
-        if (controller.signal.aborted) return
-        // A provider may ignore abort. Reducer still validates the request ID and revision.
-        setStaged(validateResult(pending, result))
+    let alive = true
+    if (!window.gemini) return
+    void window.gemini
+      .status()
+      .then((value) => {
+        if (alive) {
+          setConnection(value)
+          if (value.enabled) dispatch({ type: 'cloud', enabled: true })
+        }
       })
-      .catch((error: unknown) => {
-        if (controller.signal.aborted) return
-        if (error instanceof DOMException && error.name === 'AbortError') return
+      .catch(() => {
+        if (alive) setConnectionError('Could not read Gemini settings. Restart the app.')
+      })
+    return () => {
+      alive = false
+    }
+  }, [dispatch])
+  const setEnabled = async (enabled: boolean): Promise<void> => {
+    try {
+      if (!window.gemini) throw Error('Desktop bridge unavailable')
+      const value = await window.gemini.setEnabled(enabled)
+      setConnection(value)
+      setConnectionError('')
+      dispatch({ type: 'cloud', enabled: value.enabled })
+    } catch {
+      setConnectionError('Could not change Gemini settings. Restart the app.')
+    }
+  }
+  useEffect(() => {
+    if (!pending) return
+    let active = true
+    const failure = (message: string): void => {
+      if (active)
         setStaged({
           requestId: pending.id,
           revision: pending.revision,
           purpose: pending.purpose,
-          provider: 'demo',
+          provider: 'gemini',
           elapsedMs: 0,
           status: 'error',
-          message: 'Suggestions unavailable. Retry or keep spelling.'
+          message
         })
-      })
-    return () => controller.abort()
-  }, [pending, scenario])
-
+    }
+    const api = window.gemini
+    if (!api) {
+      failure('Open the desktop app to use Gemini. Exact spelling remains available.')
+      return () => {
+        active = false
+      }
+    }
+    const unsubscribe = api.onResult((result) => {
+      if (active && result.requestId === pending.id && result.revision === pending.revision)
+        setStaged(validateResult(pending, result))
+    })
+    void api.start(pending).catch(() => failure('Could not start Gemini. Retry or keep spelling.'))
+    return () => {
+      active = false
+      unsubscribe()
+      api.cancel(pending.id)
+    }
+  }, [pending])
   useEffect(() => {
-    if (staged && !busy && delivered.current !== staged) {
+    if (staged && !busy && state.paused && delivered.current !== staged) {
       delivered.current = staged
       dispatch({ type: 'result', result: staged })
     }
-  }, [staged, busy, dispatch])
-
-  const request = (purpose: PredictionPurpose): void => {
+  }, [staged, busy, state.paused, dispatch])
+  const request = (purpose: PredictionPurpose): void =>
     dispatch({ type: 'predict', purpose, id: `prediction-${++counter.current}-${state.revision}` })
-  }
   const wasWriting = useRef(false)
   useEffect(() => {
     const justPaused = wasWriting.current && state.paused
@@ -60,12 +100,14 @@ export function usePredictions(scenario: DemoScenario): {
       justPaused &&
       state.session.sequence >= 0 &&
       (state.mode === 'initials' || state.mode === 'keyword')
-    ) {
+    )
       dispatch({ type: 'predict', purpose: 'expansion', id: `pause-${state.revision}` })
-    }
   }, [state.paused, state.mode, state.revision, state.session.sequence, dispatch])
   return {
     request,
-    waiting: !!staged && busy && staged.requestId === pending?.id && state.status === 'loading'
+    waiting: !!staged && busy && staged.requestId === pending?.id && state.status === 'loading',
+    connection,
+    connectionError,
+    setEnabled
   }
 }

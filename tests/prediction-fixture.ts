@@ -1,10 +1,7 @@
-import type {
-  DemoScenario,
-  PhrasePredictor,
-  PredictionRequest,
-  PredictionResult
-} from '../../../shared/prediction'
-
+import type { PredictionRequest, PredictionResult } from '../src/shared/prediction'
+import { validateResult } from '../src/shared/predictionValidation'
+export { validateResult }
+type TestScenario = 'normal' | 'error' | 'timeout' | 'empty' | 'invalid' | 'late'
 // Project-authored fixtures. These are not research-model outputs or a language model.
 export const phrases = [
   'I want a coffee',
@@ -60,85 +57,9 @@ function replacements(request: PredictionRequest): string[] {
   return groups.find((group) => group.includes(selected)) ?? []
 }
 
-/** Validate at the provider boundary, and construct full text from the captured destination. */
-export function validateResult(request: PredictionRequest, result: unknown): PredictionResult {
-  const base = {
-    requestId: request.id,
-    revision: request.revision,
-    purpose: request.purpose,
-    provider: 'demo' as const,
-    elapsedMs: 0
-  }
-  const fail = (message: string): PredictionResult => ({ ...base, status: 'error', message })
-  if (!result || typeof result !== 'object')
-    return fail('Invalid suggestion response. Your text is unchanged.')
-  const value = result as Record<string, unknown>
-  if (
-    value.requestId !== request.id ||
-    value.revision !== request.revision ||
-    value.purpose !== request.purpose ||
-    value.provider !== 'demo'
-  )
-    return fail('The suggestion response did not match this request.')
-  if (value.status === 'error')
-    return fail(
-      typeof value.message === 'string'
-        ? value.message.slice(0, 200)
-        : 'Suggestions unavailable. Try again or keep spelling.'
-    )
-  if (value.status !== 'success' || !Array.isArray(value.candidates))
-    return fail('Invalid suggestion response. Try again or keep spelling.')
-  if (
-    request.target.start < 0 ||
-    request.target.end < request.target.start ||
-    request.target.end > request.draft.length
-  )
-    return fail('The editing range is no longer valid.')
-  const seen = new Set<string>()
-  const candidates: Extract<PredictionResult, { status: 'success' }>['candidates'] = []
-  for (const item of value.candidates.slice(0, 12)) {
-    if (!item || typeof item !== 'object' || typeof item.replacement !== 'string') continue
-    const replacement: string = item.replacement
-    if (
-      !replacement.trim() ||
-      replacement.length > 100 ||
-      [...replacement].some((character) => character.charCodeAt(0) < 32) ||
-      seen.has(replacement.toLowerCase())
-    )
-      continue
-    if (request.purpose === 'expansion' && !matches(replacement, request)) continue
-    if (
-      request.purpose === 'refinement' &&
-      (!/^[A-Za-z]+(?:['-][A-Za-z]+)*$/.test(replacement) ||
-        !replacement
-          .toLowerCase()
-          .startsWith(
-            request.draft.slice(request.target.start, request.target.end)[0]?.toLowerCase()
-          ))
-    )
-      continue
-    seen.add(replacement.toLowerCase())
-    const prefix = request.draft.slice(0, request.target.start)
-    const separator = request.purpose === 'expansion' && prefix && !/\s$/.test(prefix) ? ' ' : ''
-    const text = prefix + separator + replacement + request.draft.slice(request.target.end)
-    if (text.length > 500) continue
-    candidates.push({ id: `${request.id}:${candidates.length}`, replacement, text })
-    if (candidates.length === 4) break
-  }
-  if (value.candidates.length && !candidates.length)
-    return fail('Suggestions did not preserve your constraints. Keep spelling or try again.')
-  return {
-    ...base,
-    elapsedMs:
-      typeof value.elapsedMs === 'number' && Number.isFinite(value.elapsedMs) ? value.elapsedMs : 0,
-    status: 'success',
-    candidates
-  }
-}
-
-export class DemoPhrasePredictor implements PhrasePredictor {
+export class TestPhrasePredictor {
   constructor(
-    private scenario: DemoScenario = 'normal',
+    private scenario: TestScenario = 'normal',
     private delay = 450
   ) {}
 
@@ -160,7 +81,7 @@ export class DemoPhrasePredictor implements PhrasePredictor {
             requestId: request.id,
             revision: request.revision,
             purpose: request.purpose,
-            provider: 'demo' as const,
+            provider: 'gemini' as const,
             elapsedMs: performance.now() - started
           }
           if (this.scenario === 'error' || this.scenario === 'timeout') {
@@ -184,6 +105,7 @@ export class DemoPhrasePredictor implements PhrasePredictor {
             validateResult(request, {
               ...base,
               status: 'success',
+              complete: true,
               candidates: options.map((replacement) => ({ replacement }))
             })
           )
@@ -193,5 +115,32 @@ export class DemoPhrasePredictor implements PhrasePredictor {
       // Deliberately ignore cancellation in the late-response test condition.
       if (this.scenario !== 'late') signal.addEventListener('abort', onAbort, { once: true })
     })
+  }
+}
+
+export function installGeminiMock(): void {
+  const listeners = new Set<(result: PredictionResult) => void>()
+  const controllers = new Map<string, AbortController>()
+  window.gemini = {
+    status: async () => ({ configured: true, enabled: false }),
+    setEnabled: async (enabled) => ({ configured: true, enabled }),
+    start: async (request) => {
+      const controller = new AbortController()
+      controllers.set(request.id, controller)
+      void new TestPhrasePredictor()
+        .predict(request, controller.signal)
+        .then((result) => {
+          if (!controller.signal.aborted) listeners.forEach((listener) => listener(result))
+        })
+        .catch(() => {})
+        .finally(() => controllers.delete(request.id))
+    },
+    cancel: (id) => controllers.get(id)?.abort(),
+    onResult: (callback) => {
+      listeners.add(callback)
+      return () => {
+        listeners.delete(callback)
+      }
+    }
   }
 }

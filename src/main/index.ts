@@ -1,6 +1,7 @@
 import { app, BrowserWindow, session, systemPreferences } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
+import { installGeminiIpc } from './geminiIpc'
 import icon from '../../resources/icon.png?asset'
 
 function createWindow(): void {
@@ -20,6 +21,8 @@ function createWindow(): void {
       nodeIntegration: false
     }
   })
+
+  installGeminiIpc(mainWindow)
 
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
