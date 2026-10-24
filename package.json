@@ -27,6 +27,7 @@
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
     "@mediapipe/tasks-vision": "^1.1.1",
+    "@sapphi-red/web-noise-suppressor": "0.4.1",
     "ws": "^8.22.0"
   },
   "devDependencies": {

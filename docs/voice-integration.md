@@ -10,6 +10,14 @@ Partial Ink transcripts stay in the live display. Finalized turns queue while th
 
 `contextEpoch` increments on Clear conversation. The voice hook discards queued and partial text and resets the transcription connection; late events from old connections cannot restore cleared context. Conversation text is session-only. Gemini receives it only when its existing cloud setting is enabled.
 
+## Local microphone filtering (2026-10-24)
+
+Capture uses a 48 kHz AudioContext and RNNoise on an AudioWorklet before PCM is sent to Cartesia. Browser noise suppression is disabled to avoid stacking denoisers; echo cancellation and automatic gain remain enabled. The mono output blends 75% RNNoise with 25% original audio. The original is delayed by 992 samples (about 20.7 ms), matching this pinned wrapper's 512-sample buffering and RNNoise's 480-sample algorithmic delay. There is no amplitude gate, voice-activity cutoff, or discarded quiet frame. Keeping original audio deliberately trades some noise rejection for preservation of speech the model suppresses; it does not guarantee recognition of quiet words or separation of competing speakers.
+
+`@sapphi-red/web-noise-suppressor` is pinned to 0.4.1 (MIT), using its bundled `@shiguredo/rnnoise-wasm` 2022.2.0 (Apache-2.0) and Xiph RNNoise (BSD-3-Clause). Worklet and scalar/SIMD WASM assets ship locally through Vite; filtering adds no remote download, provider, or saved recording. Upstream license texts are in `resources/licenses/` and included in packaged resources. Sources: [wrapper](https://github.com/sapphi-red/web-noise-suppressor), [WASM binding](https://github.com/shiguredo/rnnoise-wasm), [RNNoise](https://github.com/xiph/rnnoise).
+
+Synthetic tests execute the actual bundled WASM and verify 992-sample alignment, retained quiet input when the denoiser output is zero, and continuous 100 ms PCM blocks. Low-frequency rumble energy falls by more than 3 dB in the fixture; broadband white noise improves only modestly (about 0.85 dB). These results are not speech-recognition accuracy measurements. Lifecycle tests cover model-load failure, cancellation during loading, resource cleanup, and rejection of late audio. Real quiet conversation in a noisy room still needs a before/after transcription comparison.
+
 ## Speech and settings
 
 Settings → Voice contains public English presets, explicit preview, speed (0.6–1.5), local playback volume, neutral/calm/happy/excited/sad delivery, and microphone selection. Settings persist in `voice-settings.json` in Electron userData. The current release uses English speech output; it does not claim a translated or multilingual composition experience.
@@ -21,6 +29,8 @@ Audio streams as 24 kHz float PCM, queues in Web Audio, and is cancelled locally
 Microphone transmission stops during generation/playback and resumes automatically after a short tail delay to avoid self-transcription. Partner speech overlapping playback is not captured. SpeakEasy itself saves no recordings, but audio is transmitted to Cartesia under that provider's policies.
 
 ## Validation (2026-10-24)
+
+- Filtering increment: 18 targeted voice/audio tests, lint, TypeScript, and production build passed. The reloaded Electron development app reached “Listening to conversation”; its console showed no audio-filter errors. This is an initialization check, not a real-room quiet-speech accuracy test.
 
 - Automated provider-boundary, audio queue/cancellation, auto-listening, partial/final context, and context-clear tests pass.
 - Full suite: 110 tests passed; TypeScript and production build passed. Final lint checked separately.
