@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState, useSyncExternalStore } from 'react'
+import { createContext, useContext, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { GazeTracker, TrackerState } from './GazeTracker'
 import type { GazePoint } from './types'
 
@@ -27,19 +27,22 @@ export function useGaze(): GazePoint | null {
 }
 
 /**
- * The `data-gaze-target` value of the element currently being looked at, or null.
- * Only re-renders when the target changes.
+ * The `data-gaze-target` value of the element currently being looked at (after aim assist),
+ * or null. Only re-renders when the target changes.
  */
 export function useGazeTarget(): string | null {
   const tracker = useGazeTracker()
-  const [target, setTarget] = useState<string | null>(null)
-  useEffect(
-    () =>
-      tracker.onGaze((gaze) => {
-        const el = document.elementFromPoint(gaze.x, gaze.y)?.closest('[data-gaze-target]')
-        setTarget(el?.getAttribute('data-gaze-target') ?? null)
-      }),
-    [tracker]
-  )
+  const [target, setTarget] = useState<string | null>(tracker.latestGaze?.target ?? null)
+  useEffect(() => tracker.onGaze((gaze) => setTarget(gaze.target)), [tracker])
   return target
+}
+
+/** Calls `onSelect` with the `data-gaze-target` id whenever a target is selected by dwelling. */
+export function useGazeSelect(onSelect: (id: string) => void): void {
+  const tracker = useGazeTracker()
+  const callback = useRef(onSelect)
+  useEffect(() => {
+    callback.current = onSelect
+  })
+  useEffect(() => tracker.onSelect((id) => callback.current(id)), [tracker])
 }

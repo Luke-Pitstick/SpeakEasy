@@ -1,9 +1,11 @@
 import { FaceLandmarker, FilesetResolver } from '@mediapipe/tasks-vision'
 import { extractFeatures } from './features'
+import { IrisRefiner } from './irisRefine'
 import type { EyeFeatures } from './types'
 
 const assetBase = new URL('mediapipe/', document.baseURI).href
 const FIRST_FRAME_TIMEOUT_MS = 10000
+const STATS_INTERVAL_MS = 30000
 
 async function loadLandmarker(): Promise<FaceLandmarker> {
   const fileset = await FilesetResolver.forVisionTasks(assetBase + 'wasm')
@@ -26,6 +28,11 @@ export class WebcamFaceSource {
   private loading: Promise<FaceLandmarker> | null = null
   private running = false
   private frameHandle = 0
+  // Off by default: on real calibration data the refined iris centres were far noisier than
+  // MediaPipe's (vertical frame-to-frame noise up 40–70×; gaze jitter ~10 px -> ~80 px after
+  // smoothing). Set localStorage 'speakeasy.irisRefine' to 'on' to experiment with it.
+  private readonly refiner = readFlag('speakeasy.irisRefine') === 'on' ? new IrisRefiner() : null
+  private lastStatsLog = 0
 
   constructor(private readonly onFeatures: (features: EyeFeatures | null) => void) {
     this.video = document.createElement('video')
@@ -48,9 +55,21 @@ export class WebcamFaceSource {
     if (!this.running || this.stream) return
 
     const stream = await navigator.mediaDevices.getUserMedia({
-      video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
+      // 720p is the setting real calibration data was clean with; 1080p/60 coincided with
+      // eyelid measurements becoming ~3× noisier, and frames still arrived at ~30 fps.
+      video: this.refiner
+        ? {
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+            frameRate: { ideal: 60 },
+            facingMode: 'user'
+          }
+        : { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' },
       audio: false
     })
+    const track = stream.getVideoTracks()[0]
+    const { width, height, frameRate } = track.getSettings()
+    console.info(`[gaze] ${track.label}: ${width}x${height} @ ${frameRate?.toFixed(0)} fps`)
     if (!this.running || this.stream) {
       stream.getTracks().forEach((t) => t.stop())
       return
@@ -94,13 +113,32 @@ export class WebcamFaceSource {
     const now = performance.now()
     const result = this.landmarker.detectForVideo(this.video, now)
     const landmarks = result.faceLandmarks[0]
-    if (landmarks && landmarks.length >= 478) {
+    const matrix = result.facialTransformationMatrixes?.[0]?.data
+    if (landmarks && landmarks.length >= 478 && matrix?.length === 16) {
       const aspect = this.video.videoWidth / this.video.videoHeight
-      const matrix = result.facialTransformationMatrixes?.[0]?.data
-      this.onFeatures(extractFeatures(landmarks, matrix, aspect, now))
+      const iris = this.refiner?.refine(this.video, landmarks)
+      this.onFeatures(extractFeatures(landmarks, matrix, aspect, now, iris))
+      this.logRefinerStats(now)
     } else {
       this.onFeatures(null)
     }
     this.scheduleFrame()
+  }
+
+  private logRefinerStats(now: number): void {
+    if (!this.refiner || now - this.lastStatsLog < STATS_INTERVAL_MS) return
+    this.lastStatsLog = now
+    const { attempts, refined, meanMs } = this.refiner.takeStats()
+    if (attempts === 0) return
+    const rate = ((100 * refined) / attempts).toFixed(0)
+    console.info(`[gaze] iris refined ${rate}% of eyes, ${meanMs.toFixed(2)} ms/frame`)
+  }
+}
+
+function readFlag(key: string): string | null {
+  try {
+    return localStorage.getItem(key)
+  } catch {
+    return null
   }
 }

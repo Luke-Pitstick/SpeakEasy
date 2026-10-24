@@ -1,34 +1,63 @@
-import Versions from './components/Versions'
-import electronLogo from './assets/electron.svg'
+import { useEffect, useState } from 'react'
+import {
+  EyeTrackingPanel,
+  GazeProvider,
+  useGazeSelect,
+  useGazeTarget,
+  useGazeTracker
+} from './eyetracking'
 
-function App(): React.JSX.Element {
-  const ipcHandle = (): void => window.electron.ipcRenderer.send('ping')
+const TILES = ['Hello', 'Yes', 'No', 'Help', 'Thank you', 'Water', 'Food', 'Rest', 'Goodbye']
+
+/** Test surface: look at a tile to highlight it, keep looking to select it. */
+function GazeTiles(): React.JSX.Element {
+  const tracker = useGazeTracker()
+  const target = useGazeTarget()
+  const [selected, setSelected] = useState<string[]>([])
+
+  useGazeSelect((id) => setSelected((s) => [...s, id]))
+
+  // Esc undoes the last selection. Undoing also tells the tracker not to learn from it:
+  // it was probably the wrong target.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent): void => {
+      if (e.key !== 'Escape') return
+      tracker.cancelPendingLearning()
+      setSelected((s) => s.slice(0, -1))
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [tracker])
 
   return (
     <>
-      <img alt="logo" className="logo" src={electronLogo} />
-      <div className="creator">SpeakEasy · Powered by electron-vite</div>
-      <div className="text">
-        Build an Electron app with <span className="react">React</span>
-        &nbsp;and <span className="ts">TypeScript</span>
+      <div className="selection-log">
+        {selected.length ? selected.slice(-8).join(' · ') : 'Look at a tile to select it'}
+        {selected.length > 0 && <span className="selection-log__hint">Esc to undo</span>}
       </div>
-      <p className="tip">
-        Please try pressing <code>F12</code> to open the devTool
-      </p>
-      <div className="actions">
-        <div className="action">
-          <a href="https://electron-vite.org/" target="_blank" rel="noreferrer">
-            Documentation
-          </a>
-        </div>
-        <div className="action">
-          <a target="_blank" rel="noreferrer" onClick={ipcHandle}>
-            Send IPC
-          </a>
-        </div>
+      <div className="tiles">
+        {TILES.map((label) => (
+          <div
+            key={label}
+            data-gaze-target={label}
+            className={`tile${target === label ? ' tile--gazed' : ''}`}
+          >
+            {label}
+          </div>
+        ))}
       </div>
-      <Versions></Versions>
     </>
+  )
+}
+
+function App(): React.JSX.Element {
+  return (
+    <GazeProvider>
+      <div className="app">
+        <EyeTrackingPanel />
+        <GazeTiles />
+      </div>
+    </GazeProvider>
   )
 }
 

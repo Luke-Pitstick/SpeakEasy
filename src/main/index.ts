@@ -1,4 +1,4 @@
-import { app, shell, BrowserWindow, ipcMain } from 'electron'
+import { app, shell, BrowserWindow, ipcMain, session, systemPreferences } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -50,6 +50,16 @@ app.whenReady().then(() => {
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
+
+  // Eye tracking needs the webcam; grant camera (video only) to our own renderer.
+  session.defaultSession.setPermissionRequestHandler((_, permission, callback, details) => {
+    const mediaTypes = 'mediaTypes' in details ? (details.mediaTypes ?? []) : []
+    callback(permission === 'media' && mediaTypes.every((type) => type === 'video'))
+  })
+  session.defaultSession.setPermissionCheckHandler((_, permission) => permission === 'media')
+  if (process.platform === 'darwin') {
+    systemPreferences.askForMediaAccess('camera')
+  }
 
   // IPC test
   ipcMain.on('ping', () => console.log('pong'))

@@ -11,8 +11,29 @@
   pointer-events: none;
   z-index: 1000;
   opacity: 0;
-  transition: opacity 150ms;
+  /* Short transform easing softens jumps when aim assist locks onto a target. */
+  transition:
+    opacity 150ms,
+    transform 60ms linear,
+    border-color 150ms,
+    background 150ms;
   will-change: transform;
+}
+
+.gaze-cursor--locked {
+  border-color: rgba(95, 211, 141, 0.95);
+  background: rgba(95, 211, 141, 0.25);
+}
+
+/* Fills clockwise while dwelling; --dwell (0..1) is set by GazeCursor. */
+.gaze-cursor::after {
+  content: '';
+  position: absolute;
+  inset: -9px;
+  border-radius: 50%;
+  background: conic-gradient(rgba(95, 211, 141, 0.95) calc(var(--dwell, 0) * 1turn), transparent 0);
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 0);
+  mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 0);
 }
 
 .gaze-cursor--visible {
@@ -43,6 +64,68 @@
 .calibration__hint {
   font-size: 14px;
   color: var(--ev-c-text-2);
+}
+
+.pose-card {
+  position: absolute;
+  width: 300px;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  background: var(--color-background-soft);
+  text-align: center;
+  transition:
+    left 500ms ease,
+    top 500ms ease,
+    bottom 500ms ease;
+}
+
+.pose-card__instruction {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pose-card__arrow {
+  font-size: 28px;
+  line-height: 1;
+}
+
+.pose-card__text {
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.3;
+}
+
+.pose-card__bar {
+  position: relative;
+  width: 100%;
+  height: 10px;
+  border-radius: 5px;
+  background: var(--color-background-mute);
+  overflow: hidden;
+}
+
+.pose-card__fill {
+  height: 100%;
+  background: #6988e6;
+  transition: width 80ms linear;
+}
+
+.pose-card__fill--ok {
+  background: #5fd38d;
+}
+
+.pose-card__goal {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--ev-c-text-2);
 }
 
 .calibration__dot {
@@ -162,4 +245,104 @@
   width: 240px;
   border-radius: 8px;
   transform: scaleX(-1);
+}
+
+.head-guide {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.head-guide__box {
+  position: relative;
+  width: 96px;
+  height: 64px;
+  border-radius: 8px;
+  background: var(--color-background-mute);
+  overflow: hidden;
+}
+
+.head-guide__ring,
+.head-guide__dot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.head-guide__ring {
+  width: 22px;
+  height: 22px;
+  border: 2px dashed var(--ev-c-text-3);
+}
+
+.head-guide__dot {
+  width: 14px;
+  height: 14px;
+  background: #5fd38d;
+}
+
+.head-guide__dot--off {
+  background: #f0b44c;
+}
+
+.et-panel__slider {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  color: var(--ev-c-text-2);
+}
+
+.click-ripple {
+  position: fixed;
+  width: 36px;
+  height: 36px;
+  margin: -18px 0 0 -18px;
+  border-radius: 50%;
+  border: 2px solid var(--ev-c-text-2);
+  pointer-events: none;
+  z-index: 1500;
+}
+
+.click-ripple--learned {
+  border-color: #5fd38d;
+  animation: click-ripple-fade 1.6s ease-out forwards;
+}
+
+.click-ripple--skipped {
+  border-color: var(--ev-c-gray-1);
+  animation: click-ripple-fade 1.6s ease-out forwards;
+}
+
+.click-ripple__label {
+  position: absolute;
+  top: 40px;
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  padding: 2px 8px;
+  border-radius: 8px;
+  font-size: 12px;
+  background: var(--color-background-soft);
+}
+
+@keyframes click-ripple-fade {
+  0%,
+  70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+.drift-test__countdown {
+  position: absolute;
+  top: calc(50% + 40px);
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 15px;
+  color: var(--ev-c-text-2);
 }

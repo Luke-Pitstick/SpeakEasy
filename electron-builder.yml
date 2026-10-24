@@ -20,6 +20,8 @@ nsis:
   createDesktopShortcut: always
 mac:
   entitlementsInherit: build/entitlements.mac.plist
+  extendInfo:
+    NSCameraUsageDescription: SpeakEasy uses the camera to track where you are looking.
   notarize: false
 dmg:
   artifactName: ${name}-${version}.${ext}
