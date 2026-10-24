@@ -6,7 +6,7 @@ import {
   LITERAL_ALPHABET,
   normalize
 } from '../src/renderer/src/features/dasher/prediction'
-import { Geometry, fittedWidth } from '../src/renderer/src/features/dasher/geometry'
+import { Geometry } from '../src/renderer/src/features/dasher/geometry'
 import { localSample } from '../src/renderer/src/interaction/input'
 
 function steer(engine: DasherEngine, wanted: string, alphabet = INITIAL_ALPHABET): number {
@@ -90,7 +90,7 @@ describe('typed Dasher navigation', () => {
   })
 })
 
-it('roundtrips square Dasher geometry', () => {
+it('roundtrips upstream piecewise Dasher geometry above the minimum target height', () => {
   const geometry = new Geometry(1100, 330)
   for (const height of [5, 20, 100, 330, 5000])
     expect(geometry.solveHeight(geometry.solveLeft(height))).toBeCloseTo(height)
@@ -124,16 +124,91 @@ it('pauses at the same entry limit as the composition state', () => {
   expect(engine.step(16)).toBeNull()
 })
 
-it('fits a full alphabet without stretching rectangles on ultrawide displays', () => {
+it('uses the whole viewport for nested letter regions on wide displays', () => {
   for (const width of [900, 3456]) {
     const height = 600
-    const engine = new DasherEngine(fittedWidth(width, height), height)
-    expect(engine.geometry.width).toBeLessThanOrEqual(height * 1.5)
+    const engine = new DasherEngine(width, height)
+    expect(engine.geometry.width).toBe(width)
     expect(engine.regions().map((region) => region.label)).toEqual(INITIAL_ALPHABET)
     for (const region of engine.regions()) {
-      expect(engine.geometry.right - region.left).toBeCloseTo(region.height)
+      expect(engine.geometry.right - region.left).toBeGreaterThan(width * 0.2)
       expect(region.top).toBeGreaterThanOrEqual(-height / 2)
       expect(region.top + region.height).toBeLessThanOrEqual(height / 2)
     }
   }
+})
+
+it('expands the target and reveals nested continuations while steering', () => {
+  const engine = new DasherEngine(1280, 600)
+  const initial = engine.regions().find((region) => region.text === 'n')!
+  engine.resume()
+  engine.setSample(180, 0)
+  for (let frame = 0; frame < 80; frame++) engine.step(16.67)
+  const regions = engine.regions()
+  const parent = regions.find((region) => region.text === 'n')!
+  expect(parent.height).toBeGreaterThan(initial.height * 2)
+  expect(parent.left).toBeLessThan(initial.left)
+  const children = regions.filter(
+    (region) => region.text.startsWith('n') && region.text.length === 2
+  )
+  expect(children.length).toBeGreaterThan(0)
+  for (const child of children) {
+    expect(child.left).toBeGreaterThan(parent.left)
+    expect(child.top).toBeGreaterThanOrEqual(parent.top - 0.001)
+    expect(child.top + child.height).toBeLessThanOrEqual(parent.top + parent.height + 0.001)
+  }
+})
+
+it('resizes boxes without rebuilding the current branch or losing zoom and text', () => {
+  const engine = new DasherEngine(1280, 600)
+  engine.resume()
+  steer(engine, 'iw')
+  const text = engine.text
+  const rootId = engine.root.id
+  const old = engine.regions()
+  engine.resize(1920, 600)
+  for (const region of old) {
+    const resized = engine.regions().find((next) => next.id === region.id)!
+    expect(resized.height).toBeCloseTo(region.height)
+    expect(resized.left).toBeCloseTo(region.left * 1.5)
+  }
+  engine.resize(1920, 900)
+  expect(engine.text).toBe(text)
+  expect(engine.root.id).toBe(rootId)
+  for (const region of old) {
+    const resized = engine.regions().find((next) => next.id === region.id)!
+    expect(resized.height).toBeCloseTo(region.height * 1.5)
+    expect(resized.top).toBeCloseTo(region.top * 1.5)
+    expect(resized.left).toBeCloseTo(region.left * 1.5)
+  }
+  expect(engine.step(16)).toBeNull()
+  engine.resume()
+  engine.setSample(-400, 0)
+  for (let i = 0; i < 2000 && engine.text; i++) engine.step(16.67)
+  expect(engine.text).toBe('')
+})
+
+it('keeps the same zoom rate across character selection and root promotion', () => {
+  const engine = new DasherEngine(1280, 600)
+  engine.resume()
+  engine.setSample(320, 1)
+  const factor = Math.exp((320 / 1280) * 0.18 * (16.67 / 33))
+  let promotions = 0
+  let checked = 0
+  for (let frame = 0; frame < 600; frame++) {
+    const before = engine.regions()
+    const rootId = engine.root.id
+    engine.step(16.67)
+    if (rootId !== engine.root.id) promotions++
+    const after = new Map(engine.regions().map((region) => [region.id, region]))
+    for (const region of before) {
+      const next = after.get(region.id)
+      if (!next) continue
+      expect(next.height / region.height).toBeCloseTo(factor, 8)
+      checked++
+    }
+  }
+  expect(promotions).toBeGreaterThan(1)
+  expect(checked).toBeGreaterThan(1000)
+  expect(engine.text.length).toBeGreaterThan(1)
 })

@@ -6,7 +6,7 @@ Date: October 23, 2026.
 
 Immediate implementation scope: first build an offline composition experiment with SpeakFaster above Dasher in one shared-theme React workspace, using shared composition state and deterministic demo phrase suggestions behind a replaceable prediction contract. Live LLM integration is deferred for this milestone. The [source-inspected translation and integration plan](./docs/implementation-plan.md) defines the proposed port, layout, incremental gates, and validation; this milestone does not complete the full prototype requirements below.
 
-Accepted interface revision: use a clean flat neutral theme with no green, four large permanent controls (Pause/Resume, Undo, Delete, More), and contextual correction actions. Mode selection and experiment settings belong behind More. Four phrase choices use two columns to preserve room for the direct Dasher letter stream. Dasher takes the remaining height while entering text; phrase and correction choices expand only while paused. Use proportional letter regions, a starting view of the full alphabet, and a visible input marker/vector showing displacement from the center. The [inspected reference pictures and layout decisions](./docs/interface-references.md) supersede the initial plan's decorative workspace presentation.
+Accepted interface revision: use a clean flat neutral theme with no green, click-to-toggle pause/resume on the Dasher surface, and contextual correction actions. Undo, Delete, mode selection, and experiment settings belong in the header Menu; there is no bottom control bar. Four phrase choices use two columns to preserve room for the direct Dasher letter stream. Dasher takes the remaining height while entering text; phrase and correction choices expand only while paused. Use nested right-extending boxes with the upstream piecewise projection, smooth continuous zoom across characters, a starting view of the full alphabet, and a visible input marker/vector showing displacement from the center. Preserve the current branch and normalized zoom on resize and pause/resume. The [inspected reference pictures and layout decisions](./docs/interface-references.md) supersede the initial plan's decorative workspace presentation.
 
 ## 1. Product vision
 
@@ -55,7 +55,7 @@ Example: after “What do you want to do this weekend?”, the user enters initi
 - Support mouse input and recorded/synthetic gaze for development and reproducible tests. Demonstrations and results must identify which input was used.
 - Provide adjustable smoothing, steering speed, target size, and dwell time. Separate continuous Dasher steering from discrete dwell-based controls.
 - Freeze selection and clear pending dwell when samples become stale or tracking is lost. Preserve the draft and require deliberate resumption after recovery.
-- Keep Pause/Resume, Undo, Back, Spell, and Speak/Stop in stable positions. Moving or replacing a target must invalidate its previous dwell progress.
+- Keep click-to-toggle pause/resume on the Dasher surface and the header Menu in stable positions. Undo and Delete remain available in Menu; correction actions remain contextual. Keep future Speak/Stop controls stable when speech is implemented. Moving or replacing a target must invalidate its previous dwell progress.
 - Make all communication actions gaze-operable, with visible focus and selection feedback, readable contrast, and no dependence on color alone. Keyboard access supports testing and helpers but does not satisfy gaze acceptance.
 
 ### 5.2 Substantially modified Dasher
@@ -66,11 +66,13 @@ Experiment with character entry, word-initial entry, and word/phrase regions. Pr
 
 Keep exact spelling and initials entry distinct in state and presentation: a selected initial represents an unknown word, while a selected character extends literal text. Do not silently reinterpret one as the other.
 
-For next-word-initial prediction, aggregate word probabilities by the first letter of the predicted word. For character prediction, use a character distribution. LLM token probabilities are a separate representation: converting them requires explicit handling of spaces, multi-character tokens, partial prefixes, tokenization boundaries, and omitted probability mass. Do not treat the first character of a top token list as an exact character model.
+For next-word-initial prediction, first evaluate a PPM model trained directly on word-initial sequences from the AAC training messages and Turk training dialogues, with COMM2 reserved for final testing. The [training and validation plan](./docs/initials-ppm-plan.md) defines source preparation, variable-length history, held-out evaluation, and navigation gates; this model is selected for an experiment, not implemented or validated. Keep uniform initials and an empirical unigram as comparison conditions. A future word-probability predictor may instead aggregate probabilities by the first letter of each predicted word. For character prediction, use a character distribution. LLM token probabilities are a separate representation: converting them requires explicit handling of spaces, multi-character tokens, partial prefixes, tokenization boundaries, and omitted probability mass. Do not treat the first character of a top token list as an exact character model.
 
 Start with the available Dasher language model as the synchronous navigation baseline. Add contextual prediction only after navigation works. Candidate probabilities may influence future regions at stable boundaries; an arriving model response must not unexpectedly move the region currently being pursued.
 
 ### 5.3 SpeakFaster-derived composition in React
+
+The offline interface exposes **Spell a keyword** beside the entry field. Select a word-position chip to enter a full keyword or a partial prefix, then explicitly expand again. **None of these** opens those controls after rejecting an expansion. Selecting an accepted word exposes suggested or exact replacement; **Previous phrase** returns to the prior branch. Suggestions remain deterministic demo fixtures, not the research models.
 
 Use the upstream Angular UI as a behavioral reference and port the relevant interaction flows into React and TypeScript. Preserve useful initials expansion, candidate selection, word-level refinement, and correction behavior while redesigning their presentation around gaze and Dasher. Do not embed an Angular application inside the product or port unrelated research tooling.
 

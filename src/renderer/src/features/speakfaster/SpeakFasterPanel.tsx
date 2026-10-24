@@ -9,11 +9,13 @@ import { usePredictions } from '../../prediction/usePredictions'
 export function SpeakFasterPanel({
   scenario,
   editInitials,
-  closeInitials
+  closeInitials,
+  openInitials
 }: {
   scenario: DemoScenario
   editInitials: boolean
   closeInitials: () => void
+  openInitials: () => void
 }): React.JSX.Element {
   const state = useComposition()
   const dispatch = useCompositionDispatch()
@@ -49,9 +51,11 @@ export function SpeakFasterPanel({
       dispatch({ type: 'done' })
       closeInitials()
     } else if (correction) dispatch({ type: 'cancel-edit' })
-    else if (editInitials) closeInitials()
     else if (state.status === 'loading') dispatch({ type: 'dismiss' })
-    else request(state.mode === 'initials' ? 'expansion' : 'completion')
+    else {
+      closeInitials()
+      request(state.mode === 'initials' ? 'expansion' : 'completion')
+    }
   }
   return (
     <section
@@ -95,6 +99,8 @@ export function SpeakFasterPanel({
             autoComplete="off"
             spellCheck={false}
             maxLength={state.mode === 'initials' ? 24 : 500}
+            aria-describedby={editing ? 'edit-help' : undefined}
+            aria-invalid={!!state.validationError}
             onFocus={() => dispatch({ type: 'pause' })}
             onChange={(event) => dispatch({ type: 'input', text: event.target.value })}
             onKeyDown={(event) => {
@@ -118,15 +124,43 @@ export function SpeakFasterPanel({
             ? 'Use word'
             : correction
               ? 'Keep word'
-              : editInitials
-                ? 'Done'
-                : state.status === 'loading'
-                  ? 'Cancel'
-                  : state.mode === 'initials'
-                    ? 'Expand'
-                    : 'Complete'}
+              : state.status === 'loading'
+                ? 'Cancel'
+                : state.mode === 'initials'
+                  ? 'Expand'
+                  : 'Complete'}
         </ActionButton>
       </div>
+      {state.paused && !editing && !correction && (
+        <div className="phrase-tools" aria-label="Phrase editing">
+          <ActionButton
+            identity={`spell-keyword-${version}`}
+            disabled={!state.tokens.length}
+            onAction={() => {
+              dispatch({ type: 'mode', mode: 'initials' })
+              openInitials()
+            }}
+          >
+            Spell a keyword
+          </ActionButton>
+          {editInitials && (
+            <ActionButton identity={`close-keywords-${version}`} onAction={closeInitials}>
+              Show phrases
+            </ActionButton>
+          )}
+          {!!state.branches.length && (
+            <ActionButton
+              identity={`previous-phrase-${version}`}
+              onAction={() => {
+                dispatch({ type: 'back' })
+                closeInitials()
+              }}
+            >
+              Previous phrase
+            </ActionButton>
+          )}
+        </div>
+      )}
       <div
         className="choice-area"
         aria-label="Phrase suggestions"
@@ -134,23 +168,38 @@ export function SpeakFasterPanel({
       >
         {editing ? (
           <div className="context-actions">
-            <p>Spell exactly with Dasher below.</p>
+            <p id="edit-help">
+              {state.mode === 'keyword'
+                ? `Word ${state.tokens.findIndex((token) => token.id === state.selectedToken) + 1}: spell a full word or a prefix, then expand again.`
+                : `Replace “${state.draft.slice(state.selection!.start, state.selection!.end)}”. The rest of your message stays the same.`}{' '}
+              Type above or use Dasher below.
+            </p>
             {state.mode === 'keyword' && (
-              <ActionButton
-                identity={`use-initial-${version}`}
-                onAction={() => {
-                  dispatch({ type: 'use-initial' })
-                  closeInitials()
-                }}
-              >
-                Use as initial
-              </ActionButton>
+              <>
+                <ActionButton
+                  identity={`use-prefix-${version}`}
+                  onAction={() => {
+                    dispatch({ type: 'use-prefix' })
+                  }}
+                >
+                  Use as prefix
+                </ActionButton>
+                <ActionButton
+                  identity={`use-initial-${version}`}
+                  onAction={() => {
+                    dispatch({ type: 'use-initial' })
+                    closeInitials()
+                  }}
+                >
+                  Use as initial
+                </ActionButton>
+              </>
             )}
             <ActionButton
               identity={`cancel-edit-${version}`}
               onAction={() => dispatch({ type: 'cancel-edit' })}
             >
-              Cancel correction
+              Cancel edit
             </ActionButton>
           </div>
         ) : correction ? (
@@ -168,9 +217,11 @@ export function SpeakFasterPanel({
           </div>
         ) : editInitials ? (
           <div className="initial-editor">
-            <p>Select an initial to spell the full word.</p>
+            <p>
+              Select a word position to spell a keyword or prefix. Other initials stay in place.
+            </p>
             <div className="token-row">
-              {state.tokens.map((token) => (
+              {state.tokens.map((token, index) => (
                 <ActionButton
                   key={token.id}
                   className="token-chip"
@@ -181,7 +232,15 @@ export function SpeakFasterPanel({
                     dispatch({ type: 'spell' })
                   }}
                 >
-                  {token.value}
+                  <span className="token-position">Word {index + 1}</span> {token.value}
+                  {token.kind === 'prefix' ? '…' : ''}{' '}
+                  <span className="token-kind">
+                    {token.kind === 'word'
+                      ? 'Full word'
+                      : token.kind === 'prefix'
+                        ? 'Prefix'
+                        : 'Initial'}
+                  </span>
                 </ActionButton>
               ))}
             </div>
@@ -231,10 +290,10 @@ export function SpeakFasterPanel({
               ? 'Move off the current dwell target to review suggestions.'
               : state.status === 'error' || state.status === 'empty'
                 ? state.notice
-                : state.tokens.some((token) => token.kind === 'word')
+                : state.tokens.some((token) => token.kind !== 'initial')
                   ? `Locked: ${state.tokens
-                      .filter((token) => token.kind === 'word')
-                      .map((token) => token.value)
+                      .filter((token) => token.kind !== 'initial')
+                      .map((token) => token.value + (token.kind === 'prefix' ? '…' : ''))
                       .join(', ')}`
                   : '')}
         </p>
@@ -244,7 +303,10 @@ export function SpeakFasterPanel({
             identity={`reject-${version}`}
             onAction={() => {
               dispatch({ type: 'dismiss' })
-              dispatch({ type: 'mode', mode: 'initials' })
+              if (state.request?.purpose === 'expansion') {
+                dispatch({ type: 'mode', mode: 'initials' })
+                openInitials()
+              }
             }}
           >
             None of these

@@ -1,6 +1,6 @@
 const NS = 'http://www.w3.org/2000/svg'
 
-/** Pointer feedback stays in panel coordinates, independent of the fitted letter viewport. */
+/** Pointer feedback and letter geometry share centered panel coordinates. */
 export class PointerOverlay {
   private layer = document.createElementNS(NS, 'g')
   private line = document.createElementNS(NS, 'line')

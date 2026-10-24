@@ -4,9 +4,9 @@ An offline Electron/React/TypeScript composition experiment combining a Dasher-d
 
 ## Try the composition loop
 
-Enter `iwac` in the Initials field and select Expand, or use More → Load demo initials. Select a phrase to accept it into your message; select one word in the message to spell or suggest a replacement. Undo restores the previous edit. More contains exact spelling, initials editing, previous phrase, a new message, and settings.
+Enter `iwac` in the Initials field and select Expand, or use Menu → Load demo initials. Select a phrase to accept it into your message; select one word in the message to spell or suggest a replacement. Undo restores the previous edit. Menu contains Undo, Delete, exact spelling, initials editing, previous phrase, a new message, and settings.
 
-Resume enables continuous mouse steering in the lower panel. Move right toward a letter to zoom into it; move left to reverse. A pointer ring, center vector, and distance readout show steering displacement. Letter regions retain square proportions on wide screens, and the phrase area contracts during entry to give Dasher more height. Leaving the surface, Escape, focus loss, or resizing pauses steering. Dwell selection is optional under More → Settings. A physical eye tracker is not connected.
+Click anywhere in Dasher to start steering, then click again to pause. Space or Enter works when Dasher has keyboard focus. Move right toward a letter to zoom into it; move left to reverse. A pointer ring, center vector, and distance readout show steering displacement. Nested boxes use the upstream piecewise height-to-position projection across the whole panel. A continuous camera transform keeps zoom smooth across characters; pausing and resuming retains that view. Resizing scales the current boxes without resetting the branch. The phrase area contracts during entry to give Dasher more height. Leaving the surface, Escape, focus loss, or resizing pauses steering. Dwell selection is optional under Menu → Settings. A physical eye tracker is not connected.
 
 Suggestions use a small set of authored demo fixtures, including `iwac`, `insw`, `cyhm`, and `tysm`. Unknown initials return no match while exact spelling remains available. No LLM, cloud service, microphone, or speech provider is connected. Selecting a phrase does not speak it.
 

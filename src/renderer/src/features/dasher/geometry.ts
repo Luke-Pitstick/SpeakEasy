@@ -1,5 +1,5 @@
-// Dasher's square-region projection. Display coordinates stay in CSS pixels;
-// fitting the engine width to height prevents stretching on ultrawide windows.
+// Adapted from dasher-web Limits and UserInterface's target-right gradients.
+// Height controls the leading edge; every box continues to the viewport right.
 export class Geometry {
   constructor(
     readonly width: number,
@@ -17,14 +17,31 @@ export class Geometry {
   get bottom(): number {
     return this.height / 2
   }
+  get solverRight(): number {
+    return this.width / 3
+  }
+  private get gradients(): { left: number; height: number }[] {
+    return [
+      { left: -this.width / 3, height: this.height },
+      { left: -this.width / 6, height: this.height / 2 },
+      { left: this.width / 5, height: this.height * 0.05 },
+      { left: this.solverRight, height: this.height * 0.01 }
+    ]
+  }
   solveHeight(left: number): number {
-    return Math.max(0, this.right - left)
+    const gradients = this.gradients
+    const index = gradients.findIndex((point) => left < point.left)
+    if (index < 0) return gradients.at(-1)!.height
+    const a = gradients[index === 0 ? 1 : index]
+    const b = gradients[index === 0 ? 0 : index - 1]
+    return a.height + ((b.height - a.height) * (left - a.left)) / (b.left - a.left)
   }
   solveLeft(height: number): number {
-    return this.right - height
+    const gradients = this.gradients
+    const index = gradients.findIndex((point) => height > point.height)
+    if (index < 0) return this.solverRight
+    const a = gradients[index === 0 ? 1 : index]
+    const b = gradients[index === 0 ? 0 : index - 1]
+    return a.left + ((b.left - a.left) * (height - a.height)) / (b.height - a.height)
   }
-}
-
-export function fittedWidth(width: number, height: number): number {
-  return Math.max(1, Math.min(width, height * 1.5))
 }

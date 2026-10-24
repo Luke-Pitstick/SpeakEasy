@@ -28,12 +28,13 @@ button:disabled {
   position: relative;
 }
 .app-header {
-  height: 40px;
+  height: 56px;
   flex-shrink: 0;
   padding: 0 24px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 20px;
   border-bottom: 1px solid var(--border);
 }
 h1 {
@@ -47,6 +48,12 @@ h1 {
   gap: 12px;
   color: var(--muted);
   font-size: 13px;
+  margin-left: auto;
+}
+.header-menu.action-button {
+  min-height: 44px;
+  padding: 6px 20px;
+  font-size: 16px;
 }
 .status-divider {
   color: var(--border);
@@ -315,6 +322,10 @@ select:focus-visible {
   height: 100%;
   width: 100%;
 }
+.dasher-surface:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
 .dasher-region rect {
   stroke: var(--region-border);
   stroke-width: 0.7;
@@ -359,21 +370,9 @@ select:focus-visible {
   background: var(--canvas);
   padding: 6px 0;
 }
-.control-bar {
-  min-height: 88px;
-  flex-shrink: 0;
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-  padding: 12px 24px;
-  border-top: 1px solid var(--border);
-}
-.control-bar .action-button {
-  min-width: 0;
-}
 .menu-scrim {
   position: absolute;
-  inset: 40px 0 0;
+  inset: 56px 0 0;
   background: #0007;
   display: flex;
   align-items: center;
@@ -439,22 +438,12 @@ h2 {
   .workspace-body {
     grid-template-rows: 144px minmax(188px, 1fr);
   }
-  .control-bar {
-    min-height: 80px;
-    padding-top: 8px;
-    padding-bottom: 8px;
-  }
 }
 @media (max-width: 800px) {
   .app-header,
   .speakfaster-panel {
     padding-left: 16px;
     padding-right: 16px;
-  }
-  .control-bar {
-    padding-left: 16px;
-    padding-right: 16px;
-    gap: 8px;
   }
   .field-label {
     width: 60px;
@@ -517,12 +506,40 @@ h2 {
   cursor: none;
 }
 
+.workspace.has-phrase-tools .workspace-body {
+  grid-template-rows: 200px minmax(188px, 1fr);
+}
 .workspace.has-choices .workspace-body {
-  grid-template-rows: 272px minmax(188px, 1fr);
+  grid-template-rows: 336px minmax(188px, 1fr);
 }
 .workspace:not(.has-choices) .choice-area {
   display: none;
 }
 .workspace:not(.has-choices) .suggestion-footer {
   height: 32px;
+}
+
+.phrase-tools {
+  display: flex;
+  gap: 12px;
+  min-height: 52px;
+  flex-shrink: 0;
+  align-items: center;
+}
+.phrase-tools .action-button {
+  min-height: 44px;
+  padding: 6px 16px;
+  font-size: 17px;
+}
+.token-position,
+.token-kind {
+  display: block;
+  color: var(--muted);
+  font-size: 12px;
+}
+.token-chip.action-button {
+  min-height: 80px;
+}
+.choice-area {
+  overflow-y: auto;
 }

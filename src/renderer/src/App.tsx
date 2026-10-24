@@ -40,47 +40,34 @@ function Workspace(): React.JSX.Element {
     change()
   }
   return (
-    <main className={`workspace ${hasChoices ? 'has-choices' : ''}`} data-theme={theme}>
+    <main
+      className={`workspace ${hasChoices ? 'has-choices' : ''} ${state.paused ? 'has-phrase-tools' : ''}`}
+      data-theme={theme}
+    >
       <header className="app-header">
         <h1>SpeakEasy</h1>
         <span className="input-status">
           {state.paused ? 'Paused' : 'Writing'}
           <span className="status-divider">/</span>Offline demo
         </span>
+        <ActionButton
+          className="header-menu"
+          identity={`more-${menu}`}
+          disabled={menu !== 'closed'}
+          onAction={() => configure(() => setMenu('more'))}
+        >
+          Menu
+        </ActionButton>
       </header>
       <div className="workspace-body" inert={menu !== 'closed' || undefined}>
         <SpeakFasterPanel
           scenario={scenario}
           editInitials={editInitials}
           closeInitials={() => setEditInitials(false)}
+          openInitials={() => setEditInitials(true)}
         />
         <DasherPanel speed={speed} weighting={weighting} />
       </div>
-      <footer className="control-bar" inert={menu !== 'closed' || undefined}>
-        <ActionButton
-          className="primary"
-          identity={`resume-${state.paused}`}
-          onAction={() => dispatch({ type: state.paused ? 'resume' : 'pause' })}
-        >
-          {state.paused ? 'Resume' : 'Pause'}
-        </ActionButton>
-        <ActionButton
-          identity={`undo-${state.revision}`}
-          disabled={!state.history.length}
-          onAction={() => dispatch({ type: 'undo' })}
-        >
-          Undo
-        </ActionButton>
-        <ActionButton
-          identity={`delete-${state.revision}`}
-          onAction={() => dispatch({ type: 'backspace' })}
-        >
-          Delete
-        </ActionButton>
-        <ActionButton identity={`more-${menu}`} onAction={() => configure(() => setMenu('more'))}>
-          More
-        </ActionButton>
-      </footer>
       {menu !== 'closed' && (
         <div className="menu-scrim">
           <section
@@ -90,13 +77,32 @@ function Workspace(): React.JSX.Element {
             aria-labelledby="menu-title"
           >
             <div className="menu-heading">
-              <h2 id="menu-title">{menu === 'settings' ? 'Settings' : 'More'}</h2>
+              <h2 id="menu-title">{menu === 'settings' ? 'Settings' : 'Menu'}</h2>
               <ActionButton identity="close-menu" onAction={closeMenu}>
                 Back
               </ActionButton>
             </div>
             {menu === 'more' ? (
               <div className="more-grid">
+                <ActionButton
+                  identity={`undo-${state.revision}`}
+                  disabled={!state.history.length}
+                  onAction={() => {
+                    dispatch({ type: 'undo' })
+                    closeMenu()
+                  }}
+                >
+                  Undo
+                </ActionButton>
+                <ActionButton
+                  identity={`delete-${state.revision}`}
+                  onAction={() => {
+                    dispatch({ type: 'backspace' })
+                    closeMenu()
+                  }}
+                >
+                  Delete
+                </ActionButton>
                 <ActionButton
                   identity={`mode-${state.revision}`}
                   onAction={() => {
@@ -108,17 +114,6 @@ function Workspace(): React.JSX.Element {
                   }}
                 >
                   {state.mode === 'initials' ? 'Exact spelling' : 'Enter initials'}
-                </ActionButton>
-                <ActionButton
-                  identity={`edit-initials-${state.revision}`}
-                  disabled={!state.tokens.length}
-                  onAction={() => {
-                    dispatch({ type: 'mode', mode: 'initials' })
-                    setEditInitials(true)
-                    closeMenu()
-                  }}
-                >
-                  Edit initials
                 </ActionButton>
                 <ActionButton
                   identity={`back-${state.revision}`}

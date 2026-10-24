@@ -5,7 +5,6 @@ import { localSample } from '../../interaction/input'
 import { DasherEngine } from './engine'
 import { SvgRenderer } from './SvgRenderer'
 import { PointerOverlay } from './PointerOverlay'
-import { fittedWidth } from './geometry'
 
 export function DasherPanel({
   speed,
@@ -21,11 +20,24 @@ export function DasherPanel({
   const pointerSvg = useRef<SVGSVGElement>(null)
   const pointerVisual = useRef<PointerOverlay | null>(null)
   const engine = useRef<DasherEngine | null>(null)
+  const synchronizeSeed = useRef<(() => void) | null>(null)
   const capacity =
     state.mode === 'initials' ? 24 - (state.tokens.length - entrySeed(state).length) : 500
-  const current = useRef({ seed: entrySeed(state), speed, paused: state.paused, capacity })
+  const current = useRef({
+    seed: entrySeed(state),
+    speed,
+    paused: state.paused,
+    capacity,
+    sessionId: state.session.id
+  })
   useEffect(() => {
-    current.current = { seed: entrySeed(state), speed, paused: state.paused, capacity }
+    current.current = {
+      seed: entrySeed(state),
+      speed,
+      paused: state.paused,
+      capacity,
+      sessionId: state.session.id
+    }
   }, [state, speed, capacity])
   const sessionId = state.session.id
   const literal = state.mode !== 'initials'
@@ -45,7 +57,7 @@ export function DasherPanel({
     let inside = false
     let point = { x: 0, y: 0 }
 
-    const resize = (): void => {
+    const resize = (continuing = false): void => {
       const nextBounds = container.getBoundingClientRect()
       if (initialized && nextBounds.width === bounds.width && nextBounds.height === bounds.height) {
         bounds = nextBounds
@@ -53,25 +65,41 @@ export function DasherPanel({
       }
       bounds = nextBounds
       pointer.resize(Math.max(1, bounds.width), Math.max(1, bounds.height))
-      const seed = engine.current?.text ?? current.current.seed
-      engine.current?.pause()
-      engine.current = new DasherEngine(
-        fittedWidth(bounds.width, bounds.height),
-        Math.max(1, bounds.height),
-        seed,
-        literal,
-        weighting,
-        current.current.capacity
-      )
+      pointer.hide()
+      inside = continuing && inside
+      if (engine.current)
+        engine.current.resize(Math.max(1, bounds.width), Math.max(1, bounds.height))
+      else
+        engine.current = new DasherEngine(
+          Math.max(1, bounds.width),
+          Math.max(1, bounds.height),
+          current.current.seed,
+          literal,
+          weighting,
+          current.current.capacity
+        )
       engine.current.setSpeed(current.current.speed)
       renderer.draw(engine.current.regions(), engine.current.geometry)
-      if (initialized && !current.current.paused)
-        dispatch({ type: 'pause', notice: 'Layout changed. Your text is safe; choose Resume.' })
+      if (initialized && !current.current.paused && !continuing)
+        dispatch({
+          type: 'pause',
+          notice: 'Layout changed. Your text is safe; click Dasher to continue.'
+        })
       initialized = true
     }
     engine.current = null
     resize()
-    const observer = new ResizeObserver(resize)
+    synchronizeSeed.current = () => {
+      if (engine.current?.text !== current.current.seed) {
+        engine.current?.pause()
+        engine.current = null
+        initialized = false
+      }
+      // An explicit resume can collapse phrase choices. Fit that layout before
+      // starting the engine; later external resizes still require another click.
+      resize(!current.current.paused)
+    }
+    const observer = new ResizeObserver(() => resize())
     observer.observe(container)
     const move = (event: PointerEvent): void => {
       point = { x: event.clientX, y: event.clientY }
@@ -90,14 +118,14 @@ export function DasherPanel({
       if (!current.current.paused)
         dispatch({
           type: 'pause',
-          notice: 'Steering paused. Review your text, then choose Resume.'
+          notice: 'Steering paused. Click Dasher to continue.'
         })
     }
     const blur = (): void => {
       leave()
       dispatch({
         type: 'pause',
-        notice: 'Input paused after focus or tracking changed. Choose Resume when ready.'
+        notice: 'Input paused after focus or tracking changed. Click Dasher when ready.'
       })
     }
     container.addEventListener('pointermove', move)
@@ -122,7 +150,12 @@ export function DasherPanel({
           const output = active.step(now - last)
           if (output?.limitReached) dispatch({ type: 'limit' })
           if (output)
-            dispatch({ type: 'engine', sessionId, sequence: sequence++, text: output.text })
+            dispatch({
+              type: 'engine',
+              sessionId: current.current.sessionId,
+              sequence: sequence++,
+              text: output.text
+            })
           renderer.draw(active.regions(), active.geometry)
         }
       }
@@ -138,6 +171,7 @@ export function DasherPanel({
       pointerVisual.current = null
       engine.current?.pause()
       engine.current = null
+      synchronizeSeed.current = null
       container.removeEventListener('pointermove', move)
       container.removeEventListener('pointerenter', move)
       container.removeEventListener('pointerleave', leave)
@@ -145,14 +179,15 @@ export function DasherPanel({
       window.removeEventListener('blur', blur)
       document.removeEventListener('visibilitychange', blur)
     }
-  }, [sessionId, literal, weighting, dispatch])
+  }, [literal, weighting, capacity, dispatch])
 
   useEffect(() => {
+    synchronizeSeed.current?.()
     pointerVisual.current?.setPaused(state.paused)
     engine.current?.setSpeed(speed)
     if (state.paused) engine.current?.pause()
     else engine.current?.resume()
-  }, [state.paused, sessionId, speed, weighting])
+  }, [state.paused, sessionId, speed, weighting, capacity])
 
   const target =
     state.mode === 'initials'
@@ -172,6 +207,16 @@ export function DasherPanel({
         className={`dasher-surface ${state.paused ? 'is-paused' : ''}`}
         ref={host}
         data-testid="dasher-surface"
+        role="button"
+        tabIndex={0}
+        aria-label={state.paused ? 'Resume Dasher' : 'Pause Dasher'}
+        aria-pressed={!state.paused}
+        onClick={() => dispatch({ type: state.paused ? 'resume' : 'pause' })}
+        onKeyDown={(event) => {
+          if (event.key !== ' ' && event.key !== 'Enter') return
+          event.preventDefault()
+          if (!event.repeat) dispatch({ type: state.paused ? 'resume' : 'pause' })
+        }}
       >
         <svg
           ref={svg}
@@ -183,7 +228,7 @@ export function DasherPanel({
           <span />
         </div>
         <svg ref={pointerSvg} className="pointer-overlay" aria-hidden="true" />
-        {state.paused && <span className="pause-hint">Paused — choose Resume below</span>}
+        <span className="pause-hint">{state.paused ? 'Click to start' : 'Click to pause'}</span>
       </div>
     </section>
   )

@@ -209,3 +209,26 @@ it('returns visible validation feedback instead of silently ignoring an invalid 
     'A locked keyword must be one word.'
   )
 })
+
+it('preserves partial keywords across typing, rejects incompatible results, and restores initials', async () => {
+  let state = reducer(example(), { type: 'select-token', id: 'initial-3' })
+  state = reducer(state, { type: 'spell' })
+  state = reducer(state, { type: 'input', text: 'co' })
+  state = reducer(state, { type: 'use-prefix' })
+  expect(state.tokens.at(-1)).toMatchObject({ kind: 'prefix', value: 'co' })
+  const choices = await suggest(state)
+  expect(choices.candidates.map((candidate) => candidate.text)).toEqual([
+    'I want a coffee',
+    'I want a cookie',
+    'I would appreciate company'
+  ])
+  const typed = reducer(state, { type: 'input', text: 't' })
+  expect(typed.tokens.at(-2)).toMatchObject({ kind: 'prefix', value: 'co' })
+  expect(entrySeed(typed)).toBe('t')
+  state = reducer(state, { type: 'select-token', id: 'initial-3' })
+  state = reducer(state, { type: 'spell' })
+  expect(state.buffer).toBe('co')
+  state = reducer(state, { type: 'input', text: 'c' })
+  state = reducer(state, { type: 'use-initial' })
+  expect(entrySeed(state)).toBe('iwac')
+})

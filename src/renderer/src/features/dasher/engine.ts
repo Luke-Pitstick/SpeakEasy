@@ -114,7 +114,7 @@ export class DasherEngine {
       for (let i = 0; i < box.choices.length; i++) {
         const height = box.height * box.fractions[i]
         if (
-          height >= 5 &&
+          height >= 2 &&
           top < this.geometry.bottom &&
           top + height > this.geometry.top &&
           depth < 9 &&
@@ -161,6 +161,16 @@ export class DasherEngine {
     this.running = false
   }
 
+  resize(width: number, height: number): void {
+    const scale = height / this.geometry.height
+    this.pause()
+    this.pointer = { x: 0, y: 0 }
+    this.root.top *= scale
+    this.root.height *= scale
+    this.geometry = new Geometry(width, height)
+    this.layout()
+  }
+
   step(elapsed: number): { text: string; sequence: number; limitReached?: boolean } | null {
     if (!this.running) return null
     if ([...this.output].length >= this.maxLength && this.pointer.x > 12) {
@@ -169,9 +179,8 @@ export class DasherEngine {
     }
     const dt = (Math.min(32, Math.max(0, elapsed)) / 33) * this.speed
     const x = Math.abs(this.pointer.x) < 12 ? 0 : this.pointer.x
-    // Zoom is proportional to horizontal displacement, so changing the
-    // viewport aspect ratio cannot turn thin targets into a slow linear crawl.
-    // Both directions are exact inverse scales; vertical displacement pans.
+    // One continuous camera transform for the whole hierarchy. Switching to a
+    // newly spawned child must not change the rate or recenter the viewport.
     const factor = Math.exp((x / this.geometry.width) * 0.18 * dt)
     const rootHeight = this.root.height * factor
     if (rootHeight >= this.geometry.height * 0.45 || this.ancestors.length) {

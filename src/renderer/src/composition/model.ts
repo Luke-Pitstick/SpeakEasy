@@ -49,7 +49,13 @@ export function entryText(state: Content): string {
   if (state.mode === 'literal') return state.draft
   if (state.mode === 'keyword' || state.mode === 'replacement') return state.buffer
   return state.tokens
-    .map((token) => (token.kind === 'word' ? `{${token.value}}` : token.value))
+    .map((token) =>
+      token.kind === 'word'
+        ? `{${token.value}}`
+        : token.kind === 'prefix'
+          ? `{${token.value}…}`
+          : token.value
+    )
     .join('')
 }
 
@@ -85,6 +91,7 @@ export type Action =
   | { type: 'resume' }
   | { type: 'backspace' }
   | { type: 'use-initial' }
+  | { type: 'use-prefix' }
   | { type: 'limit' }
   | { type: 'undo' }
   | { type: 'back' }
@@ -136,7 +143,7 @@ function edit(state: CompositionState, changes: Partial<Content>, save = true): 
 /** Locked tokens precede the editable trailing run and are never parsed from engine text. */
 export function entrySeed(state: Content): string {
   if (state.mode !== 'initials') return entryText(state)
-  const lastWord = state.tokens.findLastIndex((token) => token.kind === 'word')
+  const lastWord = state.tokens.findLastIndex((token) => token.kind !== 'initial')
   return state.tokens
     .slice(lastWord + 1)
     .map((token) => token.value)
@@ -147,7 +154,7 @@ function applyInput(state: CompositionState, text: string): Partial<Content> {
   const bounded = [...text].slice(0, state.mode === 'initials' ? 24 : 500).join('')
   if (state.mode === 'literal') return { draft: bounded, selection: null }
   if (state.mode !== 'initials') return { buffer: bounded }
-  const lastWord = state.tokens.findLastIndex((token) => token.kind === 'word')
+  const lastWord = state.tokens.findLastIndex((token) => token.kind !== 'initial')
   const locked = state.tokens.slice(0, lastWord + 1)
   return {
     tokens: [
@@ -312,7 +319,7 @@ export function reducer(state: CompositionState, action: Action): CompositionSta
         return token
           ? edit(
               state,
-              { mode: 'keyword', buffer: token.kind === 'word' ? token.value : '' },
+              { mode: 'keyword', buffer: token.kind !== 'initial' ? token.value : '' },
               false
             )
           : state
@@ -328,6 +335,7 @@ export function reducer(state: CompositionState, action: Action): CompositionSta
           )
         : state
     }
+    case 'use-prefix':
     case 'done': {
       if (!state.buffer.trim())
         return { ...state, validationError: 'Spell a word first, or cancel to keep the original.' }
@@ -337,7 +345,11 @@ export function reducer(state: CompositionState, action: Action): CompositionSta
         return edit(state, {
           tokens: state.tokens.map((token) =>
             token.id === state.selectedToken
-              ? { ...token, kind: 'word', value: state.buffer.trim() }
+              ? {
+                  ...token,
+                  kind: action.type === 'use-prefix' ? 'prefix' : 'word',
+                  value: state.buffer.trim()
+                }
               : token
           ),
           mode: 'initials',

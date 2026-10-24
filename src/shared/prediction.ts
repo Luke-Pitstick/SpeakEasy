@@ -1,4 +1,4 @@
-export type AbbreviationToken = { id: string; kind: 'initial' | 'word'; value: string }
+export type AbbreviationToken = { id: string; kind: 'initial' | 'prefix' | 'word'; value: string }
 export type TextRange = { start: number; end: number }
 export type PredictionPurpose = 'expansion' | 'refinement' | 'completion'
 export type DemoScenario = 'normal' | 'empty' | 'error' | 'timeout' | 'late' | 'invalid'
