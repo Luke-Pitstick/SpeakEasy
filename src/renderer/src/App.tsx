@@ -3,9 +3,11 @@ import type { DemoScenario } from '../../shared/prediction'
 import { CompositionProvider } from './composition/context'
 import { useComposition, useCompositionDispatch } from './composition/state'
 import { DasherPanel } from './features/dasher/DasherPanel'
-import { SpeakFasterPanel } from './features/speakfaster/SpeakFasterPanel'
+import { trainedInitials } from './features/dasher/initials-model'
+import { DraftPanel, SpeakFasterPanel } from './features/speakfaster/SpeakFasterPanel'
 import { ActionButton, InteractionProvider } from './interaction/controls'
 import { useInteraction } from './interaction/state'
+import { usePredictions } from './prediction/usePredictions'
 
 function Workspace(): React.JSX.Element {
   const state = useComposition()
@@ -14,8 +16,10 @@ function Workspace(): React.JSX.Element {
   const [menu, setMenu] = useState<'closed' | 'more' | 'settings'>('closed')
   const [theme, setTheme] = useState<'system' | 'light' | 'dark'>('system')
   const [speed, setSpeed] = useState(0.6)
+  const [edgeHeight, setEdgeHeight] = useState(48)
   const [weighting, setWeighting] = useState<'uniform' | 'ppm'>('ppm')
   const [scenario, setScenario] = useState<DemoScenario>('normal')
+  const predictions = usePredictions(scenario)
   useEffect(() => {
     const pause = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') {
@@ -26,35 +30,50 @@ function Workspace(): React.JSX.Element {
     window.addEventListener('keydown', pause)
     return () => window.removeEventListener('keydown', pause)
   }, [dispatch])
-  const hasChoices =
-    state.paused &&
-    (state.status !== 'idle' ||
-      !!state.selection ||
-      state.editor !== 'entry' ||
-      state.mode === 'keyword' ||
-      state.mode === 'replacement')
   const closeMenu = (): void => setMenu('closed')
   const configure = (change: () => void): void => {
     dispatch({ type: 'pause' })
     change()
   }
   return (
-    <main
-      className={`workspace ${hasChoices ? 'has-choices' : ''} ${state.paused ? 'has-phrase-tools' : ''}`}
-      data-theme={theme}
-    >
-      <header className="app-header">
-        <h1>SpeakEasy</h1>
-        <span className="input-status">
-          {state.paused ? 'Paused' : 'Writing'}
-          <span className="status-divider">/</span>Offline demo
-        </span>
+    <main className="workspace" data-theme={theme}>
+      <div
+        className="top-edge-region"
+        style={{ height: edgeHeight }}
+        onPointerEnter={() => dispatch({ type: 'pause' })}
+      >
+        <ActionButton
+          className="top-edge-cue"
+          identity={`next-${state.workspace}-${state.mode}-${state.editor}`}
+          disabled={menu !== 'closed'}
+          onAction={() => {
+            if (state.workspace === 'dasher') {
+              dispatch({ type: 'workspace', workspace: 'phrases' })
+              if (!state.request && state.editor === 'entry')
+                predictions.request(state.mode === 'initials' ? 'expansion' : 'completion')
+            } else dispatch({ type: 'workspace', workspace: 'dasher' })
+          }}
+        >
+          <span>{state.workspace === 'dasher' ? 'Show phrases' : 'Keep writing'}</span>
+          <span className="edge-instruction" aria-hidden="true">
+            {interaction.dwell ? 'Hold here · look away to cancel' : 'Click to switch'}
+          </span>
+        </ActionButton>
+      </div>
+      <header
+        className="app-header"
+        aria-label="Message and controls"
+        onPointerEnter={() => dispatch({ type: 'pause' })}
+      >
+        <div className="message-strip" inert={menu !== 'closed' || undefined}>
+          <DraftPanel />
+        </div>
         <ActionButton
           className="header-writing"
           identity={`writing-${state.paused}-${state.editor}-${state.mode}-${state.selectedToken ?? ''}-${state.selection?.start ?? ''}`}
           disabled={
             menu !== 'closed' ||
-            (state.editor === 'phrase' && state.mode !== 'replacement') ||
+            state.workspace !== 'dasher' ||
             (state.editor === 'keywords' && !state.selectedToken)
           }
           onAction={() => dispatch({ type: state.paused ? 'resume' : 'pause' })}
@@ -71,8 +90,10 @@ function Workspace(): React.JSX.Element {
         </ActionButton>
       </header>
       <div className="workspace-body" inert={menu !== 'closed' || undefined}>
-        <SpeakFasterPanel scenario={scenario} />
-        <DasherPanel speed={speed} weighting={weighting} />
+        {state.workspace === 'phrases' && <SpeakFasterPanel predictions={predictions} />}
+        <div className="dasher-workspace" hidden={state.workspace !== 'dasher'}>
+          <DasherPanel speed={speed} weighting={weighting} />
+        </div>
       </div>
       {menu !== 'closed' && (
         <div className="menu-scrim">
@@ -83,7 +104,7 @@ function Workspace(): React.JSX.Element {
             aria-labelledby="menu-title"
           >
             <div className="menu-heading">
-              <h2 id="menu-title">{menu === 'settings' ? 'Settings' : 'Menu'}</h2>
+              <h2 id="menu-title">{menu === 'settings' ? 'Settings' : 'SpeakEasy'}</h2>
               <ActionButton identity="close-menu" onAction={closeMenu}>
                 Back
               </ActionButton>
@@ -202,6 +223,24 @@ function Workspace(): React.JSX.Element {
                   >
                     <option value="false">Off — click to select</option>
                     <option value="true">On — look to select</option>
+                  </select>
+                </label>
+                <p className="settings-note" role="status">
+                  {weighting === 'uniform'
+                    ? 'Uniform letters'
+                    : state.mode === 'initials'
+                      ? trainedInitials.status
+                      : 'Character PPM'}
+                </p>
+                <label>
+                  Top-edge target size
+                  <select
+                    value={edgeHeight}
+                    onChange={(event) => configure(() => setEdgeHeight(Number(event.target.value)))}
+                  >
+                    <option value={48}>Compact — 48 px</option>
+                    <option value={64}>Large — 64 px</option>
+                    <option value={88}>Extra large — 88 px</option>
                   </select>
                 </label>
                 <label>

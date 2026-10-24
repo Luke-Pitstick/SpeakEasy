@@ -5,7 +5,6 @@ import { localSample } from '../../interaction/input'
 import { DasherEngine } from './engine'
 import { SvgRenderer } from './SvgRenderer'
 import { PointerOverlay } from './PointerOverlay'
-import { trainedInitials } from './initials-model'
 
 export function DasherPanel({
   speed,
@@ -63,6 +62,8 @@ export function DasherPanel({
 
     const resize = (continuing = false): void => {
       const nextBounds = container.getBoundingClientRect()
+      // Hidden workspaces must not resize away the preserved navigation position.
+      if (!nextBounds.width || !nextBounds.height) return
       if (initialized && nextBounds.width === bounds.width && nextBounds.height === bounds.height) {
         bounds = nextBounds
         return
@@ -207,27 +208,8 @@ export function DasherPanel({
     else engine.current?.resume()
   }, [state.paused, sessionId, speed, weighting, capacity])
 
-  const target =
-    state.mode === 'initials'
-      ? 'Initials'
-      : state.mode === 'keyword'
-        ? 'Locked word'
-        : state.mode === 'replacement'
-          ? 'Selected word'
-          : 'Exact spelling'
-  const predictionStatus =
-    weighting === 'uniform'
-      ? 'Uniform letters'
-      : literal
-        ? 'Character PPM'
-        : trainedInitials.status
   return (
     <section className="dasher-panel" aria-label="Dasher continuous entry">
-      <div className="dasher-heading">
-        <span>Dasher</span>
-        <span>{target}</span>
-        <span role="status">{predictionStatus}</span>
-      </div>
       <div
         className={`dasher-surface ${state.paused ? 'is-paused' : ''}`}
         ref={host}

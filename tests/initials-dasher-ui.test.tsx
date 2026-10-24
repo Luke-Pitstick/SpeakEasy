@@ -21,11 +21,12 @@ afterEach(() => {
 
 it('identifies the trained predictor and pauses before changing the prediction condition', () => {
   render(<App />)
-  expect(screen.getByText('Trained initials PPM · 10% smoothing')).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Keep writing' }))
   fireEvent.click(screen.getByRole('button', { name: 'Start writing' }))
   expect(screen.getByTestId('dasher-surface').getAttribute('aria-label')).toBe('Pause Dasher')
-  fireEvent.click(screen.getByRole('button', { name: 'Menu', exact: true }))
+  fireEvent.click(screen.getByRole('button', { name: 'Menu', exact: true }), { detail: 1 })
   fireEvent.click(screen.getByRole('button', { name: 'Settings', exact: true }))
+  expect(screen.getByText('Trained initials PPM · 10% smoothing')).toBeTruthy()
   fireEvent.change(screen.getByLabelText('Letter prediction'), { target: { value: 'uniform' } })
   expect(screen.getByText('Uniform letters')).toBeTruthy()
   expect(screen.getByTestId('dasher-surface').getAttribute('aria-label')).toBe('Resume Dasher')
@@ -36,8 +37,11 @@ it('identifies the trained predictor and pauses before changing the prediction c
 
 it('keeps exact spelling on the character predictor', () => {
   render(<App />)
-  fireEvent.click(screen.getByRole('button', { name: 'Menu', exact: true }))
+  fireEvent.click(screen.getByRole('button', { name: 'Keep writing' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Menu', exact: true }), { detail: 1 })
   fireEvent.click(screen.getByRole('button', { name: 'Exact spelling', exact: true }))
+  fireEvent.click(screen.getByRole('button', { name: 'Menu', exact: true }), { detail: 1 })
+  fireEvent.click(screen.getByRole('button', { name: 'Settings', exact: true }))
   expect(screen.getByText('Character PPM')).toBeTruthy()
   expect(screen.queryByText('Trained initials PPM · 10% smoothing')).toBeNull()
 })

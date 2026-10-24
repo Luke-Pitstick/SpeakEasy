@@ -26,6 +26,7 @@ export interface EntrySession {
   before: Content
 }
 export interface CompositionState extends Content {
+  workspace: 'dasher' | 'phrases'
   revision: number
   session: EntrySession
   paused: boolean
@@ -78,6 +79,7 @@ export function initialState(): CompositionState {
   }
   return {
     ...content,
+    workspace: 'phrases',
     revision: 0,
     session: { id: 0, sequence: -1, seed: '', before: contentOf(content) },
     paused: true,
@@ -92,6 +94,7 @@ export function initialState(): CompositionState {
 }
 
 export type Action =
+  | { type: 'workspace'; workspace: 'dasher' | 'phrases' }
   | { type: 'open-keywords' }
   | { type: 'keep-entering' }
   | { type: 'edit-candidate'; id: string }
@@ -198,8 +201,22 @@ function applyInput(state: CompositionState, text: string): Partial<Content> {
   }
 }
 
-export function reducer(state: CompositionState, action: Action): CompositionState {
+function reduceComposition(state: CompositionState, action: Action): CompositionState {
   switch (action.type) {
+    case 'workspace': {
+      // Returning with a selected word starts its exact replacement. Without a
+      // selection, Dasher can continue editing the tentative phrase as text.
+      const next =
+        action.workspace === 'dasher' &&
+        state.editor === 'phrase' &&
+        state.selection &&
+        state.mode !== 'replacement'
+          ? reducer(state, { type: 'spell' })
+          : action.workspace === 'dasher' && state.editor === 'keywords' && !state.selectedToken
+            ? reducer(state, { type: 'keep-entering' })
+            : state
+      return { ...next, workspace: action.workspace, paused: true }
+    }
     case 'input':
       return edit(state, applyInput(state, action.text))
     case 'engine': {
@@ -225,7 +242,7 @@ export function reducer(state: CompositionState, action: Action): CompositionSta
     case 'pause':
       return { ...state, paused: true, notice: action.notice ?? state.notice }
     case 'resume': {
-      if (state.editor === 'phrase' && state.mode !== 'replacement') return state
+      if (state.workspace !== 'dasher') return state
       if (state.editor === 'keywords' && !state.selectedToken) return state
       const next = invalidate(state)
       return {
@@ -628,4 +645,31 @@ export function reducer(state: CompositionState, action: Action): CompositionSta
         notice: 'Suggestions dismissed. Your draft and initials are unchanged.'
       }
   }
+}
+
+/** Workspace changes follow explicit actions, never prediction completion or inactivity. */
+export function reducer(state: CompositionState, action: Action): CompositionState {
+  const next = reduceComposition(state, action)
+  if (next === state) return state
+  let workspace = next.workspace
+  switch (action.type) {
+    case 'spell':
+    case 'select-token':
+    case 'keep-entering':
+    case 'mode':
+    case 'clear':
+    case 'example':
+      workspace = 'dasher'
+      break
+    case 'edit-draft':
+    case 'edit-candidate':
+    case 'open-keywords':
+    case 'done':
+    case 'cancel-edit':
+    case 'use-initial':
+    case 'use-prefix':
+      if (!next.validationError) workspace = 'phrases'
+      break
+  }
+  return workspace === next.workspace ? next : { ...next, workspace, paused: true }
 }

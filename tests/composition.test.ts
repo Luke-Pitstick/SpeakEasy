@@ -50,7 +50,8 @@ describe('shared composition', () => {
     expect(reducer(accepted, { type: 'back' }).tokens).toEqual(choices.tokens)
   })
   it('accepts reversible Dasher snapshots in one undo transaction and rejects old sessions', () => {
-    let state = reducer(initialState(), { type: 'resume' })
+    let state = reducer(initialState(), { type: 'workspace', workspace: 'dasher' })
+    state = reducer(state, { type: 'resume' })
     const id = state.session.id
     state = reducer(state, { type: 'engine', sessionId: id, sequence: 0, text: 'iwa' })
     state = reducer(state, { type: 'engine', sessionId: id, sequence: 1, text: 'iwac' })

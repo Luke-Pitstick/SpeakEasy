@@ -102,6 +102,7 @@ describe('gaze controls', () => {
 
 it('keeps bottom controls hidden and toggles Dasher with a click or keyboard', () => {
   render(<App />)
+  fireEvent.click(screen.getByRole('button', { name: 'Keep writing' }))
   expect(screen.queryByRole('contentinfo')).toBeNull()
   expect(screen.queryByRole('button', { name: 'Undo', exact: true })).toBeNull()
   expect(screen.queryByRole('button', { name: 'Delete', exact: true })).toBeNull()
@@ -142,6 +143,7 @@ it('starts from a click on a box, pauses on empty space, and resumes without ano
     toJSON: () => ({})
   })
   render(<App />)
+  fireEvent.click(screen.getByRole('button', { name: 'Keep writing' }))
   const surface = screen.getByTestId('dasher-surface')
   const svg = surface.querySelector('svg')!
   const initial = svg.innerHTML
@@ -273,6 +275,7 @@ it('fits boxes on resize and resumes once after an intentional layout change', (
       toJSON: () => ({})
     }))
   render(<App />)
+  fireEvent.click(screen.getByRole('button', { name: 'Keep writing' }))
   const surface = screen.getByTestId('dasher-surface')
   fireEvent.click(surface)
   height = 700
@@ -365,4 +368,58 @@ it('draws the pointer and center displacement independently of the letter viewpo
   expect(svg.querySelector('g')?.getAttribute('visibility')).toBe('hidden')
   overlay.dispose()
   expect(svg.childElementCount).toBe(0)
+})
+
+describe('top-edge review cue', () => {
+  it('pauses on entry, cancels a short glance, and latches review until a fresh dwell', () => {
+    vi.useFakeTimers()
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'Keep writing' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Start writing' }))
+    const cue = screen.getByRole('button', { name: 'Show phrases' })
+    expect(cue.closest('main')?.firstElementChild).toBe(cue.parentElement)
+    fireEvent.pointerEnter(cue)
+    expect(screen.getByRole('button', { name: 'Resume Dasher' })).toBeTruthy()
+    act(() => vi.advanceTimersByTime(600))
+    fireEvent.pointerLeave(cue)
+    act(() => vi.advanceTimersByTime(1000))
+    expect(screen.queryByRole('region', { name: 'SpeakFaster phrase composition' })).toBeNull()
+    fireEvent.pointerEnter(cue)
+    act(() => vi.advanceTimersByTime(1000))
+    expect(screen.getByRole('button', { name: 'Keep writing' })).toBe(cue)
+    expect(screen.getByRole('region', { name: 'SpeakFaster phrase composition' })).toBeTruthy()
+    act(() => vi.advanceTimersByTime(4000))
+    expect(screen.getByRole('button', { name: 'Keep writing' })).toBe(cue)
+    fireEvent.pointerLeave(cue)
+    act(() => vi.advanceTimersByTime(2000))
+    expect(screen.getByRole('region', { name: 'SpeakFaster phrase composition' })).toBeTruthy()
+    fireEvent.pointerEnter(cue)
+    act(() => vi.advanceTimersByTime(1000))
+    expect(screen.getByRole('button', { name: 'Show phrases' })).toBe(cue)
+    expect(screen.getByRole('button', { name: 'Resume Dasher' })).toBeTruthy()
+  })
+
+  it('does not switch while reading the message and cancels edge dwell on focus loss', () => {
+    vi.useFakeTimers()
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'Keep writing' }))
+    fireEvent.pointerEnter(screen.getByLabelText('Message preview'))
+    act(() => vi.advanceTimersByTime(3000))
+    expect(screen.queryByRole('region', { name: 'SpeakFaster phrase composition' })).toBeNull()
+    fireEvent.pointerEnter(screen.getByRole('button', { name: 'Show phrases' }))
+    act(() => vi.advanceTimersByTime(600))
+    fireEvent.blur(window)
+    act(() => vi.advanceTimersByTime(1000))
+    expect(screen.queryByRole('region', { name: 'SpeakFaster phrase composition' })).toBeNull()
+  })
+
+  it('allows a larger edge target without enabling it underneath the settings menu', () => {
+    render(<App />)
+    fireEvent.click(screen.getByRole('button', { name: 'Menu', exact: true }))
+    fireEvent.click(screen.getByRole('button', { name: 'Settings', exact: true }))
+    fireEvent.change(screen.getByLabelText('Top-edge target size'), { target: { value: '88' } })
+    const cue = screen.getByRole('button', { name: 'Keep writing' })
+    expect(cue.hasAttribute('disabled')).toBe(true)
+    expect(cue.parentElement?.style.height).toBe('88px')
+  })
 })

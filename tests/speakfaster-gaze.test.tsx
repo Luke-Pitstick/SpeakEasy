@@ -51,6 +51,7 @@ function gazeWorkspace(): {
   })
   render(<App />)
   expect(screen.queryByRole('textbox')).toBeNull()
+  expect(screen.queryByRole('navigation', { name: 'Composition workspace' })).toBeNull()
   let now = performance.now()
   const dwell = (name: string | RegExp): void => {
     const target = screen.getByRole('button', { name, exact: typeof name === 'string' })
@@ -58,6 +59,11 @@ function gazeWorkspace(): {
     act(() => vi.advanceTimersByTime(1000))
     fireEvent.pointerLeave(target)
   }
+  expect(screen.getByRole('region', { name: 'SpeakFaster phrase composition' })).toBeTruthy()
+  expect(screen.queryByRole('button', { name: 'Resume Dasher' })).toBeNull()
+  expect(screen.getByRole('button', { name: 'Start writing' }).hasAttribute('disabled')).toBe(true)
+  dwell('Keep writing')
+  expect(screen.getByRole('button', { name: 'Resume Dasher' })).toBeTruthy()
   return {
     dwell,
     spell(text, literal = false) {
@@ -106,6 +112,7 @@ function gazeWorkspace(): {
     },
     async review() {
       fireEvent.pointerLeave(screen.getByTestId('dasher-surface'))
+      dwell('Show phrases')
       await act(async () => {
         await vi.advanceTimersByTimeAsync(500)
       })
@@ -131,7 +138,9 @@ it('enters initials, rejects, spells a prefix, and edits an unaccepted phrase th
   await gaze.review()
   expect(screen.queryByText('I want another cushion')).toBeNull()
   expect(screen.getByText('I want a coffee')).toBeTruthy()
-  expect(screen.getByLabelText('Accepted draft').textContent).toBe('Your message')
+  expect(screen.getByLabelText('Message preview').getAttribute('aria-description')).toBe(
+    'Accepted message: Your message'
+  )
   gaze.dwell('Edit 1')
   gaze.dwell('Word 4 coffee Change word')
   await act(async () => {
@@ -139,9 +148,13 @@ it('enters initials, rejects, spells a prefix, and edits an unaccepted phrase th
   })
   expect(screen.getByRole('button', { name: 'cocoa', exact: true })).toBeTruthy()
   gaze.dwell('cocoa')
-  expect(screen.getByLabelText('Accepted draft').textContent).toBe('Your message')
+  expect(screen.getByLabelText('Message preview').getAttribute('aria-description')).toBe(
+    'Accepted message: Your message'
+  )
   gaze.dwell('Use phrase')
-  expect(screen.getByLabelText('Accepted draft').textContent).toBe('I want a cocoa')
+  expect(screen.getByLabelText('Message preview').getAttribute('aria-description')).toBe(
+    'Accepted message: I want a cocoa'
+  )
 }, 30000)
 
 it('spells an uncommon replacement, cancels, retries, accepts and undoes using only gaze', async () => {
@@ -154,7 +167,9 @@ it('spells an uncommon replacement, cancels, retries, accepts and undoes using o
   gaze.dwell('Spell word')
   gaze.spell('Zephyr', true)
   await gaze.review()
-  expect(screen.getByLabelText('Accepted draft').textContent).toBe('I want a coffee')
+  expect(screen.getByLabelText('Message preview').getAttribute('aria-description')).toBe(
+    'Accepted message: I want a coffee'
+  )
   gaze.dwell('Cancel word')
   expect(screen.getByRole('button', { name: 'Word 4 coffee Change word' })).toBeTruthy()
   gaze.dwell('Word 4 coffee Change word')
@@ -162,12 +177,18 @@ it('spells an uncommon replacement, cancels, retries, accepts and undoes using o
   gaze.spell('Zephyr', true)
   await gaze.review()
   gaze.dwell('Use word')
-  expect(screen.getByLabelText('Accepted draft').textContent).toBe('I want a coffee')
+  expect(screen.getByLabelText('Message preview').getAttribute('aria-description')).toBe(
+    'Accepted message: I want a coffee'
+  )
   gaze.dwell('Use phrase')
-  expect(screen.getByLabelText('Accepted draft').textContent).toBe('I want a Zephyr')
+  expect(screen.getByLabelText('Message preview').getAttribute('aria-description')).toBe(
+    'Accepted message: I want a Zephyr'
+  )
   gaze.dwell('Menu')
   gaze.dwell('Undo')
-  expect(screen.getByLabelText('Accepted draft').textContent).toBe('I want a coffee')
+  expect(screen.getByLabelText('Message preview').getAttribute('aria-description')).toBe(
+    'Accepted message: I want a coffee'
+  )
 }, 30000)
 
 it('reaches later word positions and spells a keyword after an empty expansion', async () => {
@@ -182,10 +203,61 @@ it('reaches later word positions and spells a keyword after an empty expansion',
   gaze.spell('George', true)
   await gaze.review()
   gaze.dwell('Lock word')
+  gaze.dwell('Next words')
   expect(screen.getByRole('button', { name: 'Word 7 George Locked word' })).toBeTruthy()
   gaze.dwell('Previous words')
   expect(screen.getByRole('button', { name: 'Word 1 a Initial' })).toBeTruthy()
   gaze.dwell('Keep entering')
-  expect(screen.getByLabelText('Dasher text').textContent).toBe('abcdef{George}')
-  expect(screen.getByLabelText('Accepted draft').textContent).toBe('Your message')
+  expect(screen.getByLabelText('Message preview').textContent).toBe('abcdef{George}')
+  expect(screen.getByLabelText('Message preview').getAttribute('aria-description')).toBe(
+    'Accepted message: Your message'
+  )
+}, 30000)
+
+it('switches explicitly, preserves the draft and initials, and never resumes on return', async () => {
+  const gaze = gazeWorkspace()
+  expect(screen.queryByRole('region', { name: 'SpeakFaster phrase composition' })).toBeNull()
+  gaze.spell('iwac')
+  fireEvent.pointerLeave(screen.getByTestId('dasher-surface'))
+  await act(async () => {
+    await vi.advanceTimersByTimeAsync(500)
+  })
+  expect(screen.queryByRole('region', { name: 'SpeakFaster phrase composition' })).toBeNull()
+  gaze.dwell('Show phrases')
+  expect(screen.queryByRole('button', { name: 'Resume Dasher' })).toBeNull()
+  expect(screen.getByLabelText('Message preview').getAttribute('aria-description')).toBe(
+    'Accepted message: Your message'
+  )
+  gaze.dwell('Keep writing')
+  expect(screen.getByLabelText('Message preview').textContent).toBe('iwac')
+  expect(screen.getByRole('button', { name: 'Resume Dasher' })).toBeTruthy()
+  gaze.dwell('Show phrases')
+  gaze.dwell('Use 1')
+  gaze.dwell('Keep writing')
+  expect(screen.getByLabelText('Message preview').getAttribute('aria-description')).toBe(
+    'Accepted message: I want a coffee'
+  )
+  gaze.dwell('Menu')
+  gaze.dwell('New message')
+  expect(screen.getByRole('button', { name: 'Resume Dasher' })).toBeTruthy()
+  expect(screen.getByLabelText('Message preview').getAttribute('aria-description')).toBe(
+    'Accepted message: Your message'
+  )
+}, 30000)
+
+it('returns to Dasher from phrase editing without losing the tentative phrase', async () => {
+  const gaze = gazeWorkspace()
+  gaze.spell('iwac')
+  await gaze.review()
+  gaze.dwell('Edit 1')
+  gaze.dwell('Keep writing')
+  expect(screen.getByLabelText('Message preview').textContent).toBe('I want a coffee')
+  expect(screen.getByLabelText('Message preview').getAttribute('aria-description')).toBe(
+    'Accepted message: Your message'
+  )
+  gaze.spell('I want a cookie', true)
+  gaze.dwell('Use phrase')
+  expect(screen.getByLabelText('Message preview').getAttribute('aria-description')).toBe(
+    'Accepted message: I want a cookie'
+  )
 }, 30000)

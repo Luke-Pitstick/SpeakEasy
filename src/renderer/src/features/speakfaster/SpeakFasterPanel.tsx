@@ -1,16 +1,19 @@
 // Behavioral translation of SpeakFaster input-bar, input-bar-chip, abbreviation,
 // and abbreviation-refinement (MIT, TeamGleason). See docs/speakfaster-translation.md.
 import { useState } from 'react'
-import type { DemoScenario } from '../../../../shared/prediction'
 import { useComposition, useCompositionDispatch } from '../../composition/state'
 import { entryText } from '../../composition/model'
 import { ActionButton } from '../../interaction/controls'
-import { usePredictions } from '../../prediction/usePredictions'
+import type { usePredictions } from '../../prediction/usePredictions'
 
-export function SpeakFasterPanel({ scenario }: { scenario: DemoScenario }): React.JSX.Element {
+export function SpeakFasterPanel({
+  predictions
+}: {
+  predictions: ReturnType<typeof usePredictions>
+}): React.JSX.Element {
   const state = useComposition()
   const dispatch = useCompositionDispatch()
-  const { request, waiting } = usePredictions(scenario)
+  const { request, waiting } = predictions
   const [page, setPage] = useState(0)
   const version = `${state.revision}:${state.request?.id ?? ''}:${state.paused}:${state.editor}`
   const keyword = state.editor === 'keywords'
@@ -54,37 +57,12 @@ export function SpeakFasterPanel({ scenario }: { scenario: DemoScenario }): Reac
           ? 'Dasher replaces the highlighted word. Use word keeps your spelling; Cancel word restores it.'
           : 'Choose a same-initial replacement below, or Spell word with Dasher.'
         : 'Choose a word to change. Use phrase accepts this version into your message.'
-      : 'Enter with Dasher below. Spell opens the abbreviation as editable chips.'
+      : 'Return to Dasher to enter text. Spell opens the abbreviation as editable chips.'
 
   return (
     <section className="speakfaster-panel" aria-label="SpeakFaster phrase composition">
-      <div className="draft-line">
-        <span className="field-label">Message</span>
-        <div className="draft-text" aria-label="Accepted draft">
-          {state.draft || <span className="placeholder">Your message</span>}
-        </div>
-        <ActionButton
-          identity={`edit-draft-${version}`}
-          disabled={!state.draft || phrase !== null}
-          onAction={() => {
-            setPage(0)
-            dispatch({ type: 'edit-draft' })
-          }}
-        >
-          Edit message
-        </ActionButton>
-      </div>
-      <div className="composition-bar" aria-label={entryLabel}>
-        <span className="field-label">{entryLabel}</span>
-        {state.editor === 'entry' ? (
-          <output className="entry-display" aria-label="Dasher text">
-            {entryText(state) || (
-              <span className="placeholder">
-                Click in Dasher or dwell on Start writing, then steer through letters
-              </span>
-            )}
-          </output>
-        ) : (
+      {state.editor !== 'entry' && (
+        <div className="composition-bar" aria-label={entryLabel}>
           <div className="word-chips" aria-label="Editable word positions">
             {tokens.slice(activePage * 6, activePage * 6 + 6).map((token, index) => {
               const selected = keyword
@@ -129,8 +107,8 @@ export function SpeakFasterPanel({ scenario }: { scenario: DemoScenario }): Reac
               )
             })}
           </div>
-        )}
-      </div>
+        </div>
+      )}
       <div className="phrase-instructions" aria-live="polite">
         {instruction}
       </div>
@@ -331,7 +309,7 @@ export function SpeakFasterPanel({ scenario }: { scenario: DemoScenario }): Reac
             (waiting
               ? 'Move off the dwell target to review suggestions.'
               : phrase !== null
-                ? `Editing: ${phrase}`
+                ? 'Changes are a preview until you choose Use phrase.'
                 : state.notice)}
         </p>
         {state.paused && state.request && (
@@ -354,6 +332,97 @@ export function SpeakFasterPanel({ scenario }: { scenario: DemoScenario }): Reac
           </ActionButton>
         )}
       </div>
+    </section>
+  )
+}
+
+export function DraftPanel(): React.JSX.Element {
+  const state = useComposition()
+  const dispatch = useCompositionDispatch()
+  const phrase = state.phrase ?? state.draft
+  const spelling = state.mode === 'replacement' || state.mode === 'keyword'
+  const replacing = state.mode === 'replacement' && state.selection !== null
+  const label = spelling
+    ? 'Replacing'
+    : state.phrase !== null
+      ? 'Preview'
+      : state.mode === 'initials'
+        ? 'Initials'
+        : 'Message'
+  return (
+    <section className="draft-panel" aria-label="Message and entry">
+      <div className="draft-content">
+        <span className="field-label">{label}</span>
+        <div
+          className="draft-text"
+          aria-label="Message preview"
+          aria-description={`Accepted message: ${state.draft || 'Your message'}`}
+        >
+          {replacing && state.selection ? (
+            <>
+              {phrase.slice(0, state.selection.start)}
+              <mark>
+                {state.buffer || phrase.slice(state.selection.start, state.selection.end)}
+              </mark>
+              {phrase.slice(state.selection.end)}
+            </>
+          ) : state.mode === 'keyword' ? (
+            state.tokens.map((token, index) => (
+              <span key={token.id}>
+                {index > 0 ? ' ' : ''}
+                {token.id === state.selectedToken ? (
+                  <mark>{state.buffer || token.value}</mark>
+                ) : (
+                  token.value
+                )}
+              </span>
+            ))
+          ) : (
+            <>
+              {state.mode === 'initials' && state.draft && (
+                <span className="accepted-prefix">{state.draft} · </span>
+              )}
+              {entryText(state) || <span className="placeholder">Your message</span>}
+            </>
+          )}
+        </div>
+        {state.validationError && (
+          <p className="strip-error" role="alert">
+            {state.validationError}
+          </p>
+        )}
+      </div>
+      {state.workspace === 'dasher' && spelling ? (
+        <>
+          <ActionButton
+            identity={`done-${state.revision}`}
+            disabled={!state.buffer.trim()}
+            onAction={() => dispatch({ type: 'done' })}
+          >
+            {state.mode === 'replacement' ? 'Use word' : 'Lock word'}
+          </ActionButton>
+          <ActionButton
+            identity={`cancel-${state.revision}`}
+            onAction={() => dispatch({ type: 'cancel-edit' })}
+          >
+            Cancel word
+          </ActionButton>
+        </>
+      ) : state.workspace === 'dasher' && state.phrase !== null ? (
+        <ActionButton
+          identity={`use-phrase-${state.revision}`}
+          onAction={() => dispatch({ type: 'use-phrase' })}
+        >
+          Use phrase
+        </ActionButton>
+      ) : state.draft && state.phrase === null && !spelling ? (
+        <ActionButton
+          identity={`edit-draft-${state.revision}-${state.workspace}`}
+          onAction={() => dispatch({ type: 'edit-draft' })}
+        >
+          Edit message
+        </ActionButton>
+      ) : null}
     </section>
   )
 }
