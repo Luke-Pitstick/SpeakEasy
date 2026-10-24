@@ -1,3 +1,4 @@
+import { diagnostics } from './diagnosticStore'
 import {
   app,
   ipcMain,
@@ -52,6 +53,8 @@ export function installCartesiaIpc(window: BrowserWindow): void {
     event.senderFrame === window.webContents.mainFrame &&
     event.senderFrame.url === window.webContents.getURL()
   const emit = (event: VoiceEvent): void => {
+    if (event.type === 'transcript' || event.type === 'listening')
+      diagnostics.record(event.type, event)
     if (!window.isDestroyed()) window.webContents.send('voice:event', event)
   }
   const stopSpeech = (): void => {
@@ -115,7 +118,7 @@ export function installCartesiaIpc(window: BrowserWindow): void {
       throw Error('Allow microphone access in macOS System Settings, then restart SpeakEasy.')
     if (generation !== listenGeneration || window.isDestroyed()) return
     const socket = client.stt.autoFinalize.websocket(
-      { model: STT_MODEL, encoding: 'pcm_f32le', sample_rate: rate },
+      { model: STT_MODEL, encoding: 'pcm_f32le', sample_rate: rate, turn_end_timeout_ms: 1200 },
       { maxQueueSize: rate * 4 }
     )
     const session = { id, socket, ready: false }

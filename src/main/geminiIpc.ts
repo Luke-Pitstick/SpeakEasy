@@ -1,3 +1,5 @@
+import { ExpansionContextCache } from './expansionContext'
+import { diagnostics } from './diagnosticStore'
 import { summarizeConversation } from './conversationSummary'
 import { summaryRequestSchema } from '../shared/conversationSummary'
 import {
@@ -47,10 +49,12 @@ export function installGeminiIpc(window: BrowserWindow, settings: SettingsStore 
       /* Missing .env is surfaced through the configuration status, never a log. */
     }
   }
+  const expansionContext = new ExpansionContextCache()
   let enabled = settings?.read().geminiEnabled ?? false
   let model = settings?.read().phraseModel ?? EXPANSION_MODEL
   let active: { id: string; controller: AbortController } | null = null
   const cancel = (): void => {
+    if (active) diagnostics.record('cancel', { reason: 'Cancelled or superseded' }, active.id)
     active?.controller.abort()
     active = null
   }
@@ -60,7 +64,15 @@ export function installGeminiIpc(window: BrowserWindow, settings: SettingsStore 
     summaryJob = null
   }
   const status = (): GeminiStatus => ({ configured: !!key, enabled, model })
-  const preferences = installPreferenceIpc(window, key, cancel, phraseCache)
+  const preferences = installPreferenceIpc(
+    window,
+    key,
+    () => {
+      cancel()
+      expansionContext.clear()
+    },
+    phraseCache
+  )
   const own = (event: IpcMainInvokeEvent | IpcMainEvent): boolean =>
     !window.isDestroyed() &&
     event.sender === window.webContents &&
@@ -109,6 +121,8 @@ export function installGeminiIpc(window: BrowserWindow, settings: SettingsStore 
         op.ids.every(validId))
     if (!valid) throw Error('Invalid memory operation')
     cancel()
+    diagnostics.clear()
+    expansionContext.clear()
     try {
       if (!memory) throw Error('Unavailable')
       memory.update(op)
@@ -166,6 +180,7 @@ export function installGeminiIpc(window: BrowserWindow, settings: SettingsStore 
     if (!own(event) || typeof value !== 'boolean') throw new Error('Invalid settings request')
     if (!settings) throw new Error('Settings storage is unavailable')
     settings.save({ geminiEnabled: value })
+    expansionContext.clear()
     enabled = value
     if (!enabled) {
       cancel()
@@ -176,10 +191,14 @@ export function installGeminiIpc(window: BrowserWindow, settings: SettingsStore 
   ipcMain.handle('gemini:start', (event, value: unknown) => {
     if (!own(event) || !validRequest(value)) throw new Error('Invalid prediction request')
     cancel()
-    // Initials-only phrase matches cannot establish whether a sentence continues
-    // the user's unfinished thought. Let generation interpret the locked message.
+    // Context must rank saved phrases too; initials and frequency cannot establish relevance.
     const cached =
-      enabled && key && value.lockedMessage.trim() ? [] : (phraseCache?.lookup(value) ?? [])
+      enabled &&
+      key &&
+      (value.lockedMessage.trim() || value.conversation.length || value.conversationSummary?.trim())
+        ? []
+        : (phraseCache?.lookup(value) ?? [])
+    diagnostics.record('request', { model, request: value, cached }, value.id)
     if (cached.length && (!enabled || !key || cached.length === 6)) {
       event.sender.send('gemini:result', {
         requestId: value.id,
@@ -228,8 +247,12 @@ export function installGeminiIpc(window: BrowserWindow, settings: SettingsStore 
         complete: false
       })
     void (async () => {
-      const facts = (await preferences?.retrieve(value, controller.signal)) ?? []
+      const [facts, preparedContext] = await Promise.all([
+        preferences?.retrieve(value, controller.signal) ?? Promise.resolve([]),
+        expansionContext.resolve(value, key, controller.signal)
+      ])
       if (controller.signal.aborted || active?.controller !== controller) return
+      diagnostics.record('memory', { ...personalMemory, facts }, value.id)
       await streamGemini(
         value,
         key,
@@ -239,13 +262,16 @@ export function installGeminiIpc(window: BrowserWindow, settings: SettingsStore 
             active?.controller === controller &&
             !controller.signal.aborted &&
             !window.isDestroyed()
-          )
+          ) {
+            diagnostics.record('result', result, value.id)
             window.webContents.send('gemini:result', result)
+          }
         },
         fetch,
         { ...personalMemory, facts },
         cached,
-        requestModel
+        requestModel,
+        preparedContext
       )
     })().finally(() => {
       if (active?.controller === controller) active = null
@@ -262,6 +288,7 @@ export function installGeminiIpc(window: BrowserWindow, settings: SettingsStore 
     cancelSummary()
     ipcMain.removeHandler('gemini:summarize')
     ipcMain.removeListener('gemini:cancel-summary', onCancelSummary)
+    expansionContext.clear()
     memory?.close()
     ipcMain.removeHandler('gemini:clear-cache')
     for (const channel of [

@@ -1,3 +1,4 @@
+import type { DiagnosticsApi } from '../shared/diagnostics'
 import { contextBridge, ipcRenderer } from 'electron'
 import type { VoiceApi, VoiceEvent } from '../shared/voice'
 import type { GeminiApi, PredictionResult } from '../shared/prediction'
@@ -72,3 +73,11 @@ const voice: VoiceApi = {
   }
 }
 contextBridge.exposeInMainWorld('voice', voice)
+
+const diagnostics: DiagnosticsApi = {
+  open: (context) => ipcRenderer.invoke('diagnostics:open', context),
+  context: (context) => ipcRenderer.send('diagnostics:context', context),
+  read: () => ipcRenderer.invoke('diagnostics:read'),
+  clear: () => ipcRenderer.invoke('diagnostics:clear')
+}
+contextBridge.exposeInMainWorld('diagnostics', diagnostics)

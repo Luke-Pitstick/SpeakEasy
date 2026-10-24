@@ -1,0 +1,76 @@
+.debug-window {
+  height: 100vh;
+  overflow: auto;
+  padding: 24px;
+  background: #f4f5f9;
+  color: #202432;
+  user-select: text;
+}
+.debug-window header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+}
+.debug-window h1 {
+  font-size: 24px;
+  margin: 0;
+}
+.debug-window h2 {
+  font-size: 19px;
+  margin-top: 0;
+}
+.debug-window h3 {
+  font-size: 15px;
+  margin-top: 24px;
+}
+.debug-window p,
+.debug-window li {
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.debug-window button,
+.debug-window select {
+  padding: 10px 14px;
+  border: 1px solid #b9c2d5;
+  border-radius: 8px;
+  background: white;
+  color: #202432;
+}
+.debug-columns {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.8fr) minmax(400px, 1.2fr);
+  gap: 20px;
+  align-items: start;
+}
+.debug-columns section {
+  background: white;
+  padding: 20px;
+  border: 1px solid #d6dbe5;
+  border-radius: 12px;
+}
+.debug-window details {
+  border-top: 1px solid #d6dbe5;
+  padding: 12px 0;
+}
+.debug-window summary {
+  cursor: pointer;
+  overflow-wrap: anywhere;
+}
+.debug-window time {
+  color: #5a657a;
+  font-variant-numeric: tabular-nums;
+}
+.debug-window pre {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 12px;
+  background: #f4f5f9;
+  padding: 12px;
+  border-radius: 6px;
+}
+@media (max-width: 800px) {
+  .debug-columns {
+    grid-template-columns: 1fr;
+  }
+}

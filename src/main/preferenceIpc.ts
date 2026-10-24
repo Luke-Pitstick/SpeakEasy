@@ -1,3 +1,4 @@
+import { diagnostics } from './diagnosticStore'
 import { app, ipcMain, type BrowserWindow, type IpcMainInvokeEvent } from 'electron'
 import { join } from 'node:path'
 import { PreferenceStore } from './preferenceStore'
@@ -50,6 +51,7 @@ export function installPreferenceIpc(
       throw Error('Invalid preference operation or unavailable storage')
     const operation = parsed.data
     const before = service.read().sentences
+    if (operation.type !== 'commit') diagnostics.clear()
     const result = await service.update(operation)
     if (operation.type === 'commit' && !before.some((s) => s.id === operation.id)) {
       const source = result.sentences.find((s) => s.id === operation.id)

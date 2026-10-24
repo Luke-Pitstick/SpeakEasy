@@ -298,6 +298,7 @@ it.skipIf(process.env.SPEAKEASY_LIVE_MEMORY_TEST !== '1')(
         if (input.id === 'return-to-game' || input.id === 'locked-game-over-background-dinner') {
           expect(facts.some((f) => f.value === 'Hog Cycle')).toBe(true)
           expect(candidates.some((text) => /hog cycle/i.test(text))).toBe(true)
+          expect(candidates.some((text) => /hot chicken|pasta|dinner/i.test(text))).toBe(false)
         } else {
           expect(facts).toEqual([])
           expect(candidates.some((text) => /hog cycle|clash royale/i.test(text))).toBe(false)

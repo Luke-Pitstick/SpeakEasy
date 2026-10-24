@@ -1,3 +1,4 @@
+import { diagnostics } from './diagnosticStore'
 import { preferenceQueryContext, resolvePreferenceQuery } from './preferenceQuery'
 import { randomUUID } from 'node:crypto'
 import { PreferenceStore } from './preferenceStore'
@@ -215,7 +216,14 @@ export class PreferenceService {
     try {
       if (!this.store.settings().retrieve || request.purpose !== 'expansion' || !this.key) return []
       const facts = this.store.facts().filter((f) => f.embedding)
-      if (!facts.length) return []
+      if (!facts.length) {
+        diagnostics.record(
+          'retrieval',
+          { reason: 'No indexed approved facts', facts: [] },
+          request.id
+        )
+        return []
+      }
       const hasContext = [
         request.conversationSummary ?? '',
         request.draft,
@@ -231,6 +239,7 @@ export class PreferenceService {
       const cached = this.topicCache
       const current = (): boolean =>
         !signal.aborted && epoch === this.epoch && this.topicCache === cached
+      const cacheHit = cached.query !== undefined && !!cached.vector
       let query = cached.query
       if (query === undefined) {
         query = hasContext
@@ -264,9 +273,21 @@ export class PreferenceService {
         if (JSON.stringify([...selected, fact.fact]).length <= 1800) selected.push(fact.fact)
         if (selected.length === 3) break
       }
+      diagnostics.record(
+        'retrieval',
+        {
+          query,
+          cacheHit,
+          threshold: 0.3,
+          matches: matches.map(({ fact, score }) => ({ fact: fact.fact, score })),
+          selected
+        },
+        request.id
+      )
       return selected
     } catch {
       if (!signal.aborted && epoch === this.epoch) {
+        diagnostics.record('retrieval', { error: 'Semantic retrieval unavailable' }, request.id)
         this.error = 'Semantic retrieval unavailable. Expansion continues without preference facts.'
         this.changed()
       }

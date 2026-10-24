@@ -1,3 +1,4 @@
+import type { DebugContext } from '../../shared/diagnostics'
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { canLockSentence, messageText } from './composition/model'
 import { CompositionProvider } from './composition/context'
@@ -56,6 +57,28 @@ function Workspace({
   const { theme, speed, edgeHeight, weighting, showGazeDot } = settings
   const predictions = usePredictions()
   const voice = useVoice()
+  const [debugError, setDebugError] = useState('')
+  const debugContext: DebugContext = {
+    epoch: state.contextEpoch,
+    revision: state.revision,
+    draft: state.phrase ?? state.draft,
+    initials: state.tokens.map((t) => t.value).join(' '),
+    lockedMessage: state.lockedSentences.join(' '),
+    conversation: state.conversation.map(({ speaker, text }) => ({ speaker, text })),
+    summary: state.conversationSummary,
+    pendingSummary: state.summaryPending
+      .slice(-100)
+      .map(({ speaker, text }) => ({ speaker, text })),
+    partial: voice.partial,
+    queuedTranscripts: voice.queuedTranscripts,
+    listening: voice.listening,
+    paused: state.paused,
+    busy: interaction.busy
+  }
+  const debugPayload = JSON.stringify(debugContext)
+  useEffect(() => {
+    window.diagnostics?.context(JSON.parse(debugPayload))
+  }, [debugPayload])
   const [settingsTab, setSettingsTab] = useState<'general' | 'voice' | 'gemini'>('general')
   const [gazeOverlay, setGazeOverlay] = useState<GazeOverlay>('none')
   const closeGazeOverlay = useCallback(() => setGazeOverlay('none'), [])
@@ -284,6 +307,29 @@ function Workspace({
               </div>
             ) : (
               <>
+                <ActionButton
+                  identity="open-debug"
+                  onAction={() => {
+                    if (!window.diagnostics) {
+                      setDebugError('Restart the desktop app to load the debug window.')
+                      return
+                    }
+                    void window.diagnostics
+                      .open(debugContext)
+                      .catch(() =>
+                        setDebugError(
+                          'Could not open debug window. Restart the desktop app and retry.'
+                        )
+                      )
+                  }}
+                >
+                  Open conversation debug window
+                </ActionButton>
+                <p className="settings-hint">
+                  Captures context, transcriptions, and model results locally while open. Closing
+                  the window deletes its trace.
+                </p>
+                {debugError && <p role="alert">{debugError}</p>}
                 <div className="settings-tabs" role="group" aria-label="Settings tabs">
                   <ActionButton
                     identity="settings-general"

@@ -126,7 +126,12 @@ describe('Gemini streaming boundary', () => {
       status: 'success',
       candidates: [{ text: 'I want a coffee' }]
     })
-    expect(results[1]).toMatchObject({ status: 'error' })
+    expect(results[1]).toMatchObject({
+      status: 'success',
+      complete: true,
+      candidates: [{ text: 'I want a coffee' }],
+      message: expect.stringContaining('stopped before finishing')
+    })
   })
   it('accepts the last line only after a normal finish and surfaces HTTP failures without bodies', async () => {
     const results: PredictionResult[] = []
@@ -154,6 +159,52 @@ describe('Gemini streaming boundary', () => {
       message: expect.stringContaining('key was rejected')
     })
     expect(JSON.stringify(results)).not.toContain('private diagnostic')
+  })
+  it('repairs rejected alternatives once without moving accepted choices or loosening initials', async () => {
+    const input = {
+      ...request(),
+      tokens: [...'ittitc'].map((value, i) => ({ id: String(i), kind: 'initial' as const, value }))
+    }
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(
+        response([
+          frame(
+            "I think that it's too complicated.\nI think that trigonometry is too confusing.",
+            'stop'
+          )
+        ])
+      )
+      .mockResolvedValueOnce(
+        response([
+          frame(
+            "I think trigonometry is too confusing.\nI think trigonometry is too complicated.\nI think that it's too complicated.",
+            'stop'
+          )
+        ])
+      )
+    const results: PredictionResult[] = []
+    await streamGemini(
+      input,
+      'secret',
+      new AbortController().signal,
+      (r) => results.push(r),
+      fetcher
+    )
+    expect(fetcher).toHaveBeenCalledTimes(2)
+    const repair = JSON.parse(String(fetcher.mock.calls[1][1]?.body))
+    expect(repair.messages.at(-1).content).toContain('I think that trigonometry is too confusing.')
+    const final = results.at(-1)!
+    expect(final.status).toBe('success')
+    if (final.status !== 'success') throw Error('Expected success')
+    expect(final.candidates.map((c) => c.text)).toEqual([
+      "I think that it's too complicated.",
+      'I think trigonometry is too confusing.',
+      'I think trigonometry is too complicated.'
+    ])
+    expect(final.candidates[0].id).toBe(
+      results[0].status === 'success' ? results[0].candidates[0].id : ''
+    )
   })
   it('aborts an in-flight request without publishing an error or late candidates', async () => {
     const controller = new AbortController(),

@@ -10,6 +10,12 @@ const mocked = vi.hoisted(() => ({
   handlers: new Map<string, (...args: unknown[]) => unknown>(),
   folder: ''
 }))
+vi.mock('../src/main/expansionContext', () => ({
+  ExpansionContextCache: class {
+    clear = vi.fn()
+    resolve = vi.fn(async () => null)
+  }
+}))
 vi.mock('electron', () => ({
   app: { getPath: () => mocked.folder, getAppPath: () => mocked.folder },
   ipcMain: {
@@ -78,7 +84,7 @@ it('enforces sender and input validation, independent sharing consent, and in-fl
     tokens: ['c', 'w', 'c', 'a'].map((value, i) => ({ id: String(i), kind: 'initial', value }))
   }
   call('gemini:start', request)
-  await Promise.resolve()
+  await new Promise((resolve) => setTimeout(resolve, 0))
   expect(vi.mocked(streamGemini).mock.calls.at(-1)?.[5]).toEqual({
     vocabulary: [],
     examples: [],
@@ -86,7 +92,7 @@ it('enforces sender and input validation, independent sharing consent, and in-fl
   })
   call('memory:update', { type: 'settings', learning: true, cloud: true })
   call('gemini:start', { ...request, id: 'two' })
-  await Promise.resolve()
+  await new Promise((resolve) => setTimeout(resolve, 0))
   const generation = vi.mocked(streamGemini).mock.calls.at(-1)!
   expect(generation[5]?.vocabulary).toContain('Anjali')
   send.mockClear()
@@ -105,7 +111,7 @@ it('enforces sender and input validation, independent sharing consent, and in-fl
   })
   expect(send).not.toHaveBeenCalledWith('gemini:result', expect.anything())
   call('gemini:start', { ...request, id: 'three' })
-  await Promise.resolve()
+  await new Promise((resolve) => setTimeout(resolve, 0))
   expect(vi.mocked(streamGemini).mock.calls.at(-1)?.[5]).toEqual({
     vocabulary: [],
     examples: [],
@@ -113,49 +119,68 @@ it('enforces sender and input validation, independent sharing consent, and in-fl
   })
 })
 
-it('generates a follow-up to locked sentences even when six unrelated saved phrases match', async () => {
-  const { event, send } = launch()
-  const save = mocked.handlers.get('preferences:update')!
-  for (const [i, text] of [
-    'I prefer hot chicken',
-    'I pick hot chicken',
-    'I prefer hearty chicken',
-    'I prefer healthy chicken',
-    'I prefer homemade chicken',
-    'I prefer home cooking'
-  ].entries()) {
-    await save(event, { type: 'commit', id: `saved-${i}`, text, conversation: [] })
+it.each(['locked message', 'partner question', 'summary'])(
+  'uses context instead of six unchecked cache matches: %s',
+  async (context) => {
+    const { event, send } = launch()
+    const save = mocked.handlers.get('preferences:update')!
+    for (const [i, text] of [
+      'I prefer hot chicken',
+      'I pick hot chicken',
+      'I prefer hearty chicken',
+      'I prefer healthy chicken',
+      'I prefer homemade chicken',
+      'I prefer home cooking'
+    ].entries()) {
+      await save(event, { type: 'commit', id: `saved-${i}`, text, conversation: [] })
+    }
+    const input = {
+      id: 'continuation',
+      revision: 1,
+      purpose: 'expansion',
+      draft: '',
+      lockedMessage:
+        context === 'locked message'
+          ? 'I have been playing Clash Royale. Let me tell you about my favorite deck.'
+          : '',
+      conversationSummary: context === 'summary' ? 'The user is discussing Clash Royale.' : '',
+      target: { start: 0, end: 0 },
+      tokens: [...'iphc'].map((value, i) => ({ id: String(i), kind: 'initial', value })),
+      conversation:
+        context === 'summary'
+          ? []
+          : [
+              {
+                id: 'background',
+                speaker: 'partner',
+                text:
+                  context === 'locked message'
+                    ? 'What is for dinner?'
+                    : 'Which Clash Royale deck do you play?'
+              }
+            ]
+    }
+    send.mockClear()
+    mocked.handlers.get('gemini:start')!(event, input)
+    await new Promise((resolve) => setTimeout(resolve, 0))
+    expect(streamGemini).toHaveBeenCalledOnce()
+    const generation = vi.mocked(streamGemini).mock.calls[0]
+    expect(generation[0].lockedMessage).toBe(input.lockedMessage)
+    expect(generation[6]).toEqual([])
+    expect(send).not.toHaveBeenCalledWith(
+      'gemini:result',
+      expect.objectContaining({
+        candidates: expect.arrayContaining([
+          expect.objectContaining({ text: 'I prefer hot chicken' })
+        ])
+      })
+    )
+    mocked.handlers.get('gemini:enabled')!(event, false)
+    mocked.handlers.get('gemini:start')!(event, { ...input, id: 'offline' })
+    expect(send).toHaveBeenCalledWith(
+      'gemini:result',
+      expect.objectContaining({ status: 'success', candidates: expect.any(Array) })
+    )
+    expect(streamGemini).toHaveBeenCalledOnce()
   }
-  const input = {
-    id: 'continuation',
-    revision: 1,
-    purpose: 'expansion',
-    draft: '',
-    lockedMessage: 'I have been playing Clash Royale. Let me tell you about my favorite deck.',
-    target: { start: 0, end: 0 },
-    tokens: [...'iphc'].map((value, i) => ({ id: String(i), kind: 'initial', value })),
-    conversation: [{ id: 'background', speaker: 'partner', text: 'What is for dinner?' }]
-  }
-  send.mockClear()
-  mocked.handlers.get('gemini:start')!(event, input)
-  await Promise.resolve()
-  expect(streamGemini).toHaveBeenCalledOnce()
-  const generation = vi.mocked(streamGemini).mock.calls[0]
-  expect(generation[0].lockedMessage).toBe(input.lockedMessage)
-  expect(generation[6]).toEqual([])
-  expect(send).not.toHaveBeenCalledWith(
-    'gemini:result',
-    expect.objectContaining({
-      candidates: expect.arrayContaining([
-        expect.objectContaining({ text: 'I prefer hot chicken' })
-      ])
-    })
-  )
-  mocked.handlers.get('gemini:enabled')!(event, false)
-  mocked.handlers.get('gemini:start')!(event, { ...input, id: 'offline' })
-  expect(send).toHaveBeenCalledWith(
-    'gemini:result',
-    expect.objectContaining({ status: 'success', candidates: expect.any(Array) })
-  )
-  expect(streamGemini).toHaveBeenCalledOnce()
-})
+)

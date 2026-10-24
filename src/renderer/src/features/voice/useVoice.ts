@@ -16,6 +16,7 @@ export interface VoiceController {
   voices: PresetVoice[]
   devices: { value: string; label: string }[]
   listening: string
+  queuedTranscripts: { speaker: 'me' | 'partner'; text: string }[]
   partial: string
   speechStatus: string
   speaking: boolean
@@ -42,7 +43,9 @@ export function useVoice(): VoiceController {
   const [speechStatus, setSpeechStatus] = useState('Ready')
   const [speaking, setSpeaking] = useState(false)
   const [retry, setRetry] = useState(0)
-  const [queueVersion, setQueueVersion] = useState(0)
+  const [queuedTranscripts, setQueuedTranscripts] = useState<
+    { speaker: 'me' | 'partner'; text: string; epoch: number }[]
+  >([])
   const queue = useRef<{ speaker: 'me' | 'partner'; text: string; epoch: number }[]>([])
   const session = useRef('')
   const epoch = useRef(state.contextEpoch)
@@ -73,15 +76,16 @@ export function useVoice(): VoiceController {
       remaining = remaining.slice(end).trim()
     }
     queue.current = queue.current.slice(-8)
-    setQueueVersion((v) => v + 1)
+    setQueuedTranscripts([...queue.current])
   }
   useEffect(() => {
-    if (busy || !state.paused) return
+    if (busy || !state.paused || !queue.current.length) return
     const turns = queue.current.splice(0)
+    setQueuedTranscripts([])
     for (const turn of turns)
       if (turn.epoch === state.contextEpoch)
         dispatch({ type: 'conversation-add', speaker: turn.speaker, text: turn.text })
-  }, [queueVersion, busy, state.paused, state.contextEpoch, dispatch])
+  }, [queuedTranscripts, busy, state.paused, state.contextEpoch, dispatch])
   useEffect(() => {
     queue.current = []
   }, [state.contextEpoch])
@@ -345,6 +349,9 @@ export function useVoice(): VoiceController {
     voices,
     devices,
     listening,
+    queuedTranscripts: queuedTranscripts
+      .filter((t) => t.epoch === state.contextEpoch)
+      .map(({ speaker, text }) => ({ speaker, text })),
     partial: transcript.epoch === state.contextEpoch ? transcript.text : '',
     speechStatus,
     speaking,

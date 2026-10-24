@@ -26,10 +26,11 @@ export function ConversationPanel({
       </p>
       <p>
         Locked sentences and their initials are saved on this device immediately, before speech,
-        including corrections. Matching phrases appear first for new messages. When continuing a
-        multi-sentence message with Gemini enabled, earlier sentences guide the suggestions. Exact
-        matches rank ahead of one-letter differences in initials of four or more letters. When
-        Gemini is enabled, matching saved phrases are included in the request to avoid duplicates.
+        including corrections. With Gemini enabled, conversation context guides suggestions,
+        including tense and topic. Saved phrases appear directly when there is no conversation
+        context or cloud generation is off. Exact matches rank ahead of one-letter differences in
+        initials of four or more letters. When Gemini is enabled, matching saved phrases are
+        included in the request to avoid duplicates.
       </p>
       <ActionButton
         identity="clear-phrase-cache"

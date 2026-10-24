@@ -1,6 +1,7 @@
 import { app, BrowserWindow, session, systemPreferences } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
+import { installDiagnosticsIpc } from './diagnosticsIpc'
 import { installGeminiIpc } from './geminiIpc'
 import { installCartesiaIpc } from './cartesiaIpc'
 import { installSettingsIpc } from './settingsIpc'
@@ -24,6 +25,7 @@ function createWindow(): void {
     }
   })
 
+  installDiagnosticsIpc(mainWindow)
   const settings = installSettingsIpc(mainWindow)
   installGeminiIpc(mainWindow, settings)
   installCartesiaIpc(mainWindow)
@@ -60,7 +62,9 @@ app.whenReady().then(() => {
 
   // Camera and microphone are available only to this app's top-level renderer.
   const ownContents = (contents: Electron.WebContents | null): boolean =>
-    !!contents && BrowserWindow.getAllWindows().some((window) => window.webContents === contents)
+    !!contents &&
+    !contents.getURL().endsWith('#debug') &&
+    BrowserWindow.getAllWindows().some((window) => window.webContents === contents)
   session.defaultSession.setPermissionRequestHandler((contents, permission, callback, details) => {
     const mediaTypes = 'mediaTypes' in details ? (details.mediaTypes ?? []) : []
     callback(

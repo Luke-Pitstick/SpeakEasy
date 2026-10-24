@@ -1,3 +1,4 @@
+import { DebugWindow } from './prediction/DebugWindow'
 import './assets/main.css'
 
 import { StrictMode } from 'react'
@@ -6,6 +7,10 @@ import App from './App'
 import { DEFAULT_SETTINGS } from '../../shared/settings'
 
 async function start(): Promise<void> {
+  if (location.hash === '#debug') {
+    createRoot(document.getElementById('root')!).render(<DebugWindow />)
+    return
+  }
   let settings = { ...DEFAULT_SETTINGS }
   let settingsError = ''
   try {

@@ -114,7 +114,7 @@ describe('cache-first generation', () => {
       results: PredictionResult[] = []
     const fetcher = vi.fn<typeof fetch>().mockImplementation(async (_url, init) => {
       expect(results[0]).toMatchObject({ status: 'success', complete: false, candidates: cached })
-      expect(JSON.parse(String(init?.body)).messages[0].content).toContain('up to 4 distinct')
+      expect(JSON.parse(String(init?.body)).messages[0].content).toContain('Aim for 4 distinct')
       expect(
         JSON.parse(JSON.parse(String(init?.body)).messages[1].content).alreadyDisplayed
       ).toEqual(cached.map((c) => c.replacement))

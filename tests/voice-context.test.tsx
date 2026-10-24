@@ -211,6 +211,33 @@ describe('always-on context bridge', () => {
     act(() => emit('New context'))
     expect(current.conversation.at(-1)?.text).toBe('New context')
   })
+  it('includes a question finalized while writing in the next expansion and keeps the follow-up', async () => {
+    await setup()
+    act(() => {
+      dispatch({ type: 'cloud', enabled: true })
+      dispatch({ type: 'example', initials: 'idlm' })
+      dispatch({ type: 'resume' })
+    })
+    act(() => emit('What was your least favorite subject when you were in school?'))
+    expect(voice.queuedTranscripts).toHaveLength(1)
+    expect(current.conversation).toHaveLength(0)
+    act(() => dispatch({ type: 'predict', purpose: 'expansion', id: 'school' }))
+    expect(current.request?.conversation.at(-1)?.text).toContain('when you were in school')
+    act(() => {
+      dispatch({ type: 'conversation-add', speaker: 'me', text: "I didn't like math." })
+      dispatch({ type: 'example', initials: 'ittitc' })
+      interaction.setBusy(true)
+    })
+    act(() => emit("What's wrong with math? It's not that hard."))
+    expect(current.conversation).toHaveLength(2)
+    act(() => interaction.setBusy(false))
+    act(() => dispatch({ type: 'predict', purpose: 'expansion', id: 'math-follow-up' }))
+    expect(current.request?.conversation.map((t) => t.text)).toEqual([
+      'What was your least favorite subject when you were in school?',
+      "I didn't like math.",
+      "What's wrong with math? It's not that hard."
+    ])
+  })
   it('releases the microphone session on unmount', async () => {
     await setup()
     const id = vi.mocked(api.listen).mock.calls[0][0]

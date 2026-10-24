@@ -9,6 +9,12 @@ const mocked = vi.hoisted(() => ({
   handlers: new Map<string, (...args: unknown[]) => unknown>(),
   folder: ''
 }))
+vi.mock('../src/main/expansionContext', () => ({
+  ExpansionContextCache: class {
+    clear = vi.fn()
+    resolve = vi.fn(async () => null)
+  }
+}))
 vi.mock('electron', () => ({
   app: { getPath: () => mocked.folder, getAppPath: () => mocked.folder },
   ipcMain: {
@@ -63,7 +69,7 @@ it('cancels the old generation on a model change and sends subsequent requests t
   mocked.handlers.get('gemini:model')!(app.event, 'test/selected')
   expect(fetcher.mock.calls[0][1]?.signal?.aborted).toBe(true)
   mocked.handlers.get('gemini:start')!(app.event, { ...input, id: 'new' })
-  await vi.waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2))
+  await vi.waitFor(() => expect(fetcher).toHaveBeenCalledTimes(3))
   expect(JSON.parse(String(fetcher.mock.calls[1][1]?.body)).model).toBe('test/selected')
   const send = (app.event as { sender: { send: ReturnType<typeof vi.fn> } }).sender.send
   await vi.waitFor(() =>
