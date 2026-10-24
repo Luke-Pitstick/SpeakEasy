@@ -3,6 +3,7 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import App from '../src/renderer/src/App'
 import { DEFAULT_SETTINGS } from '../src/shared/settings'
+import { installGeminiMock } from './prediction-fixture'
 
 beforeEach(() => {
   vi.stubGlobal(
@@ -19,7 +20,47 @@ afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
   delete window.settings
+  delete window.gemini
   localStorage.clear()
+})
+
+it('loads, searches, and saves the chosen phrase model and restores its displayed selection', async () => {
+  installGeminiMock()
+  const models = vi.spyOn(window.gemini!, 'models')
+  const save = vi.spyOn(window.gemini!, 'setModel')
+  const view = render(<App />)
+  openSettings()
+  fireEvent.click(screen.getByRole('button', { name: 'Gemini', exact: true }), { detail: 1 })
+  fireEvent.click(screen.getByRole('button', { name: 'Choose phrase model' }), { detail: 1 })
+  await waitFor(() => expect(models).toHaveBeenCalledOnce())
+  const choice = await screen.findByRole('button', { name: 'Alternative model (test/alternative)' })
+  fireEvent.change(screen.getByLabelText('Find a model'), { target: { value: 'alternative' } })
+  fireEvent.click(choice, { detail: 1 })
+  await waitFor(() => expect(save).toHaveBeenCalledWith('test/alternative'))
+  await waitFor(() => expect(screen.getByText('Phrase model: test/alternative')).toBeTruthy())
+  view.unmount()
+  render(<App />)
+  openSettings()
+  fireEvent.click(screen.getByRole('button', { name: 'Gemini', exact: true }), { detail: 1 })
+  await waitFor(() => expect(screen.getByText('Phrase model: test/alternative')).toBeTruthy())
+})
+
+it('keeps the current model on a failed save and offers retry after a catalog failure', async () => {
+  installGeminiMock()
+  vi.spyOn(window.gemini!, 'models').mockRejectedValueOnce(Error('offline'))
+  vi.spyOn(window.gemini!, 'setModel').mockRejectedValue(Error('disk full'))
+  render(<App />)
+  openSettings()
+  fireEvent.click(screen.getByRole('button', { name: 'Gemini', exact: true }), { detail: 1 })
+  fireEvent.click(screen.getByRole('button', { name: 'Choose phrase model' }), { detail: 1 })
+  expect(await screen.findByText(/Could not load OpenRouter models/)).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Reload models' }), { detail: 1 })
+  fireEvent.click(
+    await screen.findByRole('button', { name: 'Alternative model (test/alternative)' }),
+    { detail: 1 }
+  )
+  expect(await screen.findByText(/Could not save the phrase model/)).toBeTruthy()
+  expect(screen.queryByText('Phrase model: test/alternative')).toBeNull()
 })
 
 function openSettings(): void {

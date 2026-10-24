@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest'
-import { predictionMessages, streamGemini } from '../src/main/gemini'
+import { listPhraseModels, predictionMessages, streamGemini } from '../src/main/gemini'
 import { candidateFor, validRequest, validateResult } from '../src/shared/predictionValidation'
 import {
   EXPANSION_MODEL,
@@ -46,6 +46,28 @@ const success = (
 })
 
 describe('Gemini streaming boundary', () => {
+  it('sends the selected model without the previous model-specific price restriction', async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(response([frame('I want a coffee', 'stop')]))
+    await streamGemini(
+      request(),
+      'secret',
+      new AbortController().signal,
+      vi.fn(),
+      fetcher,
+      undefined,
+      [],
+      'test/selected-model'
+    )
+    expect(JSON.parse(String(fetcher.mock.calls[0][1]?.body))).toMatchObject({
+      model: 'test/selected-model',
+      provider: { sort: 'latency' }
+    })
+    expect(JSON.parse(String(fetcher.mock.calls[0][1]?.body)).provider).not.toHaveProperty(
+      'max_price'
+    )
+  })
   it('publishes completed valid lines incrementally, preserves their identities, and caps at six', async () => {
     const results: PredictionResult[] = []
     const input = request()
@@ -81,7 +103,7 @@ describe('Gemini streaming boundary', () => {
     expect(payload).toMatchObject({
       model: EXPANSION_MODEL,
       stream: true,
-      reasoning: { enabled: false }
+      reasoning: { effort: 'low', exclude: true }
     })
     expect(JSON.parse(payload.messages[1].content).conversation).toEqual([
       { speaker: 'partner', text: 'Would you like a drink?' }
@@ -171,6 +193,42 @@ describe('Gemini streaming boundary', () => {
     } finally {
       vi.useRealTimers()
     }
+  })
+})
+
+describe('phrase model catalog', () => {
+  it('loads text models from the public catalog and filters unsuitable entries', async () => {
+    const architecture = { input_modalities: ['text'], output_modalities: ['text'] }
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json({
+        data: [
+          { id: 'test/zed', name: 'Zed', architecture },
+          { id: 'test/alpha', name: 'Alpha', architecture },
+          { id: 'bad id', name: 'Invalid', architecture },
+          {
+            id: 'test/image',
+            name: 'Image',
+            architecture: { input_modalities: ['text'], output_modalities: ['image'] }
+          }
+        ]
+      })
+    )
+    expect(await listPhraseModels(fetcher)).toEqual([
+      { id: 'test/alpha', name: 'Alpha' },
+      { id: 'test/zed', name: 'Zed' }
+    ])
+    expect(fetcher.mock.calls[0][0]).toBe(
+      'https://openrouter.ai/api/v1/models?output_modalities=text'
+    )
+    expect(fetcher.mock.calls[0][1]).not.toHaveProperty('headers')
+  })
+  it('surfaces catalog failures and rejects malformed responses', async () => {
+    await expect(
+      listPhraseModels(vi.fn<typeof fetch>().mockResolvedValue(new Response('', { status: 503 })))
+    ).rejects.toThrow('Could not load')
+    await expect(
+      listPhraseModels(vi.fn<typeof fetch>().mockResolvedValue(Response.json({ data: 'invalid' })))
+    ).rejects.toThrow()
   })
 })
 

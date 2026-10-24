@@ -112,3 +112,50 @@ it('enforces sender and input validation, independent sharing consent, and in-fl
     facts: []
   })
 })
+
+it('generates a follow-up to locked sentences even when six unrelated saved phrases match', async () => {
+  const { event, send } = launch()
+  const save = mocked.handlers.get('preferences:update')!
+  for (const [i, text] of [
+    'I prefer hot chicken',
+    'I pick hot chicken',
+    'I prefer hearty chicken',
+    'I prefer healthy chicken',
+    'I prefer homemade chicken',
+    'I prefer home cooking'
+  ].entries()) {
+    await save(event, { type: 'commit', id: `saved-${i}`, text, conversation: [] })
+  }
+  const input = {
+    id: 'continuation',
+    revision: 1,
+    purpose: 'expansion',
+    draft: '',
+    lockedMessage: 'I have been playing Clash Royale. Let me tell you about my favorite deck.',
+    target: { start: 0, end: 0 },
+    tokens: [...'iphc'].map((value, i) => ({ id: String(i), kind: 'initial', value })),
+    conversation: [{ id: 'background', speaker: 'partner', text: 'What is for dinner?' }]
+  }
+  send.mockClear()
+  mocked.handlers.get('gemini:start')!(event, input)
+  await Promise.resolve()
+  expect(streamGemini).toHaveBeenCalledOnce()
+  const generation = vi.mocked(streamGemini).mock.calls[0]
+  expect(generation[0].lockedMessage).toBe(input.lockedMessage)
+  expect(generation[6]).toEqual([])
+  expect(send).not.toHaveBeenCalledWith(
+    'gemini:result',
+    expect.objectContaining({
+      candidates: expect.arrayContaining([
+        expect.objectContaining({ text: 'I prefer hot chicken' })
+      ])
+    })
+  )
+  mocked.handlers.get('gemini:enabled')!(event, false)
+  mocked.handlers.get('gemini:start')!(event, { ...input, id: 'offline' })
+  expect(send).toHaveBeenCalledWith(
+    'gemini:result',
+    expect.objectContaining({ status: 'success', candidates: expect.any(Array) })
+  )
+  expect(streamGemini).toHaveBeenCalledOnce()
+})

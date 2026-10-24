@@ -23,7 +23,57 @@ vi.mock('electron', () => ({
 afterEach(() => {
   mocked.handlers.clear()
   vi.unstubAllEnvs()
+  vi.unstubAllGlobals()
   if (mocked.folder) rmSync(mocked.folder, { recursive: true, force: true })
+})
+
+it('cancels the old generation on a model change and sends subsequent requests to the saved model', async () => {
+  vi.stubEnv('OPENROUTER_TOKEN', 'test-key')
+  mocked.folder = mkdtempSync(join(tmpdir(), 'speakeasy-model-ipc-'))
+  const fetcher = vi
+    .fn<typeof fetch>()
+    .mockImplementationOnce(
+      async (_url, init) =>
+        new Promise((_resolve, reject) => {
+          init?.signal?.addEventListener('abort', () =>
+            reject(new DOMException('Aborted', 'AbortError'))
+          )
+        })
+    )
+    .mockResolvedValueOnce(
+      new Response(
+        `data: ${JSON.stringify({ choices: [{ delta: { content: 'I want a coffee\n' }, finish_reason: 'stop' }] })}\n\n`
+      )
+    )
+  vi.stubGlobal('fetch', fetcher)
+  const app = launch()
+  mocked.handlers.get('gemini:enabled')!(app.event, true)
+  const input = {
+    id: 'old',
+    revision: 0,
+    purpose: 'expansion',
+    lockedMessage: '',
+    draft: '',
+    target: { start: 0, end: 0 },
+    conversation: [],
+    tokens: [...'iwac'].map((value, i) => ({ id: String(i), kind: 'initial', value }))
+  }
+  mocked.handlers.get('gemini:start')!(app.event, input)
+  await vi.waitFor(() => expect(fetcher).toHaveBeenCalledOnce())
+  mocked.handlers.get('gemini:model')!(app.event, 'test/selected')
+  expect(fetcher.mock.calls[0][1]?.signal?.aborted).toBe(true)
+  mocked.handlers.get('gemini:start')!(app.event, { ...input, id: 'new' })
+  await vi.waitFor(() => expect(fetcher).toHaveBeenCalledTimes(2))
+  expect(JSON.parse(String(fetcher.mock.calls[1][1]?.body)).model).toBe('test/selected')
+  const send = (app.event as { sender: { send: ReturnType<typeof vi.fn> } }).sender.send
+  await vi.waitFor(() =>
+    expect(send).toHaveBeenCalledWith(
+      'gemini:result',
+      expect.objectContaining({ requestId: 'new', complete: true })
+    )
+  )
+  expect(send.mock.calls.every(([, result]) => result.requestId !== 'old')).toBe(true)
+  app.close()
 })
 
 function launch(): { event: object; close: () => void } {
@@ -51,6 +101,15 @@ it('restores Gemini consent and general settings after closing and creating a ne
   expect(mocked.handlers.get('gemini:status')!(first.event)).toMatchObject({ enabled: false })
   mocked.handlers.get('settings:save')!(first.event, { theme: 'dark', dwell: false })
   mocked.handlers.get('gemini:enabled')!(first.event, true)
+  expect(() => mocked.handlers.get('gemini:model')!({}, 'test/model')).toThrow()
+  expect(() => mocked.handlers.get('gemini:model')!(first.event, 'bad model')).toThrow()
+  expect(() =>
+    mocked.handlers.get('settings:save')!(first.event, { phraseModel: 'test/model' })
+  ).toThrow()
+  expect(mocked.handlers.get('gemini:model')!(first.event, 'test/model')).toMatchObject({
+    model: 'test/model',
+    enabled: true
+  })
   expect(() => mocked.handlers.get('settings:save')!({}, { theme: 'light' })).toThrow()
   expect(() =>
     mocked.handlers.get('settings:save')!(first.event, { geminiEnabled: false })
@@ -62,7 +121,10 @@ it('restores Gemini consent and general settings after closing and creating a ne
     theme: 'dark',
     dwell: false
   })
-  expect(mocked.handlers.get('gemini:status')!(second.event)).toMatchObject({ enabled: true })
+  expect(mocked.handlers.get('gemini:status')!(second.event)).toMatchObject({
+    enabled: true,
+    model: 'test/model'
+  })
   mocked.handlers.get('gemini:enabled')!(second.event, false)
   second.close()
   const third = launch()

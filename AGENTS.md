@@ -75,7 +75,7 @@ Keep phrase generation behind the prediction contract. Do not assume that access
 
 ### Generation
 
-Use the selected Gemini 3 Flash Preview model (`google/gemini-3-flash-preview`) through OpenRouter for phrase generation, with reasoning disabled and up to six streaming suggestions. Include only approved conversational context and validate complete candidates before displaying them. Keep Dasher navigation on synchronous local PPM. See `docs/gemini-integration.md` for the model decision and measured limits.
+Use the selected Gemini 3.8 Flash model (`google/gemini-3.8-flash`) through OpenRouter for phrase generation, with low reasoning effort and reasoning excluded from returned text and up to six streaming suggestions. Include only approved conversational context and validate complete candidates before displaying them. Keep Dasher navigation on synchronous local PPM. See `docs/gemini-integration.md` for the model decision and measured limits.
 
 Use OpenRouter only as an explicitly selected cloud generation provider. Implement the specific providers required by a milestone behind small typed contracts; avoid a provider registry or plugin framework without a concrete need. Show loading, unavailable-model, timeout, and retry states while keeping composition responsive.
 

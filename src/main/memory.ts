@@ -135,9 +135,13 @@ export function retrieveMemories(
   forgottenWords: string[] = []
 ): MemoryContext {
   const context = new Set(
-    lexicalWords(request.draft + ' ' + request.conversation.map((t) => t.text).join(' ')).filter(
-      (w) => !stop.has(w)
-    )
+    lexicalWords(
+      [
+        request.draft,
+        ...request.tokens.filter((token) => token.kind === 'word').map((token) => token.value),
+        request.lockedMessage || request.conversation.map((turn) => turn.text).join(' ')
+      ].join(' ')
+    ).filter((word) => !stop.has(word))
   )
   const overlap = (text: string): number =>
     [...new Set(lexicalWords(text))].filter((w) => context.has(w)).length

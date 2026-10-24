@@ -1,5 +1,5 @@
 import { z } from 'zod'
-import { EXPANSION_MODEL } from '../shared/prediction'
+import { EXPANSION_MODEL, MODEL_REASONING } from '../shared/prediction'
 import { conversationSummarySchema, type SummaryRequest } from '../shared/conversationSummary'
 import { postModelJson } from './modelJson'
 
@@ -15,8 +15,9 @@ export async function summarizeConversation(
     {
       model: EXPANSION_MODEL,
       temperature: 0,
-      max_tokens: 1000,
-      reasoning: { enabled: false },
+      max_tokens: 3072,
+      reasoning: MODEL_REASONING,
+      provider: { sort: 'latency' },
       response_format: {
         type: 'json_schema',
         json_schema: {

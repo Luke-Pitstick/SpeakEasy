@@ -10,10 +10,10 @@ import {
 import { readFileSync } from 'node:fs'
 import { parseEnv } from 'node:util'
 import { join } from 'node:path'
-import { streamGemini } from './gemini'
+import { listPhraseModels, streamGemini } from './gemini'
 import { PhraseCache } from './phraseCache'
 import { validRequest } from '../shared/predictionValidation'
-import type { GeminiStatus } from '../shared/prediction'
+import { EXPANSION_MODEL, validModelId, type GeminiStatus } from '../shared/prediction'
 import type { SettingsStore } from './settings'
 import { MemoryStore } from './memory'
 import { installPreferenceIpc } from './preferenceIpc'
@@ -48,6 +48,7 @@ export function installGeminiIpc(window: BrowserWindow, settings: SettingsStore 
     }
   }
   let enabled = settings?.read().geminiEnabled ?? false
+  let model = settings?.read().phraseModel ?? EXPANSION_MODEL
   let active: { id: string; controller: AbortController } | null = null
   const cancel = (): void => {
     active?.controller.abort()
@@ -58,7 +59,7 @@ export function installGeminiIpc(window: BrowserWindow, settings: SettingsStore 
     summaryJob?.abort()
     summaryJob = null
   }
-  const status = (): GeminiStatus => ({ configured: !!key, enabled })
+  const status = (): GeminiStatus => ({ configured: !!key, enabled, model })
   const preferences = installPreferenceIpc(window, key, cancel, phraseCache)
   const own = (event: IpcMainInvokeEvent | IpcMainEvent): boolean =>
     !window.isDestroyed() &&
@@ -143,6 +144,18 @@ export function installGeminiIpc(window: BrowserWindow, settings: SettingsStore 
     if (!own(event)) throw new Error('Unauthorized sender')
     return status()
   })
+  ipcMain.handle('gemini:models', (event) => {
+    if (!own(event)) throw Error('Unauthorized sender')
+    return listPhraseModels()
+  })
+  ipcMain.handle('gemini:model', (event, value: unknown) => {
+    if (!own(event) || !validModelId(value)) throw Error('Invalid phrase model')
+    if (!settings) throw Error('Settings storage is unavailable')
+    settings.save({ phraseModel: value })
+    cancel()
+    model = value
+    return status()
+  })
   ipcMain.handle('gemini:clear-cache', (event) => {
     if (!own(event)) throw Error('Unauthorized sender')
     cancel()
@@ -163,7 +176,10 @@ export function installGeminiIpc(window: BrowserWindow, settings: SettingsStore 
   ipcMain.handle('gemini:start', (event, value: unknown) => {
     if (!own(event) || !validRequest(value)) throw new Error('Invalid prediction request')
     cancel()
-    const cached = phraseCache?.lookup(value) ?? []
+    // Initials-only phrase matches cannot establish whether a sentence continues
+    // the user's unfinished thought. Let generation interpret the locked message.
+    const cached =
+      enabled && key && value.lockedMessage.trim() ? [] : (phraseCache?.lookup(value) ?? [])
     if (cached.length && (!enabled || !key || cached.length === 6)) {
       event.sender.send('gemini:result', {
         requestId: value.id,
@@ -193,6 +209,7 @@ export function installGeminiIpc(window: BrowserWindow, settings: SettingsStore 
     }
     const controller = new AbortController()
     active = { id: value.id, controller }
+    const requestModel = model
     let personalMemory = emptyMemory()
     try {
       personalMemory = memoryError ? personalMemory : (memory?.retrieve(value) ?? personalMemory)
@@ -227,7 +244,8 @@ export function installGeminiIpc(window: BrowserWindow, settings: SettingsStore 
         },
         fetch,
         { ...personalMemory, facts },
-        cached
+        cached,
+        requestModel
       )
     })().finally(() => {
       if (active?.controller === controller) active = null
@@ -248,6 +266,8 @@ export function installGeminiIpc(window: BrowserWindow, settings: SettingsStore 
     ipcMain.removeHandler('gemini:clear-cache')
     for (const channel of [
       'gemini:status',
+      'gemini:models',
+      'gemini:model',
       'gemini:enabled',
       'gemini:start',
       'memory:read',

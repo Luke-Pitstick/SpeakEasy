@@ -1,4 +1,7 @@
+import { EXPANSION_MODEL, validModelId } from './prediction'
+
 export interface AppSettings {
+  phraseModel: string
   theme: 'system' | 'light' | 'dark'
   speed: number
   edgeHeight: number
@@ -10,6 +13,7 @@ export interface AppSettings {
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
+  phraseModel: EXPANSION_MODEL,
   theme: 'system',
   speed: 0.6,
   edgeHeight: 48,
@@ -20,7 +24,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   geminiEnabled: false
 }
 
-export type GeneralSettingsPatch = Partial<Omit<AppSettings, 'geminiEnabled'>>
+export type GeneralSettingsPatch = Partial<Omit<AppSettings, 'geminiEnabled' | 'phraseModel'>>
 
 export interface SettingsApi {
   load(): Promise<AppSettings>
@@ -34,6 +38,8 @@ export function validSettingsPatch(
   if (!value || typeof value !== 'object' || Array.isArray(value)) return false
   return Object.entries(value).every(([key, setting]) => {
     switch (key) {
+      case 'phraseModel':
+        return allowGemini && validModelId(setting)
       case 'theme':
         return setting === 'system' || setting === 'light' || setting === 'dark'
       case 'speed':

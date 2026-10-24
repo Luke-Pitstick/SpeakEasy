@@ -1,6 +1,6 @@
 import { postModelJson } from './modelJson'
 import { z } from 'zod'
-import { EXPANSION_MODEL } from '../shared/prediction'
+import { EXPANSION_MODEL, MODEL_REASONING } from '../shared/prediction'
 import { embeddingSchema, extractionSchema, type SentenceMemory } from '../shared/preferences'
 
 export const EMBEDDING_MODEL = 'openai/text-embedding-3-small'
@@ -17,8 +17,9 @@ export async function extractPreferences(
     {
       model: EXPANSION_MODEL,
       temperature: 0,
-      max_tokens: 1800,
-      reasoning: { enabled: false },
+      max_tokens: 4096,
+      reasoning: MODEL_REASONING,
+      provider: { sort: 'latency' },
       response_format: {
         type: 'json_schema',
         json_schema: { name: 'preferences', strict: true, schema: z.toJSONSchema(extractionSchema) }

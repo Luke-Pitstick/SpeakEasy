@@ -19,6 +19,7 @@ function request(initials = 'c w c a'): PredictionRequest {
     id: 'test',
     revision: 1,
     purpose: 'expansion',
+    lockedMessage: '',
     draft: '',
     target: { start: 0, end: 0 },
     conversation: [],
@@ -236,4 +237,30 @@ describe('personal memory', () => {
     expect(JSON.parse(messages[1].content).personalMemory.vocabulary).toContain('Anjali')
     expect(messages[0].content).toContain('Current constraints override memory')
   })
+})
+
+it('ranks corrections using the authored message before unrelated heard conversation', () => {
+  const records: CorrectionMemory[] = [
+    {
+      id: 'chess',
+      before: 'I play chess with Alex',
+      after: 'I play chess with Anjali',
+      createdAt: 1
+    },
+    {
+      id: 'dinner',
+      before: 'I eat dinner with Alex',
+      after: 'I eat dinner with Amina',
+      createdAt: 2
+    }
+  ]
+  const input: PredictionRequest = {
+    ...request('a'),
+    lockedMessage: 'I am thinking about chess.',
+    conversation: [{ id: 'background', speaker: 'partner', text: 'Amina is coming for dinner.' }]
+  }
+  const continuing = retrieveMemories(records, input)
+  expect(continuing.vocabulary[0]).toBe('Anjali')
+  expect(continuing.examples[0]?.text).toBe('I play chess with Anjali')
+  expect(retrieveMemories(records, { ...input, lockedMessage: '' }).vocabulary[0]).toBe('Amina')
 })

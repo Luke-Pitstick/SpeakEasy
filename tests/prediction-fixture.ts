@@ -1,4 +1,8 @@
-import type { PredictionRequest, PredictionResult } from '../src/shared/prediction'
+import {
+  EXPANSION_MODEL,
+  type PredictionRequest,
+  type PredictionResult
+} from '../src/shared/prediction'
 import { validateResult } from '../src/shared/predictionValidation'
 export { validateResult }
 type TestScenario = 'normal' | 'error' | 'timeout' | 'empty' | 'invalid' | 'late'
@@ -119,14 +123,23 @@ export class TestPhrasePredictor {
 }
 
 export function installGeminiMock(): void {
+  let model = EXPANSION_MODEL
   const listeners = new Set<(result: PredictionResult) => void>()
   const controllers = new Map<string, AbortController>()
   window.gemini = {
+    models: async () => [
+      { id: EXPANSION_MODEL, name: 'Default model' },
+      { id: 'test/alternative', name: 'Alternative model' }
+    ],
+    setModel: async (value) => {
+      model = value
+      return { configured: true, enabled: false, model }
+    },
     summarize: async () => 'Earlier conversation.',
     cancelSummary: () => {},
     clearPhraseCache: async () => {},
-    status: async () => ({ configured: true, enabled: false }),
-    setEnabled: async (enabled) => ({ configured: true, enabled }),
+    status: async () => ({ configured: true, enabled: false, model }),
+    setEnabled: async (enabled) => ({ configured: true, enabled, model }),
     start: async (request) => {
       const controller = new AbortController()
       controllers.set(request.id, controller)

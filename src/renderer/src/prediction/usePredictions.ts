@@ -10,6 +10,7 @@ export function usePredictions(): {
   connection: GeminiStatus | null
   connectionError: string
   setEnabled: (enabled: boolean) => Promise<void>
+  setModel: (model: string) => Promise<void>
 } {
   const state = useComposition(),
     dispatch = useCompositionDispatch(),
@@ -22,6 +23,17 @@ export function usePredictions(): {
   const counter = useRef(0),
     delivered = useRef<PredictionResult | null>(null)
   const pending = state.request
+  const setModel = async (model: string): Promise<void> => {
+    dispatch({ type: 'dismiss' })
+    setStaged(null)
+    try {
+      if (!window.gemini) throw Error('Desktop bridge unavailable')
+      setConnection(await window.gemini.setModel(model))
+      setConnectionError('')
+    } catch {
+      setConnectionError('Could not save the phrase model. Check local storage and retry.')
+    }
+  }
   useEffect(() => {
     let alive = true
     if (!window.gemini) return
@@ -109,6 +121,7 @@ export function usePredictions(): {
     waiting: !!staged && busy && staged.requestId === pending?.id && state.status === 'loading',
     connection,
     connectionError,
-    setEnabled
+    setEnabled,
+    setModel
   }
 }

@@ -27,13 +27,46 @@ it.skipIf(process.env.SPEAKEASY_LIVE_MEMORY_TEST !== '1')(
       const started = performance.now()
       const body = JSON.parse(String(init?.body))
       if (body.stream) expansionFacts = JSON.parse(body.messages[1].content).personalMemory.facts
-      const response = await fetch(url, init)
+      const response = await fetch(url, init).catch((error: unknown) => {
+        console.info(
+          'Provider request failed',
+          body.response_format?.json_schema?.name ?? body.model,
+          Math.round(performance.now() - started),
+          error instanceof Error ? error.name : 'Unknown error'
+        )
+        throw error
+      })
+      if (response.ok && body.messages && !body.stream) {
+        const result = await response.clone().json()
+        console.info(
+          'Structured response',
+          body.response_format?.json_schema?.name,
+          result.choices?.[0]?.finish_reason,
+          {
+            contentLength: result.choices?.[0]?.message?.content?.length ?? 0,
+            reasoningTokens: result.usage?.completion_tokens_details?.reasoning_tokens,
+            elapsedMs: Math.round(performance.now() - started)
+          }
+        )
+      }
       calls.push({
         endpoint: String(url).split('/').at(-1)!,
         status: response.status,
         elapsedMs: Math.round(performance.now() - started)
       })
-      if (!response.ok) console.info('Provider failure status', response.status)
+      if (!response.ok) {
+        const failure = await response
+          .clone()
+          .json()
+          .catch(() => null)
+        console.info(
+          'Provider failure',
+          response.status,
+          String(failure?.error?.message ?? '')
+            .replaceAll(key, '[redacted]')
+            .slice(0, 500)
+        )
+      }
       if (response.ok && String(url).endsWith('/embeddings')) {
         const result = await response.clone().json()
         embeddings.push({ input: body.input, vector: result.data[0].embedding })
@@ -152,7 +185,7 @@ it.skipIf(process.env.SPEAKEASY_LIVE_MEMORY_TEST !== '1')(
           { vocabulary: [], examples: [], facts }
         )
         const final = results.at(-1)
-        expect(final?.status).toBe('success')
+        expect(final?.status, JSON.stringify(final)).toBe('success')
         const candidates = final?.status === 'success' ? final.candidates.map((c) => c.text) : []
         console.info('Live expansions', id, JSON.stringify(candidates))
         expect(expansionFacts).toEqual(facts)
@@ -190,7 +223,44 @@ it.skipIf(process.env.SPEAKEASY_LIVE_MEMORY_TEST !== '1')(
           }
         ]
       }
-      for (const input of [dinner, followup, returnToGame]) {
+      const continuingGame = {
+        ...dinner,
+        id: 'locked-game-over-background-dinner',
+        lockedMessage:
+          'I have been playing Clash Royale. I want to tell you about my favorite deck.'
+      }
+      const continuingDinner = {
+        ...returnToGame,
+        id: 'locked-dinner-over-background-game',
+        lockedMessage:
+          "I'm deciding what to eat for dinner. I'm choosing between hot chicken and pasta."
+      }
+      const authoredShift = {
+        ...continuingGame,
+        id: 'authored-shift-to-dinner',
+        lockedMessage:
+          'I have been playing Clash Royale. Now I want to talk about dinner: hot chicken or pasta.'
+      }
+      const explicitWords = {
+        ...continuingGame,
+        id: 'explicit-dinner-words',
+        tokens: continuingGame.tokens.map((token, i) =>
+          i === 2
+            ? { ...token, kind: 'word' as const, value: 'hot' }
+            : i === 3
+              ? { ...token, kind: 'word' as const, value: 'chicken' }
+              : token
+        )
+      }
+      for (const input of [
+        dinner,
+        followup,
+        returnToGame,
+        continuingGame,
+        continuingDinner,
+        authoredShift,
+        explicitWords
+      ]) {
         expect(input.conversationSummary).toContain('Clash Royale')
         const facts = await service.retrieve(input, new AbortController().signal)
         const callsBeforeRepeat = calls.length
@@ -199,7 +269,9 @@ it.skipIf(process.env.SPEAKEASY_LIVE_MEMORY_TEST !== '1')(
             ...input,
             id: `${input.id}-repeat`,
             revision: input.revision + 1,
-            tokens: [...'iw'].map((value, i) => ({ id: String(i), kind: 'initial', value }))
+            tokens: input.tokens.map((token, i) =>
+              token.kind === 'word' ? token : { ...token, value: i === 0 ? 'w' : token.value }
+            )
           },
           new AbortController().signal
         )
@@ -215,12 +287,15 @@ it.skipIf(process.env.SPEAKEASY_LIVE_MEMORY_TEST !== '1')(
           { vocabulary: [], examples: [], facts }
         )
         const final = results.at(-1)
-        expect(final?.status).toBe('success')
+        expect(final?.status, JSON.stringify(final)).toBe('success')
         const candidates =
           final?.status === 'success' ? final.candidates.map((candidate) => candidate.text) : []
-        console.info('Topic switch evidence', JSON.stringify({ id: input.id, facts, candidates }))
+        console.info(
+          'Topic switch evidence',
+          JSON.stringify({ id: input.id, query: embeddings.at(-1)?.input, facts, candidates })
+        )
         expect(candidates.length).toBeGreaterThan(0)
-        if (input.id === 'return-to-game') {
+        if (input.id === 'return-to-game' || input.id === 'locked-game-over-background-dinner') {
           expect(facts.some((f) => f.value === 'Hog Cycle')).toBe(true)
           expect(candidates.some((text) => /hog cycle/i.test(text))).toBe(true)
         } else {

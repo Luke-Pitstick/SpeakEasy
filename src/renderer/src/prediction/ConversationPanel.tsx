@@ -3,6 +3,7 @@ import { useComposition, useCompositionDispatch } from '../composition/state'
 import { ActionButton } from '../interaction/controls'
 import type { usePredictions } from './usePredictions'
 import { MemoryPanel } from './MemoryPanel'
+import type { PhraseModel } from '../../../shared/prediction'
 
 export function ConversationPanel({
   predictions
@@ -25,10 +26,10 @@ export function ConversationPanel({
       </p>
       <p>
         Locked sentences and their initials are saved on this device immediately, before speech,
-        including corrections. Matching phrases appear first; Gemini generates only the remaining
-        suggestions. Exact matches rank ahead of one-letter differences in initials of four or more
-        letters. When Gemini is enabled, matching saved phrases are included in the request to avoid
-        duplicates.
+        including corrections. Matching phrases appear first for new messages. When continuing a
+        multi-sentence message with Gemini enabled, earlier sentences guide the suggestions. Exact
+        matches rank ahead of one-letter differences in initials of four or more letters. When
+        Gemini is enabled, matching saved phrases are included in the request to avoid duplicates.
       </p>
       <ActionButton
         identity="clear-phrase-cache"
@@ -49,6 +50,7 @@ export function ConversationPanel({
         Clear saved phrases
       </ActionButton>
       {cacheNotice && <p role="status">{cacheNotice}</p>}
+      <PhraseModelPicker predictions={predictions} />
       <ActionButton
         identity={`cloud-${state.cloudEnabled}`}
         selected={state.cloudEnabled}
@@ -61,7 +63,7 @@ export function ConversationPanel({
       <p role="status">
         {predictions.connectionError ||
           (predictions.connection?.configured
-            ? 'Gemini 3 Flash · API key configured'
+            ? `${predictions.connection.model} · API key configured`
             : 'Set OPENROUTER_TOKEN in the app .env and restart to connect Gemini.')}
       </p>
       <p>
@@ -168,5 +170,120 @@ export function ConversationPanel({
       {state.validationError && <p role="alert">{state.validationError}</p>}
       <MemoryPanel />
     </div>
+  )
+}
+
+function PhraseModelPicker({
+  predictions
+}: {
+  predictions: ReturnType<typeof usePredictions>
+}): React.JSX.Element {
+  const [models, setModels] = useState<PhraseModel[]>([])
+  const [open, setOpen] = useState(false)
+  const [loading, setLoading] = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
+  const [search, setSearch] = useState('')
+  const [page, setPage] = useState(0)
+  const filtered = models.filter((model) =>
+    `${model.name} ${model.id}`.toLowerCase().includes(search.toLowerCase())
+  )
+  const pages = Math.max(1, Math.ceil(filtered.length / 6))
+  const currentPage = Math.min(page, pages - 1)
+  const load = async (): Promise<void> => {
+    setLoading(true)
+    setError('')
+    try {
+      if (!window.gemini) throw Error('Desktop bridge unavailable')
+      const available = await window.gemini.models()
+      setModels(available)
+      if (!available.length) setError('No text models are available. Try loading models again.')
+    } catch {
+      setError('Could not load OpenRouter models. Check your connection and try again.')
+    } finally {
+      setLoading(false)
+    }
+  }
+  return (
+    <section aria-label="Phrase model">
+      <p>Phrase model: {predictions.connection?.model ?? 'Loading saved selection…'}</p>
+      <p>
+        Choose an OpenRouter model for phrase suggestions. Model pricing and response speed vary.
+        Conversation summaries and memory processing use their existing model.
+      </p>
+      <ActionButton
+        identity={`phrase-model-picker-${open}`}
+        disabled={loading || saving}
+        onAction={() => {
+          setOpen(!open)
+          if (!open && !models.length) void load()
+        }}
+      >
+        {loading ? 'Loading models…' : open ? 'Close model picker' : 'Choose phrase model'}
+      </ActionButton>
+      {open && (
+        <>
+          <label>
+            Find a model
+            <input
+              aria-label="Find a model"
+              value={search}
+              onChange={(event) => {
+                setSearch(event.target.value)
+                setPage(0)
+              }}
+            />
+          </label>
+          <div role="group" aria-label="Available phrase models">
+            {filtered.slice(currentPage * 6, currentPage * 6 + 6).map((model) => (
+              <ActionButton
+                key={model.id}
+                identity={`phrase-model-${model.id}`}
+                selected={model.id === predictions.connection?.model}
+                disabled={saving || !predictions.connection}
+                onAction={() => {
+                  setSaving(true)
+                  void predictions.setModel(model.id).finally(() => setSaving(false))
+                }}
+              >
+                {model.name} ({model.id})
+              </ActionButton>
+            ))}
+          </div>
+          {!loading && !filtered.length && !error && <p>No models match your search.</p>}
+          <p role="status">
+            {saving ? 'Saving model…' : `Model page ${currentPage + 1} of ${pages}`}
+          </p>
+          <ActionButton
+            identity={`previous-models-${currentPage}-${search}`}
+            disabled={saving || currentPage === 0}
+            onAction={() => setPage(currentPage - 1)}
+          >
+            Previous models
+          </ActionButton>
+          <ActionButton
+            identity={`next-models-${currentPage}-${search}`}
+            disabled={saving || currentPage + 1 >= pages}
+            onAction={() => setPage(currentPage + 1)}
+          >
+            Next models
+          </ActionButton>
+          {error && (
+            <>
+              <p role="alert">{error}</p>
+              <ActionButton
+                identity="reload-models"
+                disabled={loading || saving}
+                onAction={() => {
+                  void load()
+                }}
+              >
+                Reload models
+              </ActionButton>
+            </>
+          )}
+        </>
+      )}
+    </section>
   )
 }

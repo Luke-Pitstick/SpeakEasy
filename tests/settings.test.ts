@@ -22,6 +22,7 @@ describe('settings persistence', () => {
     const first = new SettingsStore(path)
     expect(first.read()).toEqual(DEFAULT_SETTINGS)
     const changed = {
+      phraseModel: 'test/alternative',
       theme: 'dark' as const,
       speed: 1.4,
       edgeHeight: 88,
