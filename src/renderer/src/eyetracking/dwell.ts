@@ -6,7 +6,8 @@ export interface DwellOptions {
   learn: boolean
 }
 
-export const DEFAULT_DWELL: DwellOptions = { enabled: true, durationMs: 1000, learn: false }
+// Off by default: the app's own controls (ActionButton) handle dwell from pointer events.
+export const DEFAULT_DWELL: DwellOptions = { enabled: false, durationMs: 1000, learn: false }
 
 export interface DwellUpdate {
   /** Target currently being dwelt on. */

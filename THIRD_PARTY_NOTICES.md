@@ -1,0 +1,9 @@
+# Third-party source attribution
+
+This application contains modified TypeScript adaptations of selected Dasher and SpeakFaster source. See [the source manifest](docs/source-manifest.md) for pinned revisions and modifications. These are locally owned adaptations; they are not the complete upstream applications and have not been shown to have full upstream behavioral parity.
+
+- **Dasher JavaScript navigation:** Copyright (c) 2020 The ACE Centre-North, UK registered charity 1089313. MIT license, reproduced in [licenses/dasher-MIT.txt](licenses/dasher-MIT.txt).
+- **SpeakFaster composition behavior:** Copyright (c) 2021 TeamGleason. MIT license, reproduced in [licenses/speakfaster-MIT.txt](licenses/speakfaster-MIT.txt).
+- **jslm PPM algorithm:** Copyright 2020 The Google Research Authors. Apache License 2.0, reproduced in [licenses/jslm-Apache-2.0.txt](licenses/jslm-Apache-2.0.txt). The implementation is modified as described in the manifest; no upstream model weights or training books are included. The word-initial estimator in `src/shared/initialsPpm.ts` adapts the same probability rule using independent-turn context counts, a context-only start marker, source interpolation, and immutable export. Its public training data and local results are documented in [the PPM results](docs/initials-ppm-results.md). The evaluated artifact is bundled locally as `src/renderer/src/features/dasher/initials-model.json`; [integration notes](docs/initials-ppm-integration.md) record provenance, verification, and the current-page/older-README dataset license discrepancy before public distribution.
+
+The demo phrases and small PPM training fixture were authored for this project. External interface pictures are linked in the reference document for design review and are not bundled as application assets.

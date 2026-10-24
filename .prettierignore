@@ -5,3 +5,5 @@ LICENSE.md
 tsconfig.json
 tsconfig.*.json
 src/renderer/public/mediapipe
+artifacts/initials-ppm/
+src/renderer/src/features/dasher/initials-model.json

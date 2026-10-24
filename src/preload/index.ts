@@ -1,4 +1,3 @@
-import { contextBridge } from 'electron'
-import { electronAPI } from '@electron-toolkit/preload'
-
-contextBridge.exposeInMainWorld('electron', electronAPI)
+// The offline composition workspace needs no privileged operations.
+// Add only specific, validated operations here when a real provider is implemented.
+export {}
