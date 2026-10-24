@@ -97,7 +97,11 @@ function Workspace({
   }
   return (
     <main className="workspace" data-theme={theme}>
-      {settingsError && <p role="alert">{settingsError}</p>}
+      {settingsError && (
+        <p className="settings-error" role="alert">
+          {settingsError}
+        </p>
+      )}
       <div className="top-edge-region" data-gaze-top-cue style={{ height: edgeHeight }}>
         <ActionButton
           className="top-edge-cue"
@@ -126,50 +130,38 @@ function Workspace({
       </div>
       <header className="app-header" aria-label="Message and controls">
         <div className="message-strip" inert={menu !== 'closed' || undefined}>
-          <DraftPanel />
-          <span
-            className={`listening-indicator${voice.listening === 'Listening to conversation' ? ' is-live' : ''}`}
-            role="status"
-            title={voice.listening}
-            aria-label={voice.listening}
-          >
-            <span aria-hidden="true" className="listening-dot" />
-            {voice.listening === 'Listening to conversation'
-              ? 'Listening'
-              : voice.speaking
-                ? 'Mic paused during speech'
-                : voice.listening.startsWith('Connecting')
-                  ? 'Connecting mic…'
-                  : 'Microphone unavailable'}
-          </span>
+          <DraftPanel
+            status={
+              <span
+                className={`listening-indicator${voice.listening === 'Listening to conversation' ? ' is-live' : ''}`}
+                role="status"
+                title={voice.listening}
+                aria-label={voice.listening}
+              >
+                <span aria-hidden="true" className="listening-dot" />
+                {voice.listening === 'Listening to conversation'
+                  ? 'Listening'
+                  : voice.speaking
+                    ? 'Mic paused during speech'
+                    : voice.listening.startsWith('Connecting')
+                      ? 'Connecting mic…'
+                      : 'Microphone unavailable'}
+              </span>
+            }
+          />
           {voice.error && (
             <p className="strip-error" role="alert">
               {voice.error}
             </p>
           )}
         </div>
-        <ActionButton
-          identity={`speak-${messageText(state)}-${voice.settings.voiceId}-${voice.settings.speed}-${voice.settings.tone}`}
-          disabled={
-            !voice.configured ||
-            voice.speaking ||
-            !messageText(state).trim() ||
-            messageText(state).length > 2000 ||
-            (state.mode === 'initials' && state.tokens.length > 0) ||
-            state.mode === 'keyword' ||
-            state.mode === 'replacement' ||
-            menu !== 'closed'
-          }
-          onAction={() => {
-            dispatch({ type: 'pause' })
-            void voice.speak(messageText(state), state.revision)
-          }}
-        >
-          Speak
-        </ActionButton>
-        <ActionButton identity="stop-speech" disabled={!voice.speaking} onAction={voice.stop}>
-          Stop
-        </ActionButton>
+        {/* Speak lives in the phrase area once the message is final; Stop stays reachable from
+            either workspace while speech plays. */}
+        {voice.speaking && (
+          <ActionButton identity="stop-speech" onAction={voice.stop}>
+            Stop
+          </ActionButton>
+        )}
         <ActionButton
           className="header-writing"
           identity={`writing-${state.paused}-${state.editor}-${state.mode}-${state.selectedToken ?? ''}-${state.selection?.start ?? ''}`}
@@ -187,7 +179,9 @@ function Workspace({
         </ActionButton>
       </header>
       <div className="workspace-body" inert={menu !== 'closed' || undefined}>
-        {state.workspace === 'phrases' && <SpeakFasterPanel predictions={predictions} />}
+        {state.workspace === 'phrases' && (
+          <SpeakFasterPanel predictions={predictions} voice={voice} />
+        )}
         <div className="dasher-workspace" hidden={state.workspace !== 'dasher'}>
           <DasherPanel speed={speed} weighting={weighting} />
         </div>

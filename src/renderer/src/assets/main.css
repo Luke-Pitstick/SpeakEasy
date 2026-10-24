@@ -44,15 +44,33 @@ button:disabled {
 }
 .app-header .action-button {
   min-height: 64px;
-  padding: 10px 16px;
+  padding: 10px 24px;
   white-space: nowrap;
-  font-size: 18px;
+  font-size: 20px;
   flex-shrink: 0;
+}
+/* Floats over the workspace so a settings problem never shifts the edge bars or gaze targets. */
+.settings-error {
+  position: absolute;
+  left: 50%;
+  bottom: 96px;
+  z-index: 5;
+  max-width: min(640px, calc(100% - 32px));
+  margin: 0;
+  padding: 10px 18px;
+  transform: translateX(-50%);
+  border: 1px solid var(--danger);
+  border-radius: 999px;
+  background: var(--surface);
+  box-shadow: var(--shadow-md);
+  color: var(--danger);
+  font-size: 15px;
+  text-align: center;
+  pointer-events: none;
 }
 .message-strip {
   flex: 1;
   min-width: 0;
-  position: relative;
 }
 .top-edge-region,
 .bottom-edge-region {
@@ -557,9 +575,11 @@ h2 {
   align-items: center;
 }
 .phrase-tools .action-button {
+  /* Tools share the row equally, so a short row still gets wide, easy targets. */
+  flex: 1 1 160px;
   min-height: 44px;
-  padding: 6px 16px;
-  font-size: 17px;
+  padding: 8px 24px;
+  font-size: 19px;
 }
 .token-position,
 .token-kind {
@@ -622,6 +642,10 @@ h2 {
   flex-wrap: wrap;
   padding-bottom: 8px;
 }
+/* Reviewing a short phrase can leave no tools (Speak and Back move to the suggestion area). */
+.phrase-tools:empty {
+  display: none;
+}
 .speakfaster-panel .choice-area {
   min-height: 424px;
 }
@@ -644,12 +668,13 @@ h2 {
   line-height: 1.35;
 }
 .header-writing {
-  min-width: 164px;
+  min-width: 200px;
 }
 .suggestion-footer .action-button {
-  min-height: 44px;
-  padding: 6px 12px;
-  font-size: 16px;
+  min-width: 180px;
+  min-height: 64px;
+  padding: 10px 24px;
+  font-size: 18px;
 }
 
 .draft-panel {
@@ -717,9 +742,64 @@ h2 {
 .suggestion-footer {
   min-height: 64px;
   height: auto;
+  gap: 12px;
 }
 .phrase-tools .action-button {
   min-height: 64px;
+}
+/* Once the message is final, the suggestion area becomes one large Speak target that shows the
+   exact text it will say; while speaking, the same target stops speech. Reviewing a phrase puts
+   an equally tall Back beside it. */
+.speak-actions {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: 16px;
+  height: 100%;
+}
+.speak-actions.solo {
+  grid-template-columns: minmax(0, 1fr);
+}
+.speak-actions .speak-back.action-button {
+  height: 100%;
+  border-radius: var(--radius-lg);
+  font-size: 32px;
+  font-weight: 600;
+}
+.speak-button.action-button {
+  width: 100%;
+  height: 100%;
+  min-height: 160px;
+  padding: 24px 48px;
+  border-radius: var(--radius-lg);
+}
+.speak-button .action-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  max-width: 100%;
+}
+.speak-label {
+  font-size: 44px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+.speak-message {
+  max-width: 100%;
+  max-height: 5.4em;
+  overflow: hidden;
+  font-size: 22px;
+  font-weight: 450;
+  line-height: 1.35;
+  opacity: 0.88;
+  overflow-wrap: anywhere;
+}
+.speak-button.is-speaking,
+.speak-button.is-speaking:hover:not(:disabled),
+.speak-button.is-speaking.dwelling {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: var(--on-accent);
 }
 
 .conversation-panel textarea {
@@ -763,11 +843,15 @@ h2 {
 }
 
 /* Compact microphone status sits in the message box's label row, so it never changes the
-   header's height or centering; speech actions use header targets. */
+   header's height or centering, nor covers the message box's buttons. */
+.draft-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
 .listening-indicator {
-  position: absolute;
-  top: 7px;
-  right: 16px;
   display: inline-flex;
   align-items: center;
   gap: 6px;

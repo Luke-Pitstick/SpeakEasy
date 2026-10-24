@@ -1,15 +1,18 @@
 // Behavioral translation of SpeakFaster input-bar, input-bar-chip, abbreviation,
 // and abbreviation-refinement (MIT, TeamGleason). See docs/speakfaster-translation.md.
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useComposition, useCompositionDispatch } from '../../composition/state'
 import { entryText, messageText } from '../../composition/model'
 import { ActionButton } from '../../interaction/controls'
 import type { usePredictions } from '../../prediction/usePredictions'
+import type { VoiceController } from '../voice/useVoice'
 
 export function SpeakFasterPanel({
-  predictions
+  predictions,
+  voice
 }: {
   predictions: ReturnType<typeof usePredictions>
+  voice: VoiceController
 }): React.JSX.Element {
   const state = useComposition()
   const dispatch = useCompositionDispatch()
@@ -19,6 +22,15 @@ export function SpeakFasterPanel({
   const keyword = state.editor === 'keywords'
   const phrase = state.phrase
   const spelling = state.mode === 'keyword' || state.mode === 'replacement'
+  const message = messageText(state)
+  // Speech is offered only for a finished message: a reviewed phrase with no word being changed
+  // (speaking uses it), no word being spelled, and no initials still waiting to be expanded.
+  const final =
+    !(phrase !== null && state.selection) &&
+    !spelling &&
+    !(state.mode === 'initials' && state.tokens.length > 0) &&
+    !!message.trim() &&
+    message.length <= 2000
   const tokens = keyword
     ? state.tokens.map((token) => ({
         id: token.id,
@@ -40,6 +52,18 @@ export function SpeakFasterPanel({
     setPage(0)
     dispatch({ type: 'open-keywords' })
   }
+  const back = (
+    <ActionButton
+      className="speak-back"
+      identity={`back-${version}`}
+      onAction={() => {
+        setPage(0)
+        dispatch({ type: 'back' })
+      }}
+    >
+      Back
+    </ActionButton>
+  )
   const entryLabel = keyword
     ? 'Spell a keyword'
     : phrase !== null
@@ -56,8 +80,10 @@ export function SpeakFasterPanel({
         ? state.mode === 'replacement'
           ? 'Dasher replaces the highlighted word. Use word keeps your spelling; Cancel word restores it.'
           : 'Choose a same-initial replacement below, or Spell word with Dasher.'
-        : 'Choose a word to change. Look at the top to lock this sentence and keep writing, or choose Speak.'
-      : 'Choose a phrase to review or change a word. Spell adds detail to your initials.'
+        : 'Choose a word to change, or Speak. Look at the top to lock this sentence and keep writing.'
+      : final && !state.candidates.length
+        ? 'Your message is ready. Choose Speak, or look at the top to keep writing.'
+        : 'Choose a phrase to review or change a word. Spell adds detail to your initials.'
 
   return (
     <section className="speakfaster-panel" aria-label="SpeakFaster phrase composition">
@@ -159,23 +185,8 @@ export function SpeakFasterPanel({
                   </ActionButton>
                 </>
               )}
-              <ActionButton
-                className="primary"
-                identity={`use-phrase-${version}`}
-                disabled={state.mode === 'replacement'}
-                onAction={() => dispatch({ type: 'use-phrase' })}
-              >
-                Use phrase
-              </ActionButton>
-              <ActionButton
-                identity={`back-${version}`}
-                onAction={() => {
-                  setPage(0)
-                  dispatch({ type: 'back' })
-                }}
-              >
-                Back
-              </ActionButton>
+              {/* Without a word selected, Back sits beside Speak in the suggestion area. */}
+              {(state.selection || !final) && back}
             </>
           ) : (
             <>
@@ -282,6 +293,35 @@ export function SpeakFasterPanel({
                 )
               })}
             </div>
+          ) : state.status !== 'loading' && (final || voice.speaking) ? (
+            <div className={phrase !== null ? 'speak-actions' : 'speak-actions solo'}>
+              <ActionButton
+                className={`primary speak-button${voice.speaking ? ' is-speaking' : ''}`}
+                identity={
+                  voice.speaking
+                    ? `stop-speaking-${message}`
+                    : `speak-${message}-${voice.settings.voiceId}-${voice.settings.speed}-${voice.settings.tone}`
+                }
+                disabled={!voice.speaking && !voice.configured}
+                onAction={() => {
+                  if (voice.speaking) voice.stop()
+                  else if (phrase !== null) {
+                    // Speaking a reviewed phrase uses it. use-phrase advances the revision by one,
+                    // and speech completion only clears the message spoken at that revision.
+                    dispatch({ type: 'use-phrase' })
+                    void voice.speak(message, state.revision + 1)
+                  } else void voice.speak(message, state.revision)
+                }}
+              >
+                <span className="speak-label">{voice.speaking ? 'Stop speaking' : 'Speak'}</span>
+                <span className="speak-message" aria-hidden="true">
+                  {voice.configured || voice.speaking
+                    ? message
+                    : 'Voice is unavailable. Set up Cartesia in Settings → Voice.'}
+                </span>
+              </ActionButton>
+              {phrase !== null && !voice.speaking && back}
+            </div>
           ) : (
             <p className="empty-choices">
               {state.status === 'loading'
@@ -289,7 +329,7 @@ export function SpeakFasterPanel({
                 : state.status === 'error' || state.status === 'empty'
                   ? state.notice
                   : phrase !== null
-                    ? 'Your edited phrase is a suggestion until you choose Use phrase.'
+                    ? 'Your edited phrase is a preview until you speak it or lock the sentence.'
                     : 'Gemini suggestions appear here. Enable Gemini and add context in Settings → Gemini.'}
             </p>
           )}
@@ -304,7 +344,7 @@ export function SpeakFasterPanel({
             (waiting
               ? 'Move off the dwell target to review suggestions.'
               : phrase !== null
-                ? 'Changes are a preview until you choose Use phrase.'
+                ? 'Changes are a preview until you speak them or lock the sentence.'
                 : state.notice)}
         </p>
         {state.paused && state.request && (
@@ -331,7 +371,8 @@ export function SpeakFasterPanel({
   )
 }
 
-export function DraftPanel(): React.JSX.Element {
+/** `status` (the microphone indicator) shares the label row so it never covers the buttons. */
+export function DraftPanel({ status }: { status?: ReactNode }): React.JSX.Element {
   const state = useComposition()
   const dispatch = useCompositionDispatch()
   const phrase = state.phrase ?? state.draft
@@ -347,7 +388,10 @@ export function DraftPanel(): React.JSX.Element {
   return (
     <section className="draft-panel" aria-label="Message and entry">
       <div className="draft-content">
-        <span className="field-label">{label}</span>
+        <div className="draft-label-row">
+          <span className="field-label">{label}</span>
+          {status}
+        </div>
         <div
           className="draft-text"
           aria-label="Message preview"
@@ -406,13 +450,6 @@ export function DraftPanel(): React.JSX.Element {
             Cancel word
           </ActionButton>
         </>
-      ) : state.workspace === 'dasher' && state.phrase !== null ? (
-        <ActionButton
-          identity={`use-phrase-${state.revision}`}
-          onAction={() => dispatch({ type: 'use-phrase' })}
-        >
-          Use phrase
-        </ActionButton>
       ) : state.draft && state.phrase === null && !spelling ? (
         <ActionButton
           identity={`edit-draft-${state.revision}-${state.workspace}`}

@@ -174,17 +174,19 @@ it('enters initials, rejects, spells a prefix, and edits an unaccepted phrase th
     await vi.advanceTimersByTimeAsync(500)
   })
   expect(screen.getByRole('button', { name: 'cocoa', exact: true })).toBeTruthy()
+  // While a word is being changed the phrase isn't final, so Speak isn't offered.
+  expect(screen.queryByRole('button', { name: 'Speak', exact: true })).toBeNull()
   gaze.dwell('cocoa')
   expect(screen.getByLabelText('Message preview').getAttribute('aria-description')).toBe(
     'Accepted message: Your message'
   )
-  gaze.dwell('Use phrase')
-  expect(screen.getByLabelText('Message preview').getAttribute('aria-description')).toBe(
-    'Accepted message: I want a cocoa'
-  )
   expect(speak).not.toHaveBeenCalled()
   gaze.dwell('Speak')
   expect(speak).toHaveBeenCalledExactlyOnceWith('I want a cocoa', expect.any(Number))
+  // Speaking a reviewed phrase uses it.
+  expect(screen.getByLabelText('Message preview').getAttribute('aria-description')).toBe(
+    'Accepted message: I want a cocoa'
+  )
 }, 30000)
 
 it('spells an uncommon replacement, cancels, retries, accepts and undoes using only gaze', async () => {
@@ -192,14 +194,12 @@ it('spells an uncommon replacement, cancels, retries, accepts and undoes using o
   gaze.spell('iwac')
   await gaze.review()
   gaze.dwell('I want a coffee')
-  gaze.dwell('Use phrase')
-  gaze.dwell('Edit message')
   gaze.dwell('Word 4 coffee Change word')
   gaze.dwell('Spell word')
   gaze.spell('Zephyr', true)
   await gaze.review()
   expect(screen.getByLabelText('Message preview').getAttribute('aria-description')).toBe(
-    'Accepted message: I want a coffee'
+    'Accepted message: Your message'
   )
   gaze.dwell('Cancel word')
   expect(screen.getByRole('button', { name: 'Word 4 coffee Change word' })).toBeTruthy()
@@ -209,16 +209,16 @@ it('spells an uncommon replacement, cancels, retries, accepts and undoes using o
   await gaze.review()
   gaze.dwell('Use word')
   expect(screen.getByLabelText('Message preview').getAttribute('aria-description')).toBe(
-    'Accepted message: I want a coffee'
+    'Accepted message: Your message'
   )
-  gaze.dwell('Use phrase')
+  gaze.dwell('Lock sentence & keep writing')
   expect(screen.getByLabelText('Message preview').getAttribute('aria-description')).toBe(
     'Accepted message: I want a Zephyr'
   )
   gaze.dwell('Menu')
   gaze.dwell('Undo')
   expect(screen.getByLabelText('Message preview').getAttribute('aria-description')).toBe(
-    'Accepted message: I want a coffee'
+    'Accepted message: Your message'
   )
 }, 30000)
 
@@ -268,7 +268,6 @@ it('switches explicitly, preserves the draft and initials, and resumes writing o
   // again requests fresh ones, so wait for them.
   await gaze.review()
   gaze.dwell('I want a coffee')
-  gaze.dwell('Use phrase')
   gaze.dwell('Lock sentence & keep writing')
   expect(screen.getByLabelText('Message preview').getAttribute('aria-description')).toBe(
     'Accepted message: I want a coffee'
@@ -295,6 +294,7 @@ it('locks a sentence, spells fresh initials, and speaks the assembled message', 
   await gaze.review()
   expect(start.mock.calls.at(-1)?.[0].lockedMessage).toBe('I want a coffee')
   gaze.dwell('I want a coffee')
+  expect(screen.queryByRole('button', { name: 'Use phrase' })).toBeNull()
   gaze.dwell('Speak')
   expect(speak).toHaveBeenCalledExactlyOnceWith(
     'I want a coffee I want a coffee',
