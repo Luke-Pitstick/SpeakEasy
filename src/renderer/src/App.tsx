@@ -13,6 +13,8 @@ import { DwellSelect, type DwellOption } from './interaction/DwellSelect'
 import { useInteraction } from './interaction/state'
 import { ConversationPanel } from './prediction/ConversationPanel'
 import { usePredictions } from './prediction/usePredictions'
+import { useVoice } from './features/voice/useVoice'
+import { VoiceSettings } from './features/voice/VoiceSettings'
 
 // How fast Dasher zooms and pans for a given pointer offset; the engine accepts 0.3-2.
 const STEERING_SPEEDS: DwellOption<number>[] = [
@@ -41,6 +43,8 @@ function Workspace({ input, onInput }: WorkspaceProps): React.JSX.Element {
   const [edgeHeight, setEdgeHeight] = useState(48)
   const [weighting, setWeighting] = useState<'uniform' | 'ppm'>('ppm')
   const predictions = usePredictions()
+  const voice = useVoice()
+  const [settingsTab, setSettingsTab] = useState<'general' | 'voice'>('general')
   const [gazeOverlay, setGazeOverlay] = useState<GazeOverlay>('none')
   const [showGazeDot, setShowGazeDot] = useState(true)
   const closeGazeOverlay = useCallback(() => setGazeOverlay('none'), [])
@@ -146,6 +150,38 @@ function Workspace({ input, onInput }: WorkspaceProps): React.JSX.Element {
           Menu
         </ActionButton>
       </header>
+      <div className="voice-strip" aria-label="Voice controls">
+        <div className="voice-live">
+          <span role="status">{voice.listening}</span>
+          <span className="voice-live-transcript">
+            {voice.partial || voice.error || voice.speechStatus}
+          </span>
+        </div>
+        <span className="voice-tone">
+          {voice.settings.tone} · {voice.settings.speed}×
+        </span>
+        <ActionButton
+          identity={`speak-${state.draft}-${voice.settings.voiceId}-${voice.settings.speed}-${voice.settings.tone}`}
+          disabled={
+            !voice.configured ||
+            voice.speaking ||
+            !state.draft.trim() ||
+            state.phrase !== null ||
+            state.mode === 'keyword' ||
+            state.mode === 'replacement' ||
+            menu !== 'closed'
+          }
+          onAction={() => {
+            dispatch({ type: 'pause' })
+            void voice.speak(state.draft, state.revision)
+          }}
+        >
+          Speak message
+        </ActionButton>
+        <ActionButton identity="stop-speech" disabled={!voice.speaking} onAction={voice.stop}>
+          Stop speech
+        </ActionButton>
+      </div>
       <div
         className="workspace-body"
         inert={menu !== 'closed' || undefined}
@@ -250,107 +286,135 @@ function Workspace({ input, onInput }: WorkspaceProps): React.JSX.Element {
                 </ActionButton>
               </div>
             ) : (
-              <div className="settings-grid">
-                <GazeSettings
-                  input={input}
-                  onInput={(value) => configure(() => onInput(value))}
-                  onCalibrate={() =>
-                    configure(() => {
-                      closeMenu()
-                      setGazeOverlay('calibrate')
-                    })
-                  }
-                  onCenter={() =>
-                    configure(() => {
-                      closeMenu()
-                      setGazeOverlay('center')
-                    })
-                  }
-                  showDot={showGazeDot}
-                  onShowDot={setShowGazeDot}
-                />
-                <label>
-                  Appearance
-                  <select
-                    value={theme}
-                    onChange={(event) =>
-                      configure(() => setTheme(event.target.value as typeof theme))
-                    }
+              <>
+                <div className="settings-tabs" role="group" aria-label="Settings tabs">
+                  <ActionButton
+                    identity="settings-general"
+                    selected={settingsTab === 'general'}
+                    onAction={() => setSettingsTab('general')}
                   >
-                    <option value="system">System</option>
-                    <option value="light">Light</option>
-                    <option value="dark">Dark</option>
-                  </select>
-                </label>
-                <DwellSelect
-                  label="Steering speed"
-                  identity="steering-speed"
-                  value={speed}
-                  options={STEERING_SPEEDS}
-                  onChange={(value) => configure(() => setSpeed(value))}
-                />
-                <label>
-                  Letter prediction
-                  <select
-                    value={weighting}
-                    onChange={(event) =>
-                      configure(() => setWeighting(event.target.value as typeof weighting))
-                    }
+                    General
+                  </ActionButton>
+                  <ActionButton
+                    identity="settings-voice"
+                    selected={settingsTab === 'voice'}
+                    onAction={() => setSettingsTab('voice')}
                   >
-                    <option value="ppm">PPM (trained initials)</option>
-                    <option value="uniform">Uniform</option>
-                  </select>
-                </label>
-                <label>
-                  Dwell activation
-                  <select
-                    value={String(interaction.dwell)}
-                    onChange={(event) =>
-                      configure(() => interaction.setDwell(event.target.value === 'true'))
-                    }
-                  >
-                    <option value="false">Off — click to select</option>
-                    <option value="true">On — look to select</option>
-                  </select>
-                </label>
-                <p className="settings-note" role="status">
-                  {weighting === 'uniform'
-                    ? 'Uniform letters'
-                    : state.mode === 'initials'
-                      ? trainedInitials.status
-                      : 'Character PPM'}
-                </p>
-                <label>
-                  Top-edge target size
-                  <select
-                    value={edgeHeight}
-                    onChange={(event) => configure(() => setEdgeHeight(Number(event.target.value)))}
-                  >
-                    <option value={48}>Compact — 48 px</option>
-                    <option value={64}>Large — 64 px</option>
-                    <option value={88}>Extra large — 88 px</option>
-                  </select>
-                </label>
-                <label>
-                  Dwell time
-                  <select
-                    value={interaction.duration}
-                    onChange={(event) =>
-                      configure(() => interaction.setDuration(Number(event.target.value)))
-                    }
-                  >
-                    <option value={700}>700 ms</option>
-                    <option value={1000}>1 second</option>
-                    <option value={1500}>1.5 seconds</option>
-                  </select>
-                </label>
-                <ActionButton identity="gemini-settings" onAction={() => setMenu('conversation')}>
-                  Conversation & Gemini
-                </ActionButton>
-                <p className="settings-note">
-                  Gemini suggests wording using your approved conversation. Speech is not connected.
-                </p>
-              </div>
+                    Voice
+                  </ActionButton>
+                </div>
+                {settingsTab === 'voice' ? (
+                  <VoiceSettings voice={voice} />
+                ) : (
+                  <div className="settings-grid">
+                    <GazeSettings
+                      input={input}
+                      onInput={(value) => configure(() => onInput(value))}
+                      onCalibrate={() =>
+                        configure(() => {
+                          closeMenu()
+                          setGazeOverlay('calibrate')
+                        })
+                      }
+                      onCenter={() =>
+                        configure(() => {
+                          closeMenu()
+                          setGazeOverlay('center')
+                        })
+                      }
+                      showDot={showGazeDot}
+                      onShowDot={setShowGazeDot}
+                    />
+                    <label>
+                      Appearance
+                      <select
+                        value={theme}
+                        onChange={(event) =>
+                          configure(() => setTheme(event.target.value as typeof theme))
+                        }
+                      >
+                        <option value="system">System</option>
+                        <option value="light">Light</option>
+                        <option value="dark">Dark</option>
+                      </select>
+                    </label>
+                    <DwellSelect
+                      label="Steering speed"
+                      identity="steering-speed"
+                      value={speed}
+                      options={STEERING_SPEEDS}
+                      onChange={(value) => configure(() => setSpeed(value))}
+                    />
+                    <label>
+                      Letter prediction
+                      <select
+                        value={weighting}
+                        onChange={(event) =>
+                          configure(() => setWeighting(event.target.value as typeof weighting))
+                        }
+                      >
+                        <option value="ppm">PPM (trained initials)</option>
+                        <option value="uniform">Uniform</option>
+                      </select>
+                    </label>
+                    <label>
+                      Dwell activation
+                      <select
+                        value={String(interaction.dwell)}
+                        onChange={(event) =>
+                          configure(() => interaction.setDwell(event.target.value === 'true'))
+                        }
+                      >
+                        <option value="false">Off — click to select</option>
+                        <option value="true">On — look to select</option>
+                      </select>
+                    </label>
+                    <p className="settings-note" role="status">
+                      {weighting === 'uniform'
+                        ? 'Uniform letters'
+                        : state.mode === 'initials'
+                          ? trainedInitials.status
+                          : 'Character PPM'}
+                    </p>
+                    <label>
+                      Top-edge target size
+                      <select
+                        value={edgeHeight}
+                        onChange={(event) =>
+                          configure(() => setEdgeHeight(Number(event.target.value)))
+                        }
+                      >
+                        <option value={48}>Compact — 48 px</option>
+                        <option value={64}>Large — 64 px</option>
+                        <option value={88}>Extra large — 88 px</option>
+                      </select>
+                    </label>
+                    <label>
+                      Dwell time
+                      <select
+                        value={interaction.duration}
+                        onChange={(event) =>
+                          configure(() => interaction.setDuration(Number(event.target.value)))
+                        }
+                      >
+                        <option value={700}>700 ms</option>
+                        <option value={1000}>1 second</option>
+                        <option value={1500}>1.5 seconds</option>
+                      </select>
+                    </label>
+                    <ActionButton
+                      identity="gemini-settings"
+                      onAction={() => setMenu('conversation')}
+                    >
+                      Conversation & Gemini
+                    </ActionButton>
+                    <p className="settings-note">
+                      Gemini suggests wording using your approved conversation. Cartesia voice
+                      controls are in the Voice tab.
+                    </p>
+                  </div>
+                )}
+              </>
             )}
           </section>
         </div>

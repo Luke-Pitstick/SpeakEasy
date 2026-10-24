@@ -2,6 +2,7 @@ import { app, BrowserWindow, session, systemPreferences } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { installGeminiIpc } from './geminiIpc'
+import { installCartesiaIpc } from './cartesiaIpc'
 import icon from '../../resources/icon.png?asset'
 
 function createWindow(): void {
@@ -23,6 +24,7 @@ function createWindow(): void {
   })
 
   installGeminiIpc(mainWindow)
+  installCartesiaIpc(mainWindow)
 
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()
@@ -54,12 +56,21 @@ app.whenReady().then(() => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  // Eye tracking needs the webcam; grant camera (video only) to our own renderer.
-  session.defaultSession.setPermissionRequestHandler((_, permission, callback, details) => {
+  // Camera and microphone are available only to this app's top-level renderer.
+  const ownContents = (contents: Electron.WebContents | null): boolean =>
+    !!contents && BrowserWindow.getAllWindows().some((window) => window.webContents === contents)
+  session.defaultSession.setPermissionRequestHandler((contents, permission, callback, details) => {
     const mediaTypes = 'mediaTypes' in details ? (details.mediaTypes ?? []) : []
-    callback(permission === 'media' && mediaTypes.every((type) => type === 'video'))
+    callback(
+      ownContents(contents) &&
+        details.isMainFrame &&
+        permission === 'media' &&
+        mediaTypes.every((type) => type === 'video' || type === 'audio')
+    )
   })
-  session.defaultSession.setPermissionCheckHandler((_, permission) => permission === 'media')
+  session.defaultSession.setPermissionCheckHandler(
+    (contents, permission) => ownContents(contents) && permission === 'media'
+  )
   if (process.platform === 'darwin') {
     systemPreferences.askForMediaAccess('camera')
   }

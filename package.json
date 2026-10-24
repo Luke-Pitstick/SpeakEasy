@@ -23,9 +23,11 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@cartesia/cartesia-js": "^4.2.0",
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
-    "@mediapipe/tasks-vision": "^1.1.1"
+    "@mediapipe/tasks-vision": "^1.1.1",
+    "ws": "^8.22.0"
   },
   "devDependencies": {
     "@electron-toolkit/eslint-config-prettier": "^3.0.1",

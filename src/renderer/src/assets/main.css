@@ -651,3 +651,64 @@ h2 {
   flex-wrap: wrap;
   gap: 8px;
 }
+
+/* Stable voice controls stay outside the changing phrase targets. */
+.voice-strip {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 16px;
+  height: 88px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border);
+}
+.voice-live {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+}
+.voice-live-transcript {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+}
+.voice-tone {
+  font-size: 13px;
+}
+.voice-strip .action-button {
+  min-height: 60px;
+}
+.settings-tabs,
+.voice-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.settings-tabs {
+  margin-bottom: 16px;
+}
+.voice-settings {
+  display: grid;
+  gap: 16px;
+  overflow-y: auto;
+}
+.voice-settings p {
+  margin: 0;
+  line-height: 1.5;
+}
+.voice-presets {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.voice-transcript {
+  min-height: 48px;
+  padding: 12px;
+  background: var(--surface-muted);
+  border-radius: 8px;
+}

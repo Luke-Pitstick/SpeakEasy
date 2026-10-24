@@ -21,6 +21,7 @@ nsis:
 mac:
   entitlementsInherit: build/entitlements.mac.plist
   extendInfo:
+    NSMicrophoneUsageDescription: SpeakEasy transcribes nearby speech to provide conversation context for phrase suggestions.
     NSCameraUsageDescription: SpeakEasy uses the camera to track where you are looking.
   notarize: false
 dmg:
