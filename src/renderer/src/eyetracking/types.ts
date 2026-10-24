@@ -46,6 +46,11 @@ export interface GazePoint {
   timestamp: number
   /** True while the eyes are closed; x/y hold the last open-eye position. */
   blinking: boolean
+  /**
+   * Pointing or looking past the window's edge. For head pointing, x/y are then pinned to the
+   * edge (so the dot stays visible); for eye gaze they are the real, off-window position.
+   */
+  offscreen: boolean
 }
 
 export type TrackerStatus = 'idle' | 'loading' | 'running' | 'error'

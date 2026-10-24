@@ -177,7 +177,7 @@ Set a proposed 1280 × 900 starting window and test a 1024 × 768 minimum viewpo
 
 ### Input transitions and stable targets
 
-Entering the upper panel suspends steering immediately; returning to Dasher does not resume it automatically. An explicit Resume is required. This prevents glancing at a phrase from inserting extra characters while attention is elsewhere.
+Entering the upper panel suspends steering immediately. Revised by user decision (October 2026): coming back to Dasher from the Menu or the phrase panel resumes steering if writing was active when you left, so a hands-free user isn't forced through an extra Start writing dwell; it stays paused if writing was already paused. Escape, Pause writing, focus loss and tracking loss still require an explicit Resume, and hovering the header and returning without opening anything stays paused. Hovering the cue itself only holds steering, without pausing.
 
 Separate continuous steering from discrete action dwell. Candidate targets use stable IDs scoped to a candidate set, not array indices alone. Replacement content, mode changes, geometry changes, tracking loss, blur, and resizing clear dwell and require a fresh activation. A response arriving mid-dwell is staged until the pointer/gaze leaves the target or the user explicitly pauses; it cannot inherit an old target's progress.
 

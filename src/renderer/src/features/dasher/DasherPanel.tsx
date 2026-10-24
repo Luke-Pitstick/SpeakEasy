@@ -138,6 +138,21 @@ export function DasherPanel({
           notice: 'Steering paused. Click anywhere in Dasher to continue.'
         })
     }
+    // Leaving the window (no element entered) keeps steering from the last position, which is
+    // still inside the panel: looking or pointing off-screen shouldn't stop writing. Hovering
+    // the top-edge switch holds steering without pausing: nothing is typed during its dwell,
+    // and coming back continues at once (completing the switch pauses). Moving onto other UI,
+    // such as the header, pauses.
+    const pointerLeave = (event: PointerEvent): void => {
+      const to = event.relatedTarget as Element | null
+      if (inside && to === null) return
+      if (to?.closest?.('[data-gaze-top-cue]')) {
+        inside = false
+        pointer.hide()
+        return
+      }
+      leave()
+    }
     const blur = (): void => {
       leave()
       dispatch({
@@ -148,7 +163,7 @@ export function DasherPanel({
     container.addEventListener('pointermove', move)
     container.addEventListener('click', click)
     container.addEventListener('pointerenter', move)
-    container.addEventListener('pointerleave', leave)
+    container.addEventListener('pointerleave', pointerLeave)
     container.addEventListener('pointercancel', blur)
     window.addEventListener('blur', blur)
     document.addEventListener('visibilitychange', blur)
@@ -193,7 +208,7 @@ export function DasherPanel({
       container.removeEventListener('pointermove', move)
       container.removeEventListener('click', click)
       container.removeEventListener('pointerenter', move)
-      container.removeEventListener('pointerleave', leave)
+      container.removeEventListener('pointerleave', pointerLeave)
       container.removeEventListener('pointercancel', blur)
       window.removeEventListener('blur', blur)
       document.removeEventListener('visibilitychange', blur)
@@ -214,6 +229,8 @@ export function DasherPanel({
         className={`dasher-surface ${state.paused ? 'is-paused' : ''}`}
         ref={host}
         data-testid="dasher-surface"
+        // Continuous steering: gaze aim assist must never pull the pointer while it's here.
+        data-gaze-surface
         role="button"
         tabIndex={0}
         aria-label={state.paused ? 'Resume Dasher' : 'Pause Dasher'}

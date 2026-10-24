@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { DemoScenario } from '../../shared/prediction'
 import { CompositionProvider } from './composition/context'
 import { useComposition, useCompositionDispatch } from './composition/state'
@@ -10,8 +10,21 @@ import { GazeSettings } from './features/gaze/GazeSettings'
 import { loadInputSource, saveInputSource, type InputSource } from './features/gaze/input'
 import { GazeProvider } from './eyetracking/GazeProvider'
 import { ActionButton, InteractionProvider } from './interaction/controls'
+import { DwellSelect, type DwellOption } from './interaction/DwellSelect'
 import { useInteraction } from './interaction/state'
 import { usePredictions } from './prediction/usePredictions'
+
+// How fast Dasher zooms and pans for a given pointer offset; the engine accepts 0.3-2.
+const STEERING_SPEEDS: DwellOption<number>[] = [
+  { value: 0.3, label: 'Slowest' },
+  { value: 0.4, label: 'Slower' },
+  { value: 0.5, label: 'Slow' },
+  { value: 0.6, label: 'Standard' },
+  { value: 0.8, label: 'Quick' },
+  { value: 1, label: 'Fast' },
+  { value: 1.4, label: 'Faster' },
+  { value: 2, label: 'Fastest' }
+]
 
 interface WorkspaceProps {
   input: InputSource
@@ -32,9 +45,39 @@ function Workspace({ input, onInput }: WorkspaceProps): React.JSX.Element {
   const [gazeOverlay, setGazeOverlay] = useState<GazeOverlay>('none')
   const [showGazeDot, setShowGazeDot] = useState(true)
   const closeGazeOverlay = useCallback(() => setGazeOverlay('none'), [])
+  // Going to a menu or to phrases pauses writing; coming back resumes it if you were writing.
+  // Hovering the header or top cue already pauses, so "were you writing" is captured there.
+  const writingBeforeHover = useRef(false)
+  const resumeOnReturn = useRef(false)
+  const pauseForControls = (): void => {
+    writingBeforeHover.current = state.workspace === 'dasher' && !state.paused
+    dispatch({ type: 'pause' })
+  }
+  const leaveWriting = (): void => {
+    // Hovering the top cue doesn't pause, so writing may still be running when it activates.
+    resumeOnReturn.current ||=
+      writingBeforeHover.current || (state.workspace === 'dasher' && !state.paused)
+  }
+  const cancelResume = (): void => {
+    resumeOnReturn.current = false
+    writingBeforeHover.current = false
+  }
+  useEffect(() => {
+    if (
+      resumeOnReturn.current &&
+      menu === 'closed' &&
+      gazeOverlay === 'none' &&
+      state.workspace === 'dasher'
+    ) {
+      resumeOnReturn.current = false
+      dispatch({ type: 'resume' })
+    }
+  }, [menu, gazeOverlay, state.workspace, dispatch])
   useEffect(() => {
     const pause = (event: KeyboardEvent): void => {
       if (event.key === 'Escape') {
+        resumeOnReturn.current = false
+        writingBeforeHover.current = false
         dispatch({ type: 'pause', notice: 'Paused.' })
         setMenu('closed')
       }
@@ -49,17 +92,14 @@ function Workspace({ input, onInput }: WorkspaceProps): React.JSX.Element {
   }
   return (
     <main className="workspace" data-theme={theme}>
-      <div
-        className="top-edge-region"
-        style={{ height: edgeHeight }}
-        onPointerEnter={() => dispatch({ type: 'pause' })}
-      >
+      <div className="top-edge-region" data-gaze-top-cue style={{ height: edgeHeight }}>
         <ActionButton
           className="top-edge-cue"
           identity={`next-${state.workspace}-${state.mode}-${state.editor}`}
           disabled={menu !== 'closed'}
           onAction={() => {
             if (state.workspace === 'dasher') {
+              leaveWriting()
               dispatch({ type: 'workspace', workspace: 'phrases' })
               if (!state.request && state.editor === 'entry')
                 predictions.request(state.mode === 'initials' ? 'expansion' : 'completion')
@@ -75,7 +115,7 @@ function Workspace({ input, onInput }: WorkspaceProps): React.JSX.Element {
       <header
         className="app-header"
         aria-label="Message and controls"
-        onPointerEnter={() => dispatch({ type: 'pause' })}
+        onPointerEnter={pauseForControls}
       >
         <div className="message-strip" inert={menu !== 'closed' || undefined}>
           <DraftPanel />
@@ -88,7 +128,10 @@ function Workspace({ input, onInput }: WorkspaceProps): React.JSX.Element {
             state.workspace !== 'dasher' ||
             (state.editor === 'keywords' && !state.selectedToken)
           }
-          onAction={() => dispatch({ type: state.paused ? 'resume' : 'pause' })}
+          onAction={() => {
+            cancelResume()
+            dispatch({ type: state.paused ? 'resume' : 'pause' })
+          }}
         >
           {state.paused ? 'Start writing' : 'Pause writing'}
         </ActionButton>
@@ -96,12 +139,21 @@ function Workspace({ input, onInput }: WorkspaceProps): React.JSX.Element {
           className="header-menu"
           identity={`more-${menu}`}
           disabled={menu !== 'closed'}
-          onAction={() => configure(() => setMenu('more'))}
+          onAction={() => {
+            leaveWriting()
+            configure(() => setMenu('more'))
+          }}
         >
           Menu
         </ActionButton>
       </header>
-      <div className="workspace-body" inert={menu !== 'closed' || undefined}>
+      <div
+        className="workspace-body"
+        inert={menu !== 'closed' || undefined}
+        onPointerEnter={() => {
+          writingBeforeHover.current = false
+        }}
+      >
         {state.workspace === 'phrases' && <SpeakFasterPanel predictions={predictions} />}
         <div className="dasher-workspace" hidden={state.workspace !== 'dasher'}>
           <DasherPanel speed={speed} weighting={weighting} />
@@ -220,17 +272,13 @@ function Workspace({ input, onInput }: WorkspaceProps): React.JSX.Element {
                     <option value="dark">Dark</option>
                   </select>
                 </label>
-                <label>
-                  Steering speed
-                  <select
-                    value={speed}
-                    onChange={(event) => configure(() => setSpeed(Number(event.target.value)))}
-                  >
-                    <option value={0.4}>Slow</option>
-                    <option value={0.6}>Standard</option>
-                    <option value={1}>Fast</option>
-                  </select>
-                </label>
+                <DwellSelect
+                  label="Steering speed"
+                  identity="steering-speed"
+                  value={speed}
+                  options={STEERING_SPEEDS}
+                  onChange={(value) => configure(() => setSpeed(value))}
+                />
                 <label>
                   Letter prediction
                   <select

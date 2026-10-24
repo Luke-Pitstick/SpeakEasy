@@ -67,7 +67,8 @@ function gazeWorkspace(): {
   return {
     dwell,
     spell(text, literal = false) {
-      dwell('Start writing')
+      // Writing resumes by itself on returning from phrases, so Start writing may not be shown.
+      if (screen.queryByRole('button', { name: 'Start writing' })) dwell('Start writing')
       const surface = screen.getByTestId('dasher-surface')
       fireEvent.pointerEnter(surface, { clientX: 550, clientY: 165 })
       const alphabet = literal ? LITERAL_ALPHABET : INITIAL_ALPHABET
@@ -111,7 +112,11 @@ function gazeWorkspace(): {
       )
     },
     async review() {
-      fireEvent.pointerLeave(screen.getByTestId('dasher-surface'))
+      // Moving up onto the switch: a real leave names the element entered. (A leave with no
+      // element entered means the pointer left the window, which keeps steering.)
+      fireEvent.pointerLeave(screen.getByTestId('dasher-surface'), {
+        relatedTarget: screen.getByRole('button', { name: /Show phrases/ })
+      })
       dwell('Show phrases')
       await act(async () => {
         await vi.advanceTimersByTimeAsync(500)
@@ -214,11 +219,13 @@ it('reaches later word positions and spells a keyword after an empty expansion',
   )
 }, 30000)
 
-it('switches explicitly, preserves the draft and initials, and never resumes on return', async () => {
+it('switches explicitly, preserves the draft and initials, and resumes writing on return', async () => {
   const gaze = gazeWorkspace()
   expect(screen.queryByRole('region', { name: 'SpeakFaster phrase composition' })).toBeNull()
   gaze.spell('iwac')
-  fireEvent.pointerLeave(screen.getByTestId('dasher-surface'))
+  fireEvent.pointerLeave(screen.getByTestId('dasher-surface'), {
+    relatedTarget: screen.getByRole('button', { name: /Show phrases/ })
+  })
   await act(async () => {
     await vi.advanceTimersByTimeAsync(500)
   })
@@ -230,8 +237,10 @@ it('switches explicitly, preserves the draft and initials, and never resumes on 
   )
   gaze.dwell('Keep writing')
   expect(screen.getByLabelText('Message preview').textContent).toBe('iwac')
-  expect(screen.getByRole('button', { name: 'Resume Dasher' })).toBeTruthy()
-  gaze.dwell('Show phrases')
+  expect(screen.getByRole('button', { name: 'Pause Dasher' })).toBeTruthy()
+  // Resuming starts a new entry session, which invalidates the earlier suggestions; switching
+  // again requests fresh ones, so wait for them.
+  await gaze.review()
   gaze.dwell('Use 1')
   gaze.dwell('Keep writing')
   expect(screen.getByLabelText('Message preview').getAttribute('aria-description')).toBe(
@@ -239,7 +248,7 @@ it('switches explicitly, preserves the draft and initials, and never resumes on 
   )
   gaze.dwell('Menu')
   gaze.dwell('New message')
-  expect(screen.getByRole('button', { name: 'Resume Dasher' })).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'Pause Dasher' })).toBeTruthy()
   expect(screen.getByLabelText('Message preview').getAttribute('aria-description')).toBe(
     'Accepted message: Your message'
   )

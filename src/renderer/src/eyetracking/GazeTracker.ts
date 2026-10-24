@@ -4,7 +4,7 @@ import { HeadPointer, type HeadPointerOptions } from './headPointer'
 import { GazeModel, type GazeInput, type TrainingSample } from './gazeModel'
 import { OneEuroFilter } from './oneEuroFilter'
 import { areNeighbors, assessSelection } from './selectionLearning'
-import { WebcamFaceSource } from './WebcamFaceSource'
+import { WebcamFaceSource, type CameraInfo } from './WebcamFaceSource'
 import type { CalibrationResult, EyeFeatures, GazePoint, HeadPose, TrackerStatus } from './types'
 
 // Bumped when the model's inputs change; older calibrations can't be reused.
@@ -12,8 +12,8 @@ const STORAGE_KEY = 'speakeasy.gazeCalibration.v6'
 const SAMPLES_KEY = 'speakeasy.gazeSamples.v3'
 /** Pointer mode and head-pointer sensitivity (the neutral pose is re-centred each session). */
 const POINTER_KEY = 'speakeasy.pointer.v1'
-/** Flag that makes head pointing available as an alternative to eye gaze. */
-const HEAD_POINTER_FLAG = 'speakeasy.headPointer'
+/** Chosen camera (a deviceId string); absent means the default front camera. */
+const CAMERA_KEY = 'speakeasy.camera'
 /** Eyes count as closed when openness drops below this fraction of the open-eye baseline. */
 const BLINK_RATIO = 0.55
 /**
@@ -58,13 +58,14 @@ export interface TrackerState {
   learnedSelections: number
   /** False when calibration samples weren't saved (calibrated by an older version). */
   canRefine: boolean
-  /** Head pointing is opt-in: set localStorage 'speakeasy.headPointer' to 'on'. */
-  headPointerAvailable: boolean
   /** What moves the pointer: eye gaze (needs calibration) or head pointing. */
   pointerMode: PointerMode
   headPointer: HeadPointerOptions
   /** Head pointing needs a neutral pose (centring) once per session. */
   headCentered: boolean
+  /** The camera in use, once started, and the cameras available to choose from. */
+  camera: CameraInfo | null
+  cameras: CameraInfo[]
 }
 
 export type PointerMode = 'eyes' | 'head'
@@ -153,15 +154,6 @@ function compactJSON(dropRaw: boolean): (key: string, value: unknown) => unknown
     dropRaw && key === 'raw' ? undefined : typeof v === 'number' ? Number(v.toPrecision(6)) : v
 }
 
-/** Reads a plain-string localStorage flag (not JSON), e.g. 'on'. */
-function readFlag(key: string): string | null {
-  try {
-    return localStorage.getItem(key)
-  } catch {
-    return null
-  }
-}
-
 function save(key: string, value: unknown): void {
   try {
     // 6 significant digits is far below landmark noise and keeps the sample store small. Raw
@@ -242,7 +234,6 @@ export class GazeTracker {
   private readonly filterY = new OneEuroFilter()
   private readonly aimAssist = new AimAssist()
   private readonly dwell = new DwellSelector()
-  private readonly headPointerAvailable = readFlag(HEAD_POINTER_FLAG) === 'on'
   private readonly pointerPrefs = load(POINTER_KEY, (d) => d as Partial<PointerPrefs>) ?? {}
   private readonly headPointer = new HeadPointer({
     sensitivity: this.pointerPrefs.sensitivity ?? 1
@@ -267,10 +258,11 @@ export class GazeTracker {
     dwell: this.dwell.options,
     ...this.learnedCounts(),
     canRefine: this.samples !== null,
-    headPointerAvailable: this.headPointerAvailable,
-    pointerMode: this.headPointerAvailable ? (this.pointerPrefs.mode ?? 'eyes') : 'eyes',
+    pointerMode: this.pointerPrefs.mode ?? 'eyes',
     headPointer: this.headPointer.options,
-    headCentered: false
+    headCentered: false,
+    camera: null,
+    cameras: []
   }
 
   /** The live camera stream while running, for previews. */
@@ -336,9 +328,8 @@ export class GazeTracker {
   }
 
   /** Changes dwell selection (on/off, duration, learning from selections). */
-  /** Switches between eye gaze and head pointing (head only when the flag is on). */
+  /** Switches between eye gaze and head pointing. */
   setPointerMode(mode: PointerMode): void {
-    if (mode === 'head' && !this.headPointerAvailable) return
     if (mode === this.state.pointerMode) return
     this.filterX.reset()
     this.filterY.reset()
@@ -385,13 +376,41 @@ export class GazeTracker {
     if (this.state.status === 'running' || this.state.status === 'loading') return
     this.setState({ status: 'loading', error: null })
     try {
+      this.source.deviceId = load(CAMERA_KEY, (d) => (typeof d === 'string' ? d : null))
       await this.source.start()
       // stop() may have run while the camera was starting.
-      if (this.getState().status === 'loading') this.setState({ status: 'running' })
+      if (this.getState().status === 'loading') {
+        this.setState({ status: 'running', camera: this.source.camera })
+        this.setState({ cameras: await this.source.listCameras() })
+      }
     } catch (err) {
       this.source.stop()
-      this.setState({ status: 'error', error: err instanceof Error ? err.message : String(err) })
+      // A remembered camera that's gone (unplugged iPhone, say): forget it, use the default.
+      if (this.source.deviceId) {
+        try {
+          localStorage.removeItem(CAMERA_KEY)
+        } catch {
+          // Nothing persisted.
+        }
+        this.setState({ status: 'idle' })
+        return this.start()
+      }
+      // List the cameras anyway, so a different one can be chosen.
+      const cameras = await this.source.listCameras().catch(() => [])
+      this.setState({
+        status: 'error',
+        error: err instanceof Error ? err.message : String(err),
+        cameras
+      })
     }
+  }
+
+  /** Switches to another camera (restarting it if running), and remembers the choice. */
+  async setCamera(deviceId: string): Promise<void> {
+    save(CAMERA_KEY, deviceId)
+    if (this.state.status !== 'running' && this.state.status !== 'error') return
+    this.stop()
+    await this.start()
   }
 
   stop(): void {
@@ -617,9 +636,11 @@ export class GazeTracker {
     }
     // Where the pointer is this frame, in screen px, before smoothing.
     let point: [number, number] | null
+    let headOffscreen = false
     if (this.state.pointerMode === 'head') {
       const p = this.headPointer.point(features.head, window.innerWidth, window.innerHeight)
-      point = p && clientToScreen(...p)
+      point = p && clientToScreen(p.x, p.y)
+      headOffscreen = p?.offscreen ?? false
     } else {
       // A closed eye has no gaze; hold the last position (below).
       point = this.model && !blinking ? this.model.predict(features) : null
@@ -636,7 +657,13 @@ export class GazeTracker {
       const screenY = this.filterY.filter(point[1], features.timestamp)
       const [rawX, rawY] = screenToClient(screenX, screenY)
       this.targets = findGazeTargets()
-      const { x, y, target } = this.aimAssist.apply(rawX, rawY, this.targets)
+      // No aim assist over a continuous-steering surface (Dasher): pulling there would drag
+      // steering toward nearby buttons.
+      const steering = document.elementFromPoint(rawX, rawY)?.closest('[data-gaze-surface]')
+      if (steering) this.aimAssist.reset()
+      const { x, y, target } = steering
+        ? { x: rawX, y: rawY, target: null }
+        : this.aimAssist.apply(rawX, rawY, this.targets)
       gaze = {
         x,
         y,
@@ -646,7 +673,9 @@ export class GazeTracker {
         screenX,
         screenY,
         timestamp: features.timestamp,
-        blinking: eyesClosed
+        blinking: eyesClosed,
+        offscreen:
+          headOffscreen || x < 0 || y < 0 || x >= window.innerWidth || y >= window.innerHeight
       }
     }
     this.lastGaze = gaze

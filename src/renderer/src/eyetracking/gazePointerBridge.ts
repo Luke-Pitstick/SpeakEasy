@@ -9,12 +9,28 @@ import type { GazePoint } from './types'
  *
  * While active, hover events from the real mouse are blocked so the two don't fight over dwell;
  * mouse clicks still work. Losing the face cancels the pointer (pointercancel + leave), which
- * cancels pending dwell, as tracking loss must.
+ * cancels pending dwell, as tracking loss must. Looking or pointing past the top edge stays on
+ * the top row (pressing the full-width cue there); past the other edges it leaves like a mouse
+ * leaving the window (no element entered), which doesn't pause steering.
  */
 
 // Distinct from the real mouse (pointerId 1) so handlers can tell them apart if they need to.
 const POINTER_ID = 31
 const HOVER_EVENTS = ['pointerover', 'pointerout', 'pointerenter', 'pointerleave', 'pointermove']
+// The top cue ([data-gaze-top-cue]) is the main hands-free switch, so its hit zone is forgiving:
+// it starts this far below the cue, and once on it you stay on it until this far below, so
+// jitter at the boundary can't reset its dwell. At or past the top edge it's always pressed.
+// The entry margin is kept modest because the header's buttons sit directly below the cue.
+const TOP_CUE_ENTER_MARGIN = 24
+const TOP_CUE_EXIT_MARGIN = 64
+
+/** The enabled top-cue button and the bottom of its region, if the cue is showing. */
+function topCue(): { button: Element; bottom: number } | null {
+  const region = document.querySelector('[data-gaze-top-cue]')
+  const button = region?.querySelector('button:not(:disabled)')
+  if (!region || !button) return null
+  return { button, bottom: region.getBoundingClientRect().bottom }
+}
 
 function ancestors(el: Element | null): Element[] {
   const chain: Element[] = []
@@ -24,6 +40,7 @@ function ancestors(el: Element | null): Element[] {
 
 export class GazePointerBridge {
   private current: Element | null = null
+  private onTopCue = false
   private last: { x: number; y: number } | null = null
   private offGaze: (() => void) | null = null
   private offState: (() => void) | null = null
@@ -50,10 +67,28 @@ export class GazePointerBridge {
   private handle(gaze: GazePoint): void {
     // A blink keeps the pointer where it was rather than leaving the target.
     if (gaze.blinking) return
-    const { x, y } = gaze
+    const cue = topCue()
+    // Decided from the unassisted gaze, so aim assist toward nearby header buttons can't pull
+    // the pointer out of the cue's zone.
+    const reach = this.onTopCue ? TOP_CUE_EXIT_MARGIN : TOP_CUE_ENTER_MARGIN
+    this.onTopCue = !!cue && (gaze.rawY <= 0 || gaze.y <= 0 || gaze.rawY < cue.bottom + reach)
+    let x = gaze.x
+    let y = gaze.y
+    let target: Element | null
+    if (cue && this.onTopCue) {
+      x = Math.max(0, Math.min(window.innerWidth - 1, gaze.x))
+      y = Math.max(0, Math.min(cue.bottom - 1, gaze.y))
+      target = cue.button
+    } else if (gaze.y <= 0) {
+      // At or past the top edge the pointer is on the top row, whatever spans it.
+      x = Math.max(0, Math.min(window.innerWidth - 1, gaze.x))
+      y = 0
+      target = document.elementFromPoint(x, y)
+    } else {
+      // Past the other edges the pointer has left the window, which presses nothing.
+      target = gaze.offscreen ? null : document.elementFromPoint(x, y)
+    }
     this.last = { x, y }
-    const inside = x >= 0 && y >= 0 && x < window.innerWidth && y < window.innerHeight
-    const target = inside ? document.elementFromPoint(x, y) : null
     if (target !== this.current) this.moveTo(target, x, y)
     if (target) target.dispatchEvent(pointerEvent('pointermove', x, y, true))
   }

@@ -371,7 +371,7 @@ it('draws the pointer and center displacement independently of the letter viewpo
 })
 
 describe('top-edge review cue', () => {
-  it('pauses on entry, cancels a short glance, and latches review until a fresh dwell', () => {
+  it('keeps writing on hover, cancels a short glance, latches review until a fresh dwell, and resumes on return', () => {
     vi.useFakeTimers()
     render(<App />)
     fireEvent.click(screen.getByRole('button', { name: 'Keep writing' }))
@@ -379,7 +379,7 @@ describe('top-edge review cue', () => {
     const cue = screen.getByRole('button', { name: 'Show phrases' })
     expect(cue.closest('main')?.firstElementChild).toBe(cue.parentElement)
     fireEvent.pointerEnter(cue)
-    expect(screen.getByRole('button', { name: 'Resume Dasher' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Pause Dasher' })).toBeTruthy()
     act(() => vi.advanceTimersByTime(600))
     fireEvent.pointerLeave(cue)
     act(() => vi.advanceTimersByTime(1000))
@@ -396,7 +396,7 @@ describe('top-edge review cue', () => {
     fireEvent.pointerEnter(cue)
     act(() => vi.advanceTimersByTime(1000))
     expect(screen.getByRole('button', { name: 'Show phrases' })).toBe(cue)
-    expect(screen.getByRole('button', { name: 'Resume Dasher' })).toBeTruthy()
+    expect(screen.getByRole('button', { name: 'Pause Dasher' })).toBeTruthy()
   })
 
   it('does not switch while reading the message and cancels edge dwell on focus loss', () => {

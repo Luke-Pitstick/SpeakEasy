@@ -354,6 +354,35 @@ h2 {
   background: var(--surface);
   color: var(--text);
 }
+.dwell-select {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dwell-select--open {
+  grid-column: 1 / -1;
+}
+.dwell-select__label {
+  font-size: 16px;
+  color: var(--muted);
+}
+.dwell-select__toggle.action-button {
+  min-height: 60px;
+  text-align: left;
+}
+.dwell-select__options {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.dwell-select__options .action-button {
+  min-height: 72px;
+  padding: 10px 12px;
+  font-size: 18px;
+}
+.settings-preview {
+  grid-column: 1 / -1;
+}
 .settings-grid .settings-action {
   align-self: end;
   min-height: 60px;

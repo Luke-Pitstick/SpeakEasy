@@ -78,6 +78,8 @@ export function ActionButton({
       disabled={disabled}
       title={title}
       aria-pressed={selected}
+      // Lets gaze aim assist pull gently toward enabled buttons.
+      data-gaze-target={disabled ? undefined : identity}
       style={{ '--dwell-duration': `${duration}ms` } as React.CSSProperties}
       onPointerEnter={() => {
         activated.current = false

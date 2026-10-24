@@ -14,6 +14,12 @@ export const DEFAULT_HEAD_POINTER: HeadPointerOptions = { sensitivity: 1 }
 const HALF_YAW_DEG = 10
 const HALF_PITCH_DEG = 7
 
+export interface HeadPoint {
+  x: number
+  y: number
+  offscreen: boolean
+}
+
 export interface Neutral {
   yaw: number
   pitch: number
@@ -22,9 +28,8 @@ export interface Neutral {
 /**
  * Head pointing: the cursor follows where the face points (head turn and tilt), relative to a
  * neutral pose captured while pointing at the screen centre. Unlike eye gaze it can't drift
- * out from under the user: they see the cursor and steer it. If posture shifts so far that an
- * edge is hard to reach, pushing past the edge moves the neutral pose along ("edge push"),
- * like lifting and repositioning a mouse.
+ * out from under the user: they see the cursor and steer it. Pointing past an edge holds the
+ * cursor at that edge; the centre never moves on its own, only when re-centred.
  */
 export class HeadPointer {
   neutral: Neutral | null = null
@@ -43,9 +48,10 @@ export class HeadPointer {
 
   /**
    * Maps a head pose to a point in a `width` x `height` area (window CSS px), or null before
-   * centring. Clamped to the area; overflow shifts the neutral pose (edge push).
+   * centring. Clamped to the area, leaving the neutral pose unchanged; `offscreen` says the face
+   * points past an edge, so the pinned point isn't mistaken for hovering whatever is there.
    */
-  point(head: HeadPose, width: number, height: number): [number, number] | null {
+  point(head: HeadPose, width: number, height: number): HeadPoint | null {
     const n = this.neutral
     if (!n) return null
     const { yaw, pitch } = toUserPose(head)
@@ -56,8 +62,6 @@ export class HeadPointer {
 
     const cx = Math.max(0, Math.min(width, x))
     const cy = Math.max(0, Math.min(height, y))
-    n.yaw += (x - cx) / gx
-    n.pitch -= (y - cy) / gy
-    return [cx, cy]
+    return { x: cx, y: cy, offscreen: cx !== x || cy !== y }
   }
 }

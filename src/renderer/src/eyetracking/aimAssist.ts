@@ -23,10 +23,11 @@ export interface AssistResult {
   target: string | null
 }
 
-export const DEFAULT_AIM_ASSIST: AimAssistOptions = { enabled: true, strength: 0.6, radius: 90 }
+// Deliberately soft: a gentle pull toward buttons near the gaze, not a snap onto them.
+export const DEFAULT_AIM_ASSIST: AimAssistOptions = { enabled: true, strength: 0.25, radius: 40 }
 
-/** Extra px of "closeness" the current target gets, so noise near edges doesn't flicker. */
-const STICKINESS = 40
+/** Extra "closeness" the current target gets (fraction of the radius), so edge noise doesn't flicker. */
+const STICKINESS = 0.5
 
 /**
  * Elements marked with `data-gaze-target` that are visible and not covered by something else
@@ -78,14 +79,15 @@ export class AimAssist {
     let bestScore = Infinity
     for (const t of targets) {
       const d = distanceToRect(x, y, t)
-      const score = d - (t.id === this.locked ? STICKINESS : 0)
+      const score = d - (t.id === this.locked ? STICKINESS * this.options.radius : 0)
       if (score < bestScore) {
         best = t
         bestDistance = d
         bestScore = score
       }
     }
-    const reach = this.options.radius + (best?.id === this.locked ? STICKINESS : 0)
+    const reach =
+      this.options.radius + (best?.id === this.locked ? STICKINESS * this.options.radius : 0)
     if (!best || bestDistance > reach) {
       this.locked = null
       return { x, y, target: null }
