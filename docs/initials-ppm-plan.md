@@ -1,6 +1,6 @@
 # Word-initial PPM: training and validation plan
 
-Status: design and source audit, 2026-10-23. No model has been trained or scored, and the running app has not changed. This supersedes the proposed fixed-order initials n-gram experiment. PPM predicts the next word initial from variable-length initial history; it does not expand initials into words.
+Status: offline training and validation implemented, 2026-10-23. The [first frozen run](./initials-ppm-results.md) passes the development and held-out prediction gates; Dasher integration and gaze validation remain deferred. This supersedes the proposed fixed-order initials n-gram experiment. PPM predicts the next word initial from variable-length initial history; it does not expand initials into words.
 
 ## Decision and scope
 
@@ -56,7 +56,7 @@ Token policies must be frozen before development scoring. The offline tool and a
 
 ## PPM training and candidate selection
 
-Reuse the Apache-2.0 jslm-derived PPM algorithm already present in `src/renderer/src/features/dasher/prediction.ts`, separating the pure model from renderer setup when implementing. Keep one implementation shared by training, evaluation, and export; do not make a Python approximation the shipping model. Preserve the attribution. A parity fixture must compare context counts and distributions before replacing the existing literal predictor's internals.
+Reuse the probability rule of the Apache-2.0 jslm-derived PPM algorithm already present in `src/renderer/src/features/dasher/prediction.ts`. The offline implementation in `src/shared/initialsPpm.ts` uses context-count tables; training, evaluation, export, and future runtime lookup share this module. The literal predictor remains separate and unchanged in behavior, with its class exported only for parity tests. Tests compare distributions on histories without the new context-only start marker. Preserve the attribution; no Python approximation is used.
 
 Specify the estimator rather than labeling it an unspecified PPM variant. For a context with total count `C`, a seen letter with count `c` receives `(c - beta) / (C + alpha)` of the remaining mass; pass the residual to the suffix context and ultimately a uniform distribution. Use the existing `alpha = 0.49` and `beta = 0.77`. This is interpolation without symbol exclusion, matching the current implementation's probability rule. Do not claim PPM-C or add exclusion while tuning other choices. Verify that repeated records accumulate counts and that per-turn context reset does not erase learned counts.
 
@@ -95,7 +95,7 @@ If the gate fails, stop before integration and report the negative result. Data/
 
 ### 3. Freeze and final test
 
-After development and pre-test synthetic reachability checks, freeze the model and record its hash. Then score AAC test, Turk test, and COMM2 with the same baselines, novelty definitions, and metrics. Do not train on COMM2, its vocabulary list, or its supplied unigram model. COMM2 IDs/text format is documented in its [README](https://aactext.org/comm2/comm2/readme.txt); do not assume IDs reveal workers or scenario groups without confirming metadata.
+For the user's requested offline-only evaluation, freeze after development and exported-lookup parity checks, then score AAC test, Turk test, and COMM2 with the same baselines, novelty definitions, and metrics. Engine reachability and gaze checks remain separate future gates; this changes the initial ordering without claiming those checks passed. Do not train on COMM2, its vocabulary list, or its supplied unigram model. COMM2 IDs/text format is documented in its [README](https://aactext.org/comm2/comm2/readme.txt); do not assume IDs reveal workers or scenario groups without confirming metadata.
 
 Make COMM2 the external-domain gate: the frozen PPM must improve on both uniform and the frozen strongest unigram, with a paired 95% interval favoring it over unigram. Require no worse than 0.05 bits/initial regression versus unigram on either original source's unseen-text final subset. Report all outcomes together, including failures, sample sizes, and overlap rates. If metadata permits scenario grouping, bootstrap whole scenarios and report scenario-specific results; otherwise acknowledge that message intervals omit dependence among responses to the ten shared situations.
 
@@ -119,11 +119,11 @@ Treat the PRD's same-tracker improvement target as a provisional experiment targ
 
 ## Implementation deliverables and repeatable run
 
-Future implementation should use the existing Node/TypeScript tooling and tests; no ML framework or inference service is needed. Keep acquisition/parsing, pure PPM/count training, scoring/export, and the renderer adapter separate. These are proposed capabilities, not commands already present:
+The implemented offline commands use the existing Node/TypeScript tooling and tests; no ML framework or inference service is needed. See the [run instructions and results](./initials-ppm-results.md) for `npm run ppm -- prepare|train|test|report`. Acquisition/parsing, pure PPM/count training, and scoring/export are separate; the renderer adapter remains future work:
 
 1. **Prepare:** fetch pinned sources and validate schemas; produce manifests, split records, exclusion/overlap summaries, and token statistics. Prepare COMM2 only in the final-test stage.
 2. **Fit and validate:** train the declared candidates, score development data, and write a machine-readable metrics file plus selected configuration. Fail promotion if the declared gate fails.
-3. **Freeze and export:** write the selected artifact and protocol/model hashes; verify runtime parity and pre-test engine reachability.
+3. **Freeze and export:** write the selected artifact and protocol/model hashes; verify frozen-lookup parity. Engine reachability is deferred until integration work.
 4. **Final test:** score the frozen artifact once against final sets and emit a report with paired differences and confidence intervals. The evaluator must not modify the model or selected settings.
 5. **Integrate and exercise:** expose a paused-only experimental condition, verify engine/error recovery in Electron, then collect the gaze comparison. Reproduce a run from source hashes, protocol version, code revision, selected settings, and bootstrap seed.
 
@@ -137,4 +137,4 @@ Do not silently retrain from downloaded updates, add personal messages to this p
 
 **The data is suitable for a prototype, with limited representativeness.** Combining AAC-like requests and dialogue turns is a better hypothesis than book language for this use case, but these sources remain old, invented, and sometimes repetitive. Initials remove lexical identity and meaning, so even good PPM results will not establish contextual personalization or word expansion. COMM2 is a useful different collection, not independent evidence from actual AAC users.
 
-**No performance verdict yet.** Source counts and sparsity have been checked; model quality, exported size, latency, region reachability, and gaze benefit have not. A gain over uniform is insufficient if a simple unigram does as well, and a gain in bits is insufficient if narrow regions slow communication.
+**The first offline result supports an engine experiment.** The frozen history-two model beats the tuned unigram on every held-out source, with a small asset and fast local lookup. Region reachability and gaze benefit remain unmeasured; the unlikely-letter probability tail worsens on COMM2, so a gain in bits remains insufficient if narrow regions slow communication. See the results document for measured values and limitations.

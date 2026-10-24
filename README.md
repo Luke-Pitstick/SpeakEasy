@@ -12,6 +12,8 @@ Suggestions use a small set of authored demo fixtures, including `iwac`, `insw`,
 
 See [interface references](docs/interface-references.md), [source mappings](docs/source-manifest.md), and [attribution](THIRD_PARTY_NOTICES.md). The current engine is a source-derived adaptation; tests do not establish parity with every upstream Dasher behavior or real gaze usability.
 
+The offline initials-prediction experiment is documented in [datasets and techniques](docs/datasets-and-techniques.md), including source provenance, preprocessing, PPM selection, and links to saved results.
+
 ## Development
 
 Use Node.js 24 LTS and npm.

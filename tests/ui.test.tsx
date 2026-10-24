@@ -12,6 +12,7 @@ import type { PredictionRequest, PredictionResult } from '../src/shared/predicti
 import { PointerOverlay } from '../src/renderer/src/features/dasher/PointerOverlay'
 import { SvgRenderer } from '../src/renderer/src/features/dasher/SvgRenderer'
 import { Geometry } from '../src/renderer/src/features/dasher/geometry'
+import { DasherEngine } from '../src/renderer/src/features/dasher/engine'
 
 beforeEach(() => {
   vi.stubGlobal(
@@ -58,8 +59,8 @@ describe('gaze controls', () => {
         </ActionButton>
       </InteractionProvider>
     )
-    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
-    fireEvent.click(screen.getByRole('button', { name: 'Delete' }))
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }), { detail: 1 })
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }), { detail: 1 })
     expect(action).toHaveBeenCalledTimes(2)
   })
   it('cancels pending dwell on Escape and requires re-entry', () => {
@@ -122,26 +123,7 @@ it('keeps bottom controls hidden and toggles Dasher with a click or keyboard', (
   expect(screen.getByRole('button', { name: 'Resume Dasher' })).toBeTruthy()
 })
 
-it('expands demo initials and reveals correction only for the selected word', async () => {
-  render(<App />)
-  fireEvent.change(screen.getByLabelText('Initials'), { target: { value: 'iwac' } })
-  fireEvent.click(screen.getByRole('button', { name: 'Expand', exact: true }))
-  fireEvent.click(await screen.findByRole('button', { name: 'I want a coffee', exact: true }))
-  expect(screen.queryByText('Spell a replacement')).toBeNull()
-  fireEvent.click(screen.getByRole('button', { name: 'coffee', exact: true }))
-  fireEvent.click(screen.getByRole('button', { name: 'Spell a replacement' }))
-  fireEvent.change(screen.getByLabelText('Replace word'), { target: { value: 'Zephyr' } })
-  expect(
-    (screen.getByRole('button', { name: 'want', exact: true }) as HTMLButtonElement).disabled
-  ).toBe(true)
-  fireEvent.click(screen.getByRole('button', { name: 'Use word' }))
-  expect(screen.getByLabelText('Accepted draft').textContent).toBe('I want a Zephyr')
-  fireEvent.click(screen.getByRole('button', { name: 'Menu', exact: true }))
-  fireEvent.click(screen.getByRole('button', { name: 'Undo', exact: true }))
-  expect(screen.getByLabelText('Accepted draft').textContent).toBe('I want a coffee')
-})
-
-it('preserves the zoomed camera when clicking pause and resume', () => {
+it('starts from a click on a box, pauses on empty space, and resumes without another pointer event', () => {
   const frames: FrameRequestCallback[] = []
   vi.stubGlobal('requestAnimationFrame', (callback: FrameRequestCallback) => {
     frames.push(callback)
@@ -161,19 +143,70 @@ it('preserves the zoomed camera when clicking pause and resume', () => {
   })
   render(<App />)
   const surface = screen.getByTestId('dasher-surface')
-  fireEvent.pointerEnter(surface, { clientX: 820, clientY: 301 })
-  fireEvent.click(surface)
+  const svg = surface.querySelector('svg')!
+  const initial = svg.innerHTML
+  fireEvent.click(svg.querySelector('rect')!, { clientX: 1000, clientY: 301 })
   const start = performance.now()
   for (let frame = 1; frame <= 60; frame++) act(() => frames.shift()!(start + frame * 16.67))
-  const svg = surface.querySelector('svg')!
   const before = svg.innerHTML
-  fireEvent.click(surface)
-  fireEvent.click(surface)
+  expect(before).not.toBe(initial)
+  fireEvent.click(surface, { clientX: 100, clientY: 301 })
+  act(() => frames.shift()!(start + 61 * 16.67))
+  expect(svg.innerHTML).toBe(before)
+  fireEvent.click(svg, { clientX: 1000, clientY: 301 })
   expect(svg.innerHTML).toBe(before)
   expect(screen.getByRole('button', { name: 'Pause Dasher' })).toBeTruthy()
-  act(() => frames.shift()!(start + 61 * 16.67))
+  act(() => frames.shift()!(start + 62 * 16.67))
   expect(svg.innerHTML).not.toBe(before)
   bounds.mockRestore()
+})
+
+it('paints every starting initial in alphabetical order at short and full panel heights', () => {
+  for (const height of [188, 282, 600, 1200]) {
+    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+    const renderer = new SvgRenderer(svg)
+    const engine = new DasherEngine(1280, height)
+    // Descendants may already be large enough to paint on a tall display;
+    // verify the complete first alphabet independently of those nested labels.
+    renderer.draw(
+      engine.regions().filter((region) => region.depth === 1),
+      engine.geometry
+    )
+    const labels = [...svg.querySelectorAll('text')]
+    expect(labels.map((label) => label.textContent).join('')).toBe('abcdefghijklmnopqrstuvwxyz')
+    expect(labels.every((label) => label.getAttribute('visibility') === 'visible')).toBe(true)
+    const rectangles = [...svg.querySelectorAll('rect')]
+    expect(rectangles).toHaveLength(26)
+    expect(new Set(rectangles.map((rect) => rect.getAttribute('height'))).size).toBeGreaterThan(1)
+    renderer.dispose()
+  }
+})
+
+it('draws an unlabeled starting parent behind its alphabet and zooms them together', () => {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+  const renderer = new SvgRenderer(svg)
+  const engine = new DasherEngine(1280, 600)
+  renderer.draw(engine.regions(), engine.geometry)
+  const parent = svg.querySelector('.dasher-root rect')!
+  expect(svg.firstElementChild!.firstElementChild).toBe(parent.parentElement)
+  expect(svg.querySelectorAll('text:empty')).toHaveLength(0)
+  expect(engine.text).toBe('')
+  const before = Number(parent.getAttribute('height'))
+  for (const region of engine.regions().filter((region) => region.depth === 1)) {
+    expect(region.left).toBeGreaterThan(engine.root.left)
+    expect(region.top).toBeGreaterThanOrEqual(engine.root.top)
+    expect(region.top + region.height).toBeLessThanOrEqual(
+      engine.root.top + engine.root.height + 0.001
+    )
+  }
+  engine.resume()
+  engine.setSample(100, 0)
+  engine.step(16)
+  renderer.draw(engine.regions(), engine.geometry)
+  expect(svg.querySelector('.dasher-root rect')).toBe(parent)
+  expect(Number(parent.getAttribute('height'))).toBeGreaterThan(before)
+  expect(engine.text).toBe('')
+  renderer.dispose()
 })
 
 it('keeps nested labels above rectangles and box colors stable when depth changes', () => {
@@ -189,6 +222,28 @@ it('keeps nested labels above rectangles and box colors stable when depth change
   expect(svg.firstElementChild!.querySelector('rect')).toBeTruthy()
   renderer.dispose()
   expect(svg.childElementCount).toBe(0)
+})
+
+it('culls small continuation boxes until they grow, without a fixed layer limit', () => {
+  const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
+  const renderer = new SvgRenderer(svg)
+  const geometry = new Geometry(1280, 600)
+  const parent = { id: 1, label: 'a', text: 'a', left: -100, top: -100, height: 200, depth: 0 }
+  const child = { id: 2, label: 'b', text: 'ab', left: 100, top: -50, height: 40, depth: 1 }
+  const preview = { id: 3, label: 'c', text: 'abc', left: 400, top: -40, height: 8, depth: 2 }
+  renderer.draw([parent, child, preview], geometry)
+  expect(svg.querySelectorAll('rect')).toHaveLength(2)
+  expect(svg.querySelectorAll('text')).toHaveLength(2)
+  expect(svg.querySelector('[data-region="c"]')).toBeNull()
+
+  // A deeper layer is revealed by screen size, not merely by being instantiated.
+  renderer.draw([parent, child, { ...preview, height: 10 }], geometry)
+  expect(svg.querySelectorAll('rect')).toHaveLength(3)
+  expect(svg.querySelector('[data-region="c"]')).toBeTruthy()
+  renderer.draw([parent, child, { ...preview, height: 9.9 }], geometry)
+  expect(svg.querySelector('[data-region="c"]')).toBeNull()
+  expect([...svg.querySelectorAll('text')].map((label) => label.textContent)).toEqual(['a', 'b'])
+  renderer.dispose()
 })
 
 it('fits boxes on resize and resumes once after an intentional layout change', () => {
@@ -310,46 +365,4 @@ it('draws the pointer and center displacement independently of the letter viewpo
   expect(svg.querySelector('g')?.getAttribute('visibility')).toBe('hidden')
   overlay.dispose()
   expect(svg.childElementCount).toBe(0)
-})
-
-it('exposes keyword refinement after rejection and expands a partial word', async () => {
-  render(<App />)
-  fireEvent.change(screen.getByLabelText('Initials'), { target: { value: 'iwac' } })
-  fireEvent.click(screen.getByRole('button', { name: 'Expand', exact: true }))
-  await screen.findByRole('button', { name: 'I want a coffee', exact: true })
-  fireEvent.click(screen.getByRole('button', { name: 'None of these' }))
-  fireEvent.click(screen.getByRole('button', { name: 'Word 4 c Initial' }))
-  fireEvent.change(screen.getByLabelText('Spell word'), { target: { value: 'co' } })
-  fireEvent.click(screen.getByRole('button', { name: 'Use as prefix' }))
-  expect(screen.getByRole('button', { name: 'Word 4 co… Prefix' })).toBeTruthy()
-  expect(screen.getByLabelText('Accepted draft').textContent).toBe('Your message')
-  fireEvent.click(screen.getByRole('button', { name: 'Expand', exact: true }))
-  await screen.findByRole('button', { name: 'I want a coffee', exact: true })
-  expect(screen.getByRole('button', { name: 'I want a cookie', exact: true })).toBeTruthy()
-  expect(screen.queryByRole('button', { name: 'I want another cushion' })).toBeNull()
-  fireEvent.click(screen.getByRole('button', { name: 'I want a coffee', exact: true }))
-  fireEvent.click(screen.getByRole('button', { name: 'Previous phrase', exact: true }))
-  expect((screen.getByLabelText('Initials') as HTMLInputElement).value).toBe('')
-  fireEvent.click(screen.getByRole('button', { name: 'Spell a keyword' }))
-  expect(screen.getByRole('button', { name: 'Word 4 co… Prefix' })).toBeTruthy()
-})
-
-it('can spell a full keyword without opening Menu and can cancel a correction', async () => {
-  render(<App />)
-  fireEvent.change(screen.getByLabelText('Initials'), { target: { value: 'iwac' } })
-  fireEvent.click(screen.getByRole('button', { name: 'Spell a keyword' }))
-  fireEvent.click(screen.getByRole('button', { name: 'Word 4 c Initial' }))
-  fireEvent.change(screen.getByLabelText('Spell word'), { target: { value: 'coffee' } })
-  fireEvent.click(screen.getByRole('button', { name: 'Use word' }))
-  fireEvent.click(screen.getByRole('button', { name: 'Expand', exact: true }))
-  fireEvent.click(await screen.findByRole('button', { name: 'I want a coffee', exact: true }))
-  fireEvent.click(screen.getByRole('button', { name: 'coffee', exact: true }))
-  fireEvent.click(screen.getByRole('button', { name: 'Suggest a replacement' }))
-  fireEvent.click(await screen.findByRole('button', { name: 'I want a tea', exact: true }))
-  expect(screen.getByLabelText('Accepted draft').textContent).toBe('I want a tea')
-  fireEvent.click(screen.getByRole('button', { name: 'tea', exact: true }))
-  fireEvent.click(screen.getByRole('button', { name: 'Spell a replacement' }))
-  fireEvent.change(screen.getByLabelText('Replace word'), { target: { value: 'Zephyr' } })
-  fireEvent.click(screen.getByRole('button', { name: 'Cancel edit' }))
-  expect(screen.getByLabelText('Accepted draft').textContent).toBe('I want a tea')
 })

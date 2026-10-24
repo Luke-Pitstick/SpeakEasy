@@ -50,11 +50,12 @@ function replacements(request: PredictionRequest): string[] {
   }
   const selected = request.draft.slice(request.target.start, request.target.end).toLowerCase()
   const groups = [
-    ['coffee', 'tea', 'water', 'juice'],
-    ['cookie', 'sandwich', 'snack', 'apple'],
-    ['want', 'need', 'prefer', 'like'],
-    ['help', 'hear', 'hold', 'join'],
-    ['warmth', 'blanket', 'cushion', 'company']
+    ['coffee', 'cocoa', 'cider', 'cream'],
+    ['cookie', 'cake', 'croissant', 'cereal'],
+    ['want', 'wish', 'welcome'],
+    ['help', 'hear', 'hold', 'hug'],
+    ['warmth', 'water', 'writing', 'wipes'],
+    ['great', 'good', 'glad', 'grateful']
   ]
   return groups.find((group) => group.includes(selected)) ?? []
 }
@@ -106,7 +107,15 @@ export function validateResult(request: PredictionRequest, result: unknown): Pre
     )
       continue
     if (request.purpose === 'expansion' && !matches(replacement, request)) continue
-    if (request.purpose === 'refinement' && !/^[A-Za-z]+(?:['-][A-Za-z]+)*$/.test(replacement))
+    if (
+      request.purpose === 'refinement' &&
+      (!/^[A-Za-z]+(?:['-][A-Za-z]+)*$/.test(replacement) ||
+        !replacement
+          .toLowerCase()
+          .startsWith(
+            request.draft.slice(request.target.start, request.target.end)[0]?.toLowerCase()
+          ))
+    )
       continue
     seen.add(replacement.toLowerCase())
     const prefix = request.draft.slice(0, request.target.start)

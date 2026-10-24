@@ -1,6 +1,8 @@
 // Derived from Google Research's jslm PPM implementation (Apache-2.0).
 // See THIRD_PARTY_NOTICES.md. Modified: typed bounded contexts, fixed fixture,
 // precomputed distributions, no logging, no adaptive or corpus-loading APIs.
+import { trainedInitials } from './initials-model'
+
 const ALPHA = 0.49
 const BETA = 0.77
 const ORDER = 4
@@ -17,7 +19,7 @@ interface Context {
   order: number
 }
 
-class PpmModel {
+export class PpmModel {
   root = new PpmNode()
   constructor(readonly size: number) {}
 
@@ -102,16 +104,17 @@ export function normalize(weights: number[], size: number): number[] {
   return weights.map((weight) => (0.95 * weight) / sum + 0.05 / size)
 }
 
-/** All PPM work is prepared before steering; frame-time lookup never trains/inferences. */
+/** Initials use a frozen trained asset; literal PPM is prepared before steering. */
 export class CharacterPredictor {
   private cache = new Map<string, number[]>()
   private uniform: number[]
   constructor(
     readonly alphabet: string[],
-    readonly mode: 'uniform' | 'ppm'
+    readonly mode: 'uniform' | 'ppm' | 'initials'
   ) {
     this.uniform = alphabet.map(() => 1 / alphabet.length)
     if (mode === 'uniform') return
+    if (mode === 'initials') return
     const ids = new Map(alphabet.map((symbol, index) => [symbol, index + 1]))
     const corpus = [...TRAINING].filter((symbol) => ids.has(symbol))
     const model = new PpmModel(alphabet.length)
@@ -131,8 +134,11 @@ export class CharacterPredictor {
       )
   }
 
-  weights(text: string): number[] {
+  weights(text: string): readonly number[] {
     if (this.mode === 'uniform') return this.uniform
+    // Return the evaluated distribution unchanged: normalize() would add a
+    // second smoothing pass. Neither training nor model replacement runs here.
+    if (this.mode === 'initials') return trainedInitials.model?.weights(text) ?? this.uniform
     const tail = [...text].slice(-ORDER)
     while (tail.length && !this.cache.has(tail.join(''))) tail.shift()
     return this.cache.get(tail.join('')) ?? this.uniform

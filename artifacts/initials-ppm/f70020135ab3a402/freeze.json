@@ -1,0 +1,29 @@
+{
+  "run": "f70020135ab3a402",
+  "modelHash": "2780b90e230892ba92fd8c2c16053c8d61558595a1a92b2247b48ee02d5171ba",
+  "baselineHash": "347ec0ffa5ecf6f404f396fc513eccb34ba2b60213558f5455b6da97b63596cf",
+  "protocolHash": "eb03366dab44978ea9f5a498bcdf5af58f9ca1b49e873f75df8fb889bef6887b",
+  "codeHashes": {
+    "src/shared/initialsPpm.ts": "db4832296388ddaed9bde1727211c06cdb194e1a882f6e5f775212da77373e10",
+    "scripts/initials-ppm/data.mts": "6ef6362d344b4f8eae4025ec83fa78dfe8298fa84df2a9038a4905958ab9536f",
+    "scripts/initials-ppm/evaluate.mts": "4b223a31e351075d22453d4e57ebf32b83c03e7f7783ee3585c8bbebf7827fa1",
+    "scripts/initials-ppm/cli.mts": "02afdf83adc10cadd47e285c56fd6a6c61edb725ccb5c117260887407490cbe1"
+  },
+  "sourceHashes": {
+    "aac-train": "ddc0ad61652cec5f4a8b76f1dd63f92fa9d5c1197e0a65f7a13d71873aed91bd",
+    "aac-dev": "ea15844416675800787f13767b3ab94d982a656094ee1865692af7947e8ad524",
+    "turk": "7bd80a8a8fe1e3ee91158072b4adc198db691f96196b27acf28ea8335507dafb"
+  },
+  "config": {
+    "maxHistory": 2,
+    "aacWeight": 0.5,
+    "floor": 0.1
+  },
+  "unigramConfig": {
+    "maxHistory": 0,
+    "aacWeight": 1,
+    "floor": 0.05
+  },
+  "devPass": true,
+  "createdAt": "2026-10-24T03:03:45.187Z"
+}

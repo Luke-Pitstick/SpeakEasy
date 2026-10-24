@@ -1,0 +1,46 @@
+[
+  {
+    "split": "aac/train",
+    "messages": 5019,
+    "groups": 5019,
+    "targets": 25111,
+    "barriers": 15,
+    "empty": 0,
+    "uniqueTexts": 4600,
+    "textOverlapWithTrain": 5019,
+    "initialOverlapWithTrain": 5019
+  },
+  {
+    "split": "aac/dev",
+    "messages": 557,
+    "groups": 557,
+    "targets": 2956,
+    "barriers": 2,
+    "empty": 0,
+    "uniqueTexts": 544,
+    "textOverlapWithTrain": 113,
+    "initialOverlapWithTrain": 185
+  },
+  {
+    "split": "turk/train",
+    "messages": 5154,
+    "groups": 859,
+    "targets": 39173,
+    "barriers": 194,
+    "empty": 0,
+    "uniqueTexts": 5080,
+    "textOverlapWithTrain": 5154,
+    "initialOverlapWithTrain": 5154
+  },
+  {
+    "split": "turk/dev",
+    "messages": 1680,
+    "groups": 280,
+    "targets": 12788,
+    "barriers": 67,
+    "empty": 0,
+    "uniqueTexts": 1662,
+    "textOverlapWithTrain": 116,
+    "initialOverlapWithTrain": 180
+  }
+]

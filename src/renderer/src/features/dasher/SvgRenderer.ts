@@ -27,7 +27,10 @@ export class SvgRenderer {
       const left = Math.max(geometry.left, region.left)
       const top = Math.max(geometry.top, region.top)
       const bottom = Math.min(geometry.bottom, region.top + region.height)
-      if (left > geometry.right || bottom - top < 2) continue
+      // Children can be prepared before they are large enough to paint. Using
+      // the spawn threshold here produces the dense strip of tiny right-edge boxes.
+      if (region.height < geometry.drawThresholdRect || left >= geometry.right || bottom <= top)
+        continue
       seen.add(region.id)
       let node = this.nodes.get(region.id)
       if (!node) {
@@ -36,14 +39,16 @@ export class SvgRenderer {
         const label = document.createElementNS(NS, 'text')
         const labelGroup = document.createElementNS(NS, 'g')
         group.append(rect)
-        labelGroup.append(label)
+        if (region.label) labelGroup.append(label)
         node = { group, rect, label, labelGroup }
         this.nodes.set(region.id, node)
       }
       const { group, rect, label, labelGroup } = node
       group.setAttribute(
         'class',
-        `dasher-region shade-${(region.text.length + region.label.codePointAt(0)!) % 4}`
+        region.label
+          ? `dasher-region shade-${(region.text.length + region.label.codePointAt(0)!) % 4}`
+          : 'dasher-region dasher-root'
       )
       labelGroup.setAttribute('class', 'dasher-region')
       group.setAttribute('data-region', region.label)
@@ -56,12 +61,15 @@ export class SvgRenderer {
       const parentEdge =
         region.depth > 0 ? (textEdges[region.depth - 1] ?? geometry.left) : geometry.left
       const textLeft = Math.max(left + 5, parentEdge)
-      textEdges[region.depth] = textLeft + fontSize * 0.7 + 5
+      textEdges[region.depth] = region.label ? textLeft + fontSize * 0.7 + 5 : left
       label.setAttribute('x', String(textLeft))
       label.setAttribute('y', String((top + bottom) / 2))
       label.setAttribute('dominant-baseline', 'central')
       label.setAttribute('font-size', String(fontSize))
-      label.setAttribute('visibility', bottom - top >= 7 ? 'visible' : 'hidden')
+      label.setAttribute(
+        'visibility',
+        bottom - top >= Math.min(7, geometry.drawThresholdRect) - 0.001 ? 'visible' : 'hidden'
+      )
       this.layer.appendChild(group)
       this.labels.appendChild(labelGroup)
     }

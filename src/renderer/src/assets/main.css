@@ -28,7 +28,7 @@ button:disabled {
   position: relative;
 }
 .app-header {
-  height: 56px;
+  height: 72px;
   flex-shrink: 0;
   padding: 0 24px;
   display: flex;
@@ -151,37 +151,6 @@ select:focus-visible {
   transform: scaleX(1);
   transition: transform var(--dwell-duration) linear;
 }
-.entry-row {
-  display: flex;
-  height: 64px;
-  flex-shrink: 0;
-  align-items: center;
-  gap: 16px;
-}
-.entry-field {
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  flex: 1;
-  min-width: 0;
-}
-.entry-field input {
-  background: transparent;
-  color: var(--text);
-  border: 0;
-  width: 100%;
-  min-width: 0;
-  padding: 10px 0;
-  font-size: 26px;
-  font-weight: 450;
-}
-.entry-field input::placeholder {
-  color: var(--placeholder);
-  font-size: 20px;
-}
-.entry-action {
-  min-width: 152px;
-}
 .choice-area {
   flex: 1;
   min-height: 112px;
@@ -240,59 +209,6 @@ select:focus-visible {
 .status-line.error {
   color: var(--danger);
 }
-.reject-action.action-button {
-  min-height: 40px;
-  border: 0;
-  background: transparent;
-  padding: 6px 20px;
-  font-size: 18px;
-}
-.word-button.action-button {
-  font: inherit;
-  min-height: 56px;
-  padding: 0 3px;
-  border: 0;
-  background: transparent;
-  vertical-align: baseline;
-}
-.context-actions {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  align-content: start;
-  gap: 12px;
-  padding: 12px 0;
-}
-.context-actions p,
-.initial-editor p {
-  margin: 0 0 4px;
-  color: var(--muted);
-  font-size: 18px;
-  grid-column: 1 / -1;
-}
-.context-actions .action-button:only-of-type {
-  grid-column: 1 / -1;
-}
-.initial-editor {
-  padding: 8px 0;
-}
-.token-row {
-  display: flex;
-  gap: 10px;
-  overflow-x: auto;
-  margin: 12px 0;
-}
-.token-chip.action-button {
-  min-width: 64px;
-  font-size: 24px;
-  flex-shrink: 0;
-}
-.context-row {
-  display: flex;
-  gap: 12px;
-}
-.context-row .action-button {
-  flex: 1;
-}
 .dasher-panel {
   min-height: 0;
   display: flex;
@@ -321,6 +237,7 @@ select:focus-visible {
   display: block;
   height: 100%;
   width: 100%;
+  pointer-events: none;
 }
 .dasher-surface:focus-visible {
   outline: 2px solid var(--accent);
@@ -448,12 +365,6 @@ h2 {
   .field-label {
     width: 60px;
   }
-  .entry-field {
-    gap: 12px;
-  }
-  .entry-action {
-    min-width: 120px;
-  }
   .action-button {
     padding-left: 12px;
     padding-right: 12px;
@@ -506,19 +417,6 @@ h2 {
   cursor: none;
 }
 
-.workspace.has-phrase-tools .workspace-body {
-  grid-template-rows: 200px minmax(188px, 1fr);
-}
-.workspace.has-choices .workspace-body {
-  grid-template-rows: 336px minmax(188px, 1fr);
-}
-.workspace:not(.has-choices) .choice-area {
-  display: none;
-}
-.workspace:not(.has-choices) .suggestion-footer {
-  height: 32px;
-}
-
 .phrase-tools {
   display: flex;
   gap: 12px;
@@ -537,9 +435,97 @@ h2 {
   color: var(--muted);
   font-size: 12px;
 }
-.token-chip.action-button {
-  min-height: 80px;
-}
 .choice-area {
   overflow-y: auto;
+}
+
+/* SpeakFaster input-bar/chip flow: the active chip receives Dasher output. */
+.workspace.has-phrase-tools .workspace-body {
+  grid-template-rows: 350px minmax(240px, 1fr);
+}
+.workspace.has-choices .workspace-body {
+  grid-template-rows: 410px minmax(240px, 1fr);
+}
+.workspace:not(.has-phrase-tools) .workspace-body {
+  grid-template-rows: 210px minmax(240px, 1fr);
+}
+.composition-bar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 96px;
+  flex-shrink: 0;
+}
+.entry-display {
+  flex: 1;
+  font-size: 24px;
+  overflow-wrap: anywhere;
+  max-height: 90px;
+  overflow-y: auto;
+}
+.word-chips {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+.word-chip.action-button {
+  min-width: 0;
+  min-height: 82px;
+  padding: 6px;
+}
+.word-chip.action-button[aria-pressed='true']:disabled {
+  color: var(--text);
+  background: var(--accent-wash);
+  border-color: var(--accent);
+}
+.chip-text {
+  display: block;
+  font-size: 22px;
+  overflow-wrap: anywhere;
+  line-height: 1.2;
+  max-height: 54px;
+  overflow-y: auto;
+}
+.phrase-instructions {
+  min-height: 40px;
+  font-size: 15px;
+  color: var(--muted);
+}
+.speakfaster-panel .phrase-tools {
+  flex-wrap: wrap;
+  padding-bottom: 8px;
+}
+.speakfaster-panel .choice-area {
+  min-height: 0;
+}
+.candidate-card {
+  display: flex;
+  height: 100%;
+  align-items: center;
+  gap: 8px;
+}
+.candidate-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 19px;
+}
+.candidate-card .action-button {
+  min-height: 52px;
+  padding: 8px 12px;
+  font-size: 17px;
+}
+.draft-line > .action-button {
+  min-height: 44px;
+  white-space: nowrap;
+  font-size: 16px;
+}
+.header-writing {
+  min-width: 164px;
+}
+.suggestion-footer .action-button {
+  min-height: 44px;
+  padding: 6px 12px;
+  font-size: 16px;
 }

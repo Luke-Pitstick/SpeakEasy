@@ -17,21 +17,28 @@ function steer(engine: DasherEngine, wanted: string, alphabet = INITIAL_ALPHABET
     const prefix = engine.root.text
     const character = wanted[prefix.length]
     const regions = engine.regions()
-    const target = regions.find((region) => region.text === prefix + character)
+    let target = regions.find((region) => region.text === prefix + character)
     if (!wanted.startsWith(prefix)) {
       engine.setSample(-engine.geometry.width * 0.4, 0)
       engine.step(16.67)
       continue
     }
     if (!target) {
-      engine.setSample(
-        0,
-        alphabet.indexOf(character) < alphabet.length / 2
-          ? engine.geometry.top + 8
-          : engine.geometry.bottom - 8
-      )
-      engine.step(16.67)
-      continue
+      // Low-probability branches start below the draw/spawn cutoff. Aim into
+      // their interval and zoom until they are large enough to be revealed.
+      const index = alphabet.indexOf(character)
+      const height = engine.root.height * engine.root.fractions[index]
+      target = {
+        id: -1,
+        label: character,
+        text: prefix + character,
+        depth: 1,
+        height,
+        left: engine.geometry.solveLeft(height),
+        top:
+          engine.root.top +
+          engine.root.height * engine.root.fractions.slice(0, index).reduce((a, b) => a + b, 0)
+      }
     }
     const center = target.top + target.height / 2
     const y = Math.max(engine.geometry.top + 8, Math.min(engine.geometry.bottom - 8, center))
@@ -48,7 +55,7 @@ function steer(engine: DasherEngine, wanted: string, alphabet = INITIAL_ALPHABET
 
 describe('typed Dasher navigation', () => {
   it('continuously enters initials and reverses across promoted roots', () => {
-    const engine = new DasherEngine(1100, 330)
+    const engine = new DasherEngine(1100, 330, '', false, 'uniform')
     engine.resume()
     const frames = steer(engine, 'iwac')
     expect(frames).toBeLessThan(2500)
@@ -95,6 +102,68 @@ it('roundtrips upstream piecewise Dasher geometry above the minimum target heigh
   for (const height of [5, 20, 100, 330, 5000])
     expect(geometry.solveHeight(geometry.solveLeft(height))).toBeCloseTo(height)
 })
+
+it('sizes initials by word context instead of forcing equal letter boxes', () => {
+  const first = new DasherEngine(1280, 600)
+  const afterI = new DasherEngine(1280, 600, 'i')
+  const afterIw = new DasherEngine(1280, 600, 'iw')
+  expect(
+    new Set(first.regions().map((region) => Math.round(region.height * 100))).size
+  ).toBeGreaterThan(1)
+  expect(afterI.root.fractions[INITIAL_ALPHABET.indexOf('w')]).toBeGreaterThan(
+    first.root.fractions[INITIAL_ALPHABET.indexOf('w')]
+  )
+  expect(afterIw.root.fractions[INITIAL_ALPHABET.indexOf('a')]).toBeGreaterThan(
+    afterI.root.fractions[INITIAL_ALPHABET.indexOf('a')]
+  )
+  for (const engine of [first, afterI, afterIw]) {
+    expect(engine.root.fractions.every((weight) => weight > 0)).toBe(true)
+    expect(engine.root.fractions.reduce((a, b) => a + b, 0)).toBeCloseTo(1)
+    const before = engine.text
+    engine.resume()
+    expect(engine.step(16.67)).toBeNull()
+    expect(engine.text).toBe(before)
+  }
+})
+
+it('starts with all 26 first initials visible in a-z order before any steering', () => {
+  for (const height of [188, 330, 600, 1200]) {
+    const engine = new DasherEngine(1280, height)
+    const letters = engine.regions().filter((region) => region.depth === 1)
+    expect(engine.text).toBe('')
+    expect(engine.root.text).toBe('')
+    expect(letters.map((region) => region.label)).toEqual(INITIAL_ALPHABET)
+    for (let index = 0; index < letters.length; index++) {
+      const letter = letters[index]
+      expect(letter.height).toBeGreaterThanOrEqual(engine.geometry.drawThresholdRect - 0.001)
+      expect(letter.left).toBeGreaterThan(0)
+      expect(letter.top).toBeGreaterThanOrEqual(engine.geometry.top)
+      expect(letter.top + letter.height).toBeLessThanOrEqual(engine.geometry.bottom + 0.001)
+      if (index) expect(letter.top).toBeCloseTo(letters[index - 1].top + letters[index - 1].height)
+    }
+    engine.resume()
+    expect(engine.step(16)).toBeNull()
+    expect(engine.text).toBe('')
+  }
+})
+it('keeps the outer alphabet within reach while steering through empty space', () => {
+  for (const y of [-180, 180]) {
+    const engine = new DasherEngine(1280, 406)
+    engine.resume()
+    engine.setSample(160, y)
+    for (let frame = 0; frame < 120; frame++) engine.step(16.67)
+    expect(engine.root.top).toBeLessThan(0)
+    expect(engine.root.top + engine.root.height).toBeGreaterThan(0)
+    expect(
+      engine
+        .regions()
+        .some(
+          (region) =>
+            region.top < engine.geometry.bottom && region.top + region.height > engine.geometry.top
+        )
+    ).toBe(true)
+  }
+})
 it('covers every PPM symbol, including the last, with normalized positive weights', () => {
   const predictor = new CharacterPredictor(LITERAL_ALPHABET, 'ppm')
   for (const context of ['', 'I want a ', 'Zephyr', '???']) {
@@ -127,11 +196,13 @@ it('pauses at the same entry limit as the composition state', () => {
 it('uses the whole viewport for nested letter regions on wide displays', () => {
   for (const width of [900, 3456]) {
     const height = 600
-    const engine = new DasherEngine(width, height)
+    const engine = new DasherEngine(width, height, '', false, 'uniform')
     expect(engine.geometry.width).toBe(width)
-    expect(engine.regions().map((region) => region.label)).toEqual(INITIAL_ALPHABET)
-    for (const region of engine.regions()) {
-      expect(engine.geometry.right - region.left).toBeGreaterThan(width * 0.2)
+    const letters = engine.regions().filter((region) => region.depth === 1)
+    expect(letters.map((region) => region.label)).toEqual(INITIAL_ALPHABET)
+    for (const region of letters) {
+      expect(region.left).toBeGreaterThan(width * 0.3)
+      expect(engine.geometry.right - region.left).toBeLessThan(width * 0.2)
       expect(region.top).toBeGreaterThanOrEqual(-height / 2)
       expect(region.top + region.height).toBeLessThanOrEqual(height / 2)
     }
@@ -139,7 +210,7 @@ it('uses the whole viewport for nested letter regions on wide displays', () => {
 })
 
 it('expands the target and reveals nested continuations while steering', () => {
-  const engine = new DasherEngine(1280, 600)
+  const engine = new DasherEngine(1280, 600, '', false, 'uniform')
   const initial = engine.regions().find((region) => region.text === 'n')!
   engine.resume()
   engine.setSample(180, 0)
@@ -148,14 +219,20 @@ it('expands the target and reveals nested continuations while steering', () => {
   const parent = regions.find((region) => region.text === 'n')!
   expect(parent.height).toBeGreaterThan(initial.height * 2)
   expect(parent.left).toBeLessThan(initial.left)
-  const children = regions.filter(
-    (region) => region.text.startsWith('n') && region.text.length === 2
+  expect(regions.some((region) => region.text.startsWith('n') && region.text.length === 2)).toBe(
+    false
   )
+  for (let frame = 0; frame < 60; frame++) engine.step(16.67)
+  const expanded = engine.regions().find((region) => region.text === 'n')!
+  const children = engine
+    .regions()
+    .filter((region) => region.text.startsWith('n') && region.text.length === 2)
   expect(children.length).toBeGreaterThan(0)
   for (const child of children) {
-    expect(child.left).toBeGreaterThan(parent.left)
-    expect(child.top).toBeGreaterThanOrEqual(parent.top - 0.001)
-    expect(child.top + child.height).toBeLessThanOrEqual(parent.top + parent.height + 0.001)
+    expect(child.height).toBeGreaterThanOrEqual(engine.geometry.spawnThreshold)
+    expect(child.left).toBeGreaterThan(expanded.left)
+    expect(child.top).toBeGreaterThanOrEqual(expanded.top - 0.001)
+    expect(child.top + child.height).toBeLessThanOrEqual(expanded.top + expanded.height + 0.001)
   }
 })
 

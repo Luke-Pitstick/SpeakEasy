@@ -12,7 +12,6 @@ function Workspace(): React.JSX.Element {
   const dispatch = useCompositionDispatch()
   const interaction = useInteraction()
   const [menu, setMenu] = useState<'closed' | 'more' | 'settings'>('closed')
-  const [editInitials, setEditInitials] = useState(false)
   const [theme, setTheme] = useState<'system' | 'light' | 'dark'>('system')
   const [speed, setSpeed] = useState(0.6)
   const [weighting, setWeighting] = useState<'uniform' | 'ppm'>('ppm')
@@ -31,7 +30,7 @@ function Workspace(): React.JSX.Element {
     state.paused &&
     (state.status !== 'idle' ||
       !!state.selection ||
-      editInitials ||
+      state.editor !== 'entry' ||
       state.mode === 'keyword' ||
       state.mode === 'replacement')
   const closeMenu = (): void => setMenu('closed')
@@ -51,6 +50,18 @@ function Workspace(): React.JSX.Element {
           <span className="status-divider">/</span>Offline demo
         </span>
         <ActionButton
+          className="header-writing"
+          identity={`writing-${state.paused}-${state.editor}-${state.mode}-${state.selectedToken ?? ''}-${state.selection?.start ?? ''}`}
+          disabled={
+            menu !== 'closed' ||
+            (state.editor === 'phrase' && state.mode !== 'replacement') ||
+            (state.editor === 'keywords' && !state.selectedToken)
+          }
+          onAction={() => dispatch({ type: state.paused ? 'resume' : 'pause' })}
+        >
+          {state.paused ? 'Start writing' : 'Pause writing'}
+        </ActionButton>
+        <ActionButton
           className="header-menu"
           identity={`more-${menu}`}
           disabled={menu !== 'closed'}
@@ -60,12 +71,7 @@ function Workspace(): React.JSX.Element {
         </ActionButton>
       </header>
       <div className="workspace-body" inert={menu !== 'closed' || undefined}>
-        <SpeakFasterPanel
-          scenario={scenario}
-          editInitials={editInitials}
-          closeInitials={() => setEditInitials(false)}
-          openInitials={() => setEditInitials(true)}
-        />
+        <SpeakFasterPanel scenario={scenario} />
         <DasherPanel speed={speed} weighting={weighting} />
       </div>
       {menu !== 'closed' && (
@@ -175,14 +181,14 @@ function Workspace(): React.JSX.Element {
                   </select>
                 </label>
                 <label>
-                  Literal prediction
+                  Letter prediction
                   <select
                     value={weighting}
                     onChange={(event) =>
                       configure(() => setWeighting(event.target.value as typeof weighting))
                     }
                   >
-                    <option value="ppm">PPM</option>
+                    <option value="ppm">PPM (trained initials)</option>
                     <option value="uniform">Uniform</option>
                   </select>
                 </label>

@@ -1,0 +1,43 @@
+{
+  "version": "initials-ppm-offline-v1",
+  "tokenizer": "english-initials-v1",
+  "estimator": {
+    "alpha": 0.49,
+    "beta": 0.77,
+    "exclusion": false
+  },
+  "histories": [
+    2,
+    4,
+    6,
+    8,
+    10
+  ],
+  "aacWeights": [
+    0,
+    0.5,
+    1
+  ],
+  "floors": [
+    0.05,
+    0.1,
+    0.2
+  ],
+  "selection": "equal-source unseen-text bits; within 0.01 of minimum prefer short history, single source, larger floor, AAC",
+  "novelty": "union of AAC and Turk training text keys, identical records for every candidate",
+  "bootstrap": {
+    "seed": 99539628,
+    "resamples": 2000,
+    "units": "AAC messages, whole Turk dialogues; COMM2 messages (scenario metadata unavailable)"
+  },
+  "devGate": {
+    "improvementBits": 0.1,
+    "lowerCiAbove": 0,
+    "maxSourceRegressionBits": 0.05
+  },
+  "finalGate": "COMM2 unseen text beats uniform and unigram with CI>0; original sources regress <=0.05 bits",
+  "noAdaptation": true,
+  "noDevRefit": true,
+  "scope": "offline model only; synthetic engine, Electron, and gaze gates deferred until separately authorized integration",
+  "sources": "original Turk TSV; repeats retained; current pages say CC BY 4.0, old Turk/COMM2 READMEs say BY-ND; redistribution unresolved"
+}

@@ -107,7 +107,7 @@ describe('shared composition', () => {
     state = reducer(state, { type: 'input', text: 'I want a coffee!' })
     state = reducer(state, { type: 'select-span', range: { start: 9, end: 15 } })
     const refined = await suggest(state, 'refinement')
-    expect(refined.candidates[1].text).toBe('I want a tea!')
+    expect(refined.candidates[1].text).toBe('I want a cocoa!')
     state = reducer(state, { type: 'input', text: 'I want a co' })
     const completed = await suggest(state, 'completion')
     expect(completed.candidates.map((candidate) => candidate.text)).toEqual([
@@ -231,4 +231,82 @@ it('preserves partial keywords across typing, rejects incompatible results, and 
   state = reducer(state, { type: 'input', text: 'c' })
   state = reducer(state, { type: 'use-initial' })
   expect(entrySeed(state)).toBe('iwac')
+})
+
+it('translates upstream FillMask selection without accepting a candidate', async () => {
+  let state = await suggest(example())
+  state = reducer(state, { type: 'edit-candidate', id: state.candidates[0].id })
+  expect(state.draft).toBe('')
+  expect(state.phrase).toBe('I want a coffee')
+  state = reducer(state, { type: 'select-span', range: { start: 9, end: 15 } })
+  expect(state.request).toMatchObject({
+    purpose: 'refinement',
+    draft: 'I want a coffee',
+    target: { start: 9, end: 15 }
+  })
+  const result = await new DemoPhrasePredictor('normal', 0).predict(
+    state.request!,
+    new AbortController().signal
+  )
+  state = reducer(state, { type: 'result', result })
+  expect(state.candidates.every((candidate) => candidate.replacement.startsWith('c'))).toBe(true)
+  state = reducer(state, { type: 'accept', id: state.candidates[1].id })
+  expect(state.draft).toBe('')
+  expect(state.phrase).toBe('I want a cocoa')
+  expect(
+    reducer(state, { type: 'back' })
+      .tokens.map((token) => token.value)
+      .join('')
+  ).toBe('iwac')
+  expect(reducer(state, { type: 'use-phrase' }).draft).toBe('I want a cocoa')
+})
+
+it('ports the upstream a / br / c partial keyword example and can cancel it', () => {
+  let state = reducer(initialState(), { type: 'example', initials: 'abc' })
+  state = reducer(state, { type: 'open-keywords' })
+  state = reducer(state, { type: 'select-token', id: 'initial-1' })
+  state = reducer(state, { type: 'input', text: 'br' })
+  state = reducer(state, { type: 'predict', purpose: 'expansion', id: 'upstream-prefix' })
+  expect(state.request!.tokens.map(({ kind, value }) => ({ kind, value }))).toEqual([
+    { kind: 'initial', value: 'a' },
+    { kind: 'prefix', value: 'br' },
+    { kind: 'initial', value: 'c' }
+  ])
+  const canceled = reducer(state, { type: 'cancel-edit' })
+  expect(canceled.tokens[1]).toMatchObject({ kind: 'initial', value: 'b' })
+  state = reducer(state, { type: 'select-token', id: 'initial-2' })
+  expect(state.tokens[1]).toMatchObject({ kind: 'prefix', value: 'br' })
+})
+
+it('rejects a FillMask replacement with the wrong initial and preserves punctuation', () => {
+  const state = reducer(initialState(), { type: 'input', text: 'i' })
+  const request: PredictionRequest = {
+    ...requestFor(state),
+    purpose: 'refinement',
+    draft: 'I feel great!',
+    target: { start: 7, end: 12 }
+  }
+  const result = validateResult(request, {
+    requestId: request.id,
+    revision: request.revision,
+    purpose: 'refinement',
+    provider: 'demo',
+    status: 'success',
+    candidates: [{ replacement: 'sad' }, { replacement: 'good' }]
+  })
+  expect(result.status).toBe('success')
+  if (result.status === 'success')
+    expect(result.candidates.map((candidate) => candidate.text)).toEqual(['I feel good!'])
+})
+
+it('keeps Delete inside an unaccepted phrase until explicit acceptance', async () => {
+  let state = reducer(initialState(), { type: 'mode', mode: 'literal' })
+  state = reducer(state, { type: 'input', text: 'Keep this message.' })
+  state = await suggest(reducer(state, { type: 'example', initials: 'iwac' }))
+  state = reducer(state, { type: 'edit-candidate', id: state.candidates[0].id })
+  state = reducer(state, { type: 'backspace' })
+  expect(state.phrase).toBe('Keep this message. I want a coffe')
+  expect(state.draft).toBe('Keep this message.')
+  expect(reducer(state, { type: 'undo' }).phrase).toBe('Keep this message. I want a coffee')
+  expect(reducer(state, { type: 'back' }).draft).toBe('Keep this message.')
 })

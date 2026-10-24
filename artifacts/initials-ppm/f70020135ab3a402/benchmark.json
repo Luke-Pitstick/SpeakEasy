@@ -1,0 +1,17 @@
+{
+  "bytes": 328366,
+  "contexts": 606,
+  "parseAndValidateMs": 2.0008750000001783,
+  "heapIncreaseBytes": 412040,
+  "gcAvailable": true,
+  "coldLookupMs": 0.0027500000001055014,
+  "warmLookupP50Ms": 0.00012500000002546585,
+  "warmLookupP95Ms": 0.00020799999992959783,
+  "warmLookupP99Ms": 0.0002500000000509317,
+  "lookupSamples": 50000,
+  "node": "v24.22.1",
+  "platform": "darwin",
+  "arch": "arm64",
+  "cpu": "Apple M1 Pro",
+  "note": "Node offline lookup benchmark; no renderer, sample-to-feedback, or gaze measurement"
+}

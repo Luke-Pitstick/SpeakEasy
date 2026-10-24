@@ -1,320 +1,352 @@
-// React translation of SpeakFaster's abbreviation, selection and word refinement
-// flows. MIT, TeamGleason. See docs/source-manifest.md for the source mapping.
+// Behavioral translation of SpeakFaster input-bar, input-bar-chip, abbreviation,
+// and abbreviation-refinement (MIT, TeamGleason). See docs/speakfaster-translation.md.
+import { useState } from 'react'
 import type { DemoScenario } from '../../../../shared/prediction'
 import { useComposition, useCompositionDispatch } from '../../composition/state'
-import { entrySeed } from '../../composition/model'
+import { entryText } from '../../composition/model'
 import { ActionButton } from '../../interaction/controls'
 import { usePredictions } from '../../prediction/usePredictions'
 
-export function SpeakFasterPanel({
-  scenario,
-  editInitials,
-  closeInitials,
-  openInitials
-}: {
-  scenario: DemoScenario
-  editInitials: boolean
-  closeInitials: () => void
-  openInitials: () => void
-}): React.JSX.Element {
+export function SpeakFasterPanel({ scenario }: { scenario: DemoScenario }): React.JSX.Element {
   const state = useComposition()
   const dispatch = useCompositionDispatch()
   const { request, waiting } = usePredictions(scenario)
-  const editing = state.mode === 'keyword' || state.mode === 'replacement'
-  const version = `${state.revision}:${state.request?.id ?? ''}:${state.paused}`
-  const correction = !!state.selection && !state.request && !editing
-  const words = [...state.draft.matchAll(/[\p{L}\p{N}]+(?:['’-][\p{L}\p{N}]+)*/gu)]
-  let previousEnd = 0
-  const draftWords = words.map((word) => {
-    const start = word.index
-    const prefix = state.draft.slice(previousEnd, start)
-    previousEnd = start + word[0].length
-    return (
-      <span key={`${start}:${word[0]}`}>
-        {prefix}
-        <ActionButton
-          className="word-button"
-          identity={`word-${start}-${version}`}
-          selected={state.selection?.start === start}
-          disabled={editing}
-          onAction={() =>
-            dispatch({ type: 'select-span', range: { start, end: start + word[0].length } })
-          }
-        >
-          {word[0]}
-        </ActionButton>
-      </span>
-    )
-  })
-  const primary = (): void => {
-    if (editing) {
-      dispatch({ type: 'done' })
-      closeInitials()
-    } else if (correction) dispatch({ type: 'cancel-edit' })
-    else if (state.status === 'loading') dispatch({ type: 'dismiss' })
-    else {
-      closeInitials()
-      request(state.mode === 'initials' ? 'expansion' : 'completion')
-    }
+  const [page, setPage] = useState(0)
+  const version = `${state.revision}:${state.request?.id ?? ''}:${state.paused}:${state.editor}`
+  const keyword = state.editor === 'keywords'
+  const phrase = state.phrase
+  const spelling = state.mode === 'keyword' || state.mode === 'replacement'
+  const tokens = keyword
+    ? state.tokens.map((token) => ({
+        id: token.id,
+        text: token.value,
+        start: 0,
+        end: 0,
+        kind: token.kind
+      }))
+    : [...(phrase ?? '').matchAll(/[\p{L}\p{N}]+(?:['’-][\p{L}\p{N}]+)*/gu)].map((word) => ({
+        id: `word-${word.index}`,
+        text: word[0],
+        start: word.index,
+        end: word.index + word[0].length,
+        kind: 'word'
+      }))
+  const lastPage = Math.max(0, Math.ceil(tokens.length / 6) - 1)
+  const activePage = Math.min(page, lastPage)
+  const openKeywords = (): void => {
+    setPage(0)
+    dispatch({ type: 'open-keywords' })
   }
+  const entryLabel = keyword
+    ? 'Spell a keyword'
+    : phrase !== null
+      ? 'Edit phrase'
+      : state.mode === 'initials'
+        ? 'Initials'
+        : 'Exact text'
+  const instruction = keyword
+    ? state.selectedToken
+      ? 'Dasher writes into the highlighted chip. Expand uses it as a word prefix; Lock word keeps the exact word.'
+      : 'Choose an initial to spell that word with Dasher.'
+    : phrase !== null
+      ? state.selection
+        ? state.mode === 'replacement'
+          ? 'Dasher replaces the highlighted word. Use word keeps your spelling; Cancel word restores it.'
+          : 'Choose a same-initial replacement below, or Spell word with Dasher.'
+        : 'Choose a word to change. Use phrase accepts this version into your message.'
+      : 'Enter with Dasher below. Spell opens the abbreviation as editable chips.'
+
   return (
-    <section
-      className="speakfaster-panel"
-      aria-label="SpeakFaster phrase composition"
-      onPointerEnter={() => {
-        if (!state.paused)
-          dispatch({ type: 'pause', notice: 'Paused while you review your words.' })
-      }}
-    >
+    <section className="speakfaster-panel" aria-label="SpeakFaster phrase composition">
       <div className="draft-line">
         <span className="field-label">Message</span>
         <div className="draft-text" aria-label="Accepted draft">
-          {state.draft ? (
-            <>
-              {draftWords}
-              {state.draft.slice(previousEnd)}
-            </>
-          ) : (
-            <span className="placeholder">Your message</span>
-          )}
-        </div>
-      </div>
-      <div className="entry-row">
-        <div className="entry-field">
-          <label className="field-label" htmlFor="entry-input">
-            {state.mode === 'initials'
-              ? 'Initials'
-              : state.mode === 'keyword'
-                ? 'Spell word'
-                : state.mode === 'replacement'
-                  ? 'Replace word'
-                  : 'Exact text'}
-          </label>
-          <input
-            id="entry-input"
-            value={entrySeed(state)}
-            placeholder={
-              state.mode === 'initials' ? 'Enter the first letter of each word' : 'Spell your words'
-            }
-            autoComplete="off"
-            spellCheck={false}
-            maxLength={state.mode === 'initials' ? 24 : 500}
-            aria-describedby={editing ? 'edit-help' : undefined}
-            aria-invalid={!!state.validationError}
-            onFocus={() => dispatch({ type: 'pause' })}
-            onChange={(event) => dispatch({ type: 'input', text: event.target.value })}
-            onKeyDown={(event) => {
-              if (event.key === 'Enter') primary()
-            }}
-          />
+          {state.draft || <span className="placeholder">Your message</span>}
         </div>
         <ActionButton
-          className="primary entry-action"
-          identity={`expand-${version}`}
-          disabled={
-            !editing &&
-            !correction &&
-            !editInitials &&
-            state.status !== 'loading' &&
-            (state.mode === 'initials' ? !state.tokens.length : !state.draft)
-          }
-          onAction={primary}
+          identity={`edit-draft-${version}`}
+          disabled={!state.draft || phrase !== null}
+          onAction={() => {
+            setPage(0)
+            dispatch({ type: 'edit-draft' })
+          }}
         >
-          {editing
-            ? 'Use word'
-            : correction
-              ? 'Keep word'
-              : state.status === 'loading'
-                ? 'Cancel'
-                : state.mode === 'initials'
-                  ? 'Expand'
-                  : 'Complete'}
+          Edit message
         </ActionButton>
       </div>
-      {state.paused && !editing && !correction && (
-        <div className="phrase-tools" aria-label="Phrase editing">
-          <ActionButton
-            identity={`spell-keyword-${version}`}
-            disabled={!state.tokens.length}
-            onAction={() => {
-              dispatch({ type: 'mode', mode: 'initials' })
-              openInitials()
-            }}
-          >
-            Spell a keyword
-          </ActionButton>
-          {editInitials && (
-            <ActionButton identity={`close-keywords-${version}`} onAction={closeInitials}>
-              Show phrases
-            </ActionButton>
-          )}
-          {!!state.branches.length && (
-            <ActionButton
-              identity={`previous-phrase-${version}`}
-              onAction={() => {
-                dispatch({ type: 'back' })
-                closeInitials()
-              }}
-            >
-              Previous phrase
-            </ActionButton>
-          )}
-        </div>
-      )}
-      <div
-        className="choice-area"
-        aria-label="Phrase suggestions"
-        aria-busy={state.status === 'loading'}
-      >
-        {editing ? (
-          <div className="context-actions">
-            <p id="edit-help">
-              {state.mode === 'keyword'
-                ? `Word ${state.tokens.findIndex((token) => token.id === state.selectedToken) + 1}: spell a full word or a prefix, then expand again.`
-                : `Replace “${state.draft.slice(state.selection!.start, state.selection!.end)}”. The rest of your message stays the same.`}{' '}
-              Type above or use Dasher below.
-            </p>
-            {state.mode === 'keyword' && (
-              <>
-                <ActionButton
-                  identity={`use-prefix-${version}`}
-                  onAction={() => {
-                    dispatch({ type: 'use-prefix' })
-                  }}
-                >
-                  Use as prefix
-                </ActionButton>
-                <ActionButton
-                  identity={`use-initial-${version}`}
-                  onAction={() => {
-                    dispatch({ type: 'use-initial' })
-                    closeInitials()
-                  }}
-                >
-                  Use as initial
-                </ActionButton>
-              </>
+      <div className="composition-bar" aria-label={entryLabel}>
+        <span className="field-label">{entryLabel}</span>
+        {state.editor === 'entry' ? (
+          <output className="entry-display" aria-label="Dasher text">
+            {entryText(state) || (
+              <span className="placeholder">
+                Click in Dasher or dwell on Start writing, then steer through letters
+              </span>
             )}
-            <ActionButton
-              identity={`cancel-edit-${version}`}
-              onAction={() => dispatch({ type: 'cancel-edit' })}
-            >
-              Cancel edit
-            </ActionButton>
-          </div>
-        ) : correction ? (
-          <div className="context-actions">
-            <p>Change “{state.draft.slice(state.selection!.start, state.selection!.end)}”</p>
-            <ActionButton
-              identity={`spell-${version}`}
-              onAction={() => dispatch({ type: 'spell' })}
-            >
-              Spell a replacement
-            </ActionButton>
-            <ActionButton identity={`refine-${version}`} onAction={() => request('refinement')}>
-              Suggest a replacement
-            </ActionButton>
-          </div>
-        ) : editInitials ? (
-          <div className="initial-editor">
-            <p>
-              Select a word position to spell a keyword or prefix. Other initials stay in place.
-            </p>
-            <div className="token-row">
-              {state.tokens.map((token, index) => (
+          </output>
+        ) : (
+          <div className="word-chips" aria-label="Editable word positions">
+            {tokens.slice(activePage * 6, activePage * 6 + 6).map((token, index) => {
+              const selected = keyword
+                ? state.selectedToken === token.id
+                : state.selection?.start === token.start
+              const entered = selected && spelling
+              return (
                 <ActionButton
                   key={token.id}
-                  className="token-chip"
-                  identity={`token-${token.id}-${version}`}
-                  selected={state.selectedToken === token.id}
-                  onAction={() => {
-                    dispatch({ type: 'select-token', id: token.id })
-                    dispatch({ type: 'spell' })
-                  }}
+                  className="word-chip"
+                  identity={`chip-${token.id}-${version}`}
+                  selected={selected}
+                  disabled={state.mode === 'replacement' || !state.paused}
+                  onAction={() =>
+                    keyword
+                      ? dispatch({ type: 'select-token', id: token.id })
+                      : dispatch({
+                          type: 'select-span',
+                          range: { start: token.start, end: token.end }
+                        })
+                  }
                 >
-                  <span className="token-position">Word {index + 1}</span> {token.value}
-                  {token.kind === 'prefix' ? '…' : ''}{' '}
+                  <span className="token-position">Word {activePage * 6 + index + 1}</span>{' '}
+                  <span className="chip-text">
+                    {entered ? state.buffer || token.text : token.text}
+                    {!entered && token.kind === 'prefix' ? '…' : ''}
+                  </span>{' '}
                   <span className="token-kind">
-                    {token.kind === 'word'
-                      ? 'Full word'
-                      : token.kind === 'prefix'
-                        ? 'Prefix'
-                        : 'Initial'}
+                    {entered
+                      ? 'Dasher writes here'
+                      : keyword
+                        ? token.kind === 'word'
+                          ? 'Locked word'
+                          : token.kind === 'prefix'
+                            ? 'Prefix'
+                            : 'Initial'
+                        : selected
+                          ? 'Selected'
+                          : 'Change word'}
                   </span>
                 </ActionButton>
-              ))}
-            </div>
-          </div>
-        ) : state.candidates.length ? (
-          <div className="candidate-list">
-            {[0, 1, 2, 3].map((index) => {
-              const candidate = state.candidates[index]
-              return (
-                <div className="candidate-slot" key={candidate?.id ?? `empty-${index}`}>
-                  {candidate && (
-                    <ActionButton
-                      className="candidate"
-                      identity={candidate.id}
-                      onAction={() => dispatch({ type: 'accept', id: candidate.id })}
-                    >
-                      {candidate.text}
-                    </ActionButton>
-                  )}
-                </div>
               )
             })}
           </div>
-        ) : (
-          <div className="empty-choices">
-            <p>
-              {state.status === 'loading'
-                ? 'Finding phrases…'
-                : state.status === 'error'
-                  ? 'Suggestions unavailable'
-                  : state.status === 'empty'
-                    ? 'No matching demo phrases'
-                    : state.draft
-                      ? 'Select a word above to change it.'
-                      : 'Enter initials, then choose a phrase.'}
-            </p>
-          </div>
         )}
       </div>
+      <div className="phrase-instructions" aria-live="polite">
+        {instruction}
+      </div>
+      {state.paused && (
+        <div className="phrase-tools" aria-label="Phrase editing">
+          {state.editor !== 'entry' && lastPage > 0 && (
+            <>
+              <ActionButton
+                identity={`previous-words-${version}-${page}`}
+                disabled={activePage === 0}
+                onAction={() => setPage(activePage - 1)}
+              >
+                Previous words
+              </ActionButton>
+              <ActionButton
+                identity={`next-words-${version}-${page}`}
+                disabled={activePage === lastPage}
+                onAction={() => setPage(activePage + 1)}
+              >
+                Next words
+              </ActionButton>
+            </>
+          )}
+          {phrase !== null ? (
+            <>
+              {state.selection && state.mode !== 'replacement' && (
+                <ActionButton
+                  identity={`spell-word-${version}`}
+                  onAction={() => dispatch({ type: 'spell' })}
+                >
+                  Spell word
+                </ActionButton>
+              )}
+              {state.mode === 'replacement' && (
+                <>
+                  <ActionButton
+                    identity={`use-word-${version}`}
+                    disabled={!state.buffer.trim()}
+                    onAction={() => dispatch({ type: 'done' })}
+                  >
+                    Use word
+                  </ActionButton>
+                  <ActionButton
+                    identity={`cancel-word-${version}`}
+                    onAction={() => dispatch({ type: 'cancel-edit' })}
+                  >
+                    Cancel word
+                  </ActionButton>
+                </>
+              )}
+              <ActionButton
+                className="primary"
+                identity={`use-phrase-${version}`}
+                disabled={state.mode === 'replacement'}
+                onAction={() => dispatch({ type: 'use-phrase' })}
+              >
+                Use phrase
+              </ActionButton>
+              <ActionButton
+                identity={`back-${version}`}
+                onAction={() => {
+                  setPage(0)
+                  dispatch({ type: 'back' })
+                }}
+              >
+                Back
+              </ActionButton>
+            </>
+          ) : (
+            <>
+              <ActionButton
+                className="primary"
+                identity={`expand-${version}`}
+                disabled={state.mode === 'literal' ? !state.draft : !state.tokens.length}
+                onAction={() => request(state.mode === 'literal' ? 'completion' : 'expansion')}
+              >
+                {state.mode === 'literal' ? 'Complete' : 'Expand'}
+              </ActionButton>
+              {!keyword && (
+                <ActionButton
+                  identity={`spell-${version}`}
+                  disabled={!state.tokens.length}
+                  onAction={openKeywords}
+                >
+                  Spell
+                </ActionButton>
+              )}
+              {state.mode === 'keyword' && (
+                <>
+                  <ActionButton
+                    identity={`lock-${version}`}
+                    disabled={!state.buffer.trim()}
+                    onAction={() => dispatch({ type: 'done' })}
+                  >
+                    Lock word
+                  </ActionButton>
+                  <ActionButton
+                    identity={`initial-${version}`}
+                    disabled={!/^[A-Za-z]$/.test(state.buffer.trim())}
+                    onAction={() => dispatch({ type: 'use-initial' })}
+                  >
+                    Use initial
+                  </ActionButton>
+                  <ActionButton
+                    identity={`cancel-word-${version}`}
+                    onAction={() => dispatch({ type: 'cancel-edit' })}
+                  >
+                    Cancel word
+                  </ActionButton>
+                </>
+              )}
+              {keyword && (
+                <ActionButton
+                  identity={`continue-${version}`}
+                  onAction={() => {
+                    dispatch({ type: 'keep-entering' })
+                  }}
+                >
+                  Keep entering
+                </ActionButton>
+              )}
+              {!keyword && !!state.branches.length && (
+                <ActionButton
+                  identity={`previous-${version}`}
+                  onAction={() => dispatch({ type: 'back' })}
+                >
+                  Previous phrase
+                </ActionButton>
+              )}
+            </>
+          )}
+        </div>
+      )}
+      {state.paused && (
+        <div
+          className="choice-area"
+          aria-label="Phrase suggestions"
+          aria-busy={state.status === 'loading'}
+        >
+          {state.candidates.length ? (
+            <div className="candidate-list">
+              {[0, 1, 2, 3].map((index) => {
+                const candidate = state.candidates[index]
+                return (
+                  <div className="candidate-slot" key={candidate?.id ?? `empty-${index}`}>
+                    {candidate &&
+                      (state.request?.purpose === 'refinement' ? (
+                        <ActionButton
+                          className="candidate"
+                          identity={candidate.id}
+                          onAction={() => dispatch({ type: 'accept', id: candidate.id })}
+                        >
+                          {candidate.replacement}
+                        </ActionButton>
+                      ) : (
+                        <div className="candidate-card">
+                          <span className="candidate-text">{candidate.text}</span>
+                          <ActionButton
+                            identity={`edit-${candidate.id}`}
+                            onAction={() => {
+                              setPage(0)
+                              dispatch({ type: 'edit-candidate', id: candidate.id })
+                            }}
+                          >
+                            Edit {index + 1}
+                          </ActionButton>
+                          <ActionButton
+                            identity={`use-${candidate.id}`}
+                            onAction={() => dispatch({ type: 'accept', id: candidate.id })}
+                          >
+                            Use {index + 1}
+                          </ActionButton>
+                        </div>
+                      ))}
+                  </div>
+                )
+              })}
+            </div>
+          ) : (
+            <p className="empty-choices">
+              {state.status === 'loading'
+                ? 'Finding suggestions…'
+                : state.status === 'error' || state.status === 'empty'
+                  ? state.notice
+                  : phrase !== null
+                    ? 'Your edited phrase is a suggestion until you choose Use phrase.'
+                    : 'Offline demo suggestions appear here.'}
+            </p>
+          )}
+        </div>
+      )}
       <div className="suggestion-footer">
         <p
           role="status"
-          className={`status-line ${state.status === 'error' || state.validationError ? 'error' : ''}`}
+          className={`status-line ${state.validationError || state.status === 'error' ? 'error' : ''}`}
         >
           {state.validationError ??
             (waiting
-              ? 'Move off the current dwell target to review suggestions.'
-              : state.status === 'error' || state.status === 'empty'
-                ? state.notice
-                : state.tokens.some((token) => token.kind !== 'initial')
-                  ? `Locked: ${state.tokens
-                      .filter((token) => token.kind !== 'initial')
-                      .map((token) => token.value + (token.kind === 'prefix' ? '…' : ''))
-                      .join(', ')}`
-                  : '')}
+              ? 'Move off the dwell target to review suggestions.'
+              : phrase !== null
+                ? `Editing: ${phrase}`
+                : state.notice)}
         </p>
-        {state.request && state.status !== 'loading' && (
+        {state.paused && state.request && (
           <ActionButton
-            className="reject-action"
-            identity={`reject-${version}`}
+            identity={`dismiss-${version}`}
             onAction={() => {
-              dispatch({ type: 'dismiss' })
-              if (state.request?.purpose === 'expansion') {
-                dispatch({ type: 'mode', mode: 'initials' })
-                openInitials()
-              }
+              if (state.request?.purpose === 'expansion') openKeywords()
+              else dispatch({ type: 'dismiss' })
             }}
           >
-            None of these
+            {state.status === 'loading' ? 'Cancel' : 'None of these'}
           </ActionButton>
         )}
-        {(state.status === 'error' || state.status === 'empty') && (
+        {state.paused && (state.status === 'error' || state.status === 'empty') && (
           <ActionButton
-            className="reject-action"
             identity={`retry-${version}`}
             onAction={() => request(state.request?.purpose ?? 'expansion')}
           >

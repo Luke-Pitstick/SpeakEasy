@@ -1,6 +1,16 @@
 // Adapted from dasher-web Limits and UserInterface's target-right gradients.
 // Height controls the leading edge; every box continues to the viewport right.
 export class Geometry {
+  // Upstream Limits separates preparing a branch from painting its rectangle.
+  get spawnThreshold(): number {
+    return Math.min(4, this.drawThresholdRect)
+  }
+  get drawThresholdRect(): number {
+    // Preserve the full initial alphabet even in a short panel. On normal
+    // desktop panels this is the upstream 10 CSS-pixel drawing cutoff.
+    return Math.min(10, (this.height * 0.75) / 26)
+  }
+
   constructor(
     readonly width: number,
     readonly height: number
@@ -18,13 +28,14 @@ export class Geometry {
     return this.height / 2
   }
   get solverRight(): number {
-    return this.width / 3
+    return this.width * 0.42
   }
   private get gradients(): { left: number; height: number }[] {
     return [
       { left: -this.width / 3, height: this.height },
       { left: -this.width / 6, height: this.height / 2 },
-      { left: this.width / 5, height: this.height * 0.05 },
+      { left: 0, height: this.height * 0.3 },
+      { left: this.width * 0.3, height: this.height * 0.05 },
       { left: this.solverRight, height: this.height * 0.01 }
     ]
   }

@@ -1,0 +1,65 @@
+[
+  {
+    "id": "aac-train",
+    "url": "https://aactext.org/imagine/aac_comm/sent_train_aac.txt",
+    "sha256": "ddc0ad61652cec5f4a8b76f1dd63f92fa9d5c1197e0a65f7a13d71873aed91bd",
+    "bytes": 127606,
+    "acquiredAt": "2026-10-24T03:02:50.928Z"
+  },
+  {
+    "id": "aac-dev",
+    "url": "https://aactext.org/imagine/aac_comm/sent_dev_aac.txt",
+    "sha256": "ea15844416675800787f13767b3ab94d982a656094ee1865692af7947e8ad524",
+    "bytes": 14946,
+    "acquiredAt": "2026-10-24T03:02:50.930Z"
+  },
+  {
+    "id": "turk",
+    "url": "https://aactext.org/turk/turk/turk-dialogues.txt",
+    "sha256": "7bd80a8a8fe1e3ee91158072b4adc198db691f96196b27acf28ea8335507dafb",
+    "bytes": 380555,
+    "acquiredAt": "2026-10-24T03:02:50.931Z"
+  },
+  {
+    "id": "aac-page",
+    "url": "https://aactext.org/imagine/",
+    "sha256": "d803db680180170cbdb8f6dafd8202ba29198ce9399f7f16b9ae802406e958d0",
+    "bytes": 7737,
+    "acquiredAt": "2026-10-24T03:02:51.271Z"
+  },
+  {
+    "id": "turk-page",
+    "url": "https://aactext.org/turk/",
+    "sha256": "94500302ba36a20146383da9876bd478d7cb67c26bb692e60e6a226c3b8497e2",
+    "bytes": 2943,
+    "acquiredAt": "2026-10-24T03:02:51.417Z"
+  },
+  {
+    "id": "comm2-page",
+    "url": "https://aactext.org/comm2/",
+    "sha256": "f96586f181c3ad4536d34711cee1bc26b46f4128c4d8c16faf3f10c6ef5616f8",
+    "bytes": 3315,
+    "acquiredAt": "2026-10-24T03:02:51.602Z"
+  },
+  {
+    "id": "aac-readme",
+    "url": "https://aactext.org/imagine/aac_comm/readme.txt",
+    "sha256": "556d1e4e136cf2f6b16296880df86301c260b669ea2eb4566ca164cdadc0f850",
+    "bytes": 2309,
+    "acquiredAt": "2026-10-24T03:02:51.766Z"
+  },
+  {
+    "id": "turk-readme",
+    "url": "https://aactext.org/turk/turk/readme.txt",
+    "sha256": "3527c76f61d7d73a598d994274cc23e712c0ed7400a63e100ff357fd6c98770a",
+    "bytes": 2806,
+    "acquiredAt": "2026-10-24T03:02:51.923Z"
+  },
+  {
+    "id": "comm2-readme",
+    "url": "https://aactext.org/comm2/comm2/readme.txt",
+    "sha256": "b5d37e439046b83dc326ab5959d4bdf178d36ef54d46bebb6288e110836044a9",
+    "bytes": 3951,
+    "acquiredAt": "2026-10-24T03:02:52.133Z"
+  }
+]

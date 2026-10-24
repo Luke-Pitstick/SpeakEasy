@@ -50,27 +50,20 @@ export function usePredictions(scenario: DemoScenario): {
   }, [staged, busy, dispatch])
 
   const request = (purpose: PredictionPurpose): void => {
-    if (
-      (purpose === 'expansion' && !state.tokens.length) ||
-      (purpose === 'refinement' && !state.selection)
-    )
-      return
-    const target =
-      purpose === 'refinement'
-        ? state.selection!
-        : { start: state.draft.length, end: state.draft.length }
-    dispatch({
-      type: 'request',
-      request: {
-        id: `prediction-${++counter.current}-${state.revision}`,
-        revision: state.revision,
-        purpose,
-        draft: state.draft,
-        tokens: state.tokens.map((token) => ({ ...token })),
-        target
-      }
-    })
+    dispatch({ type: 'predict', purpose, id: `prediction-${++counter.current}-${state.revision}` })
   }
+  const wasWriting = useRef(false)
+  useEffect(() => {
+    const justPaused = wasWriting.current && state.paused
+    wasWriting.current = !state.paused
+    if (
+      justPaused &&
+      state.session.sequence >= 0 &&
+      (state.mode === 'initials' || state.mode === 'keyword')
+    ) {
+      dispatch({ type: 'predict', purpose: 'expansion', id: `pause-${state.revision}` })
+    }
+  }, [state.paused, state.mode, state.revision, state.session.sequence, dispatch])
   return {
     request,
     waiting: !!staged && busy && staged.requestId === pending?.id && state.status === 'loading'

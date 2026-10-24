@@ -1,0 +1,16 @@
+[
+  {
+    "id": "aac-test",
+    "url": "https://aactext.org/imagine/aac_comm/sent_test_aac.txt",
+    "sha256": "e42988d0a8345bc05499ea49cd79a0bb2518f9670cf6431e51ad58e08114091b",
+    "bytes": 13795,
+    "acquiredAt": "2026-10-24T03:04:18.574Z"
+  },
+  {
+    "id": "comm2",
+    "url": "https://aactext.org/comm2/comm2/comm2.txt",
+    "sha256": "79f6540577c0ea477def5e3f4a0c20a1ead22c3f8b72e7ccf4366afcfd196572",
+    "bytes": 74885,
+    "acquiredAt": "2026-10-24T03:04:18.839Z"
+  }
+]

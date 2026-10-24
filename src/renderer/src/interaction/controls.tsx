@@ -2,7 +2,7 @@ import { InteractionContext, useInteraction } from './state'
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
 
 export function InteractionProvider({ children }: { children: ReactNode }): React.JSX.Element {
-  const [dwell, setDwell] = useState(false)
+  const [dwell, setDwell] = useState(true)
   const [duration, setDuration] = useState(1000)
   const [busy, setBusy] = useState(false)
   return (
@@ -94,7 +94,10 @@ export function ActionButton({
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') activated.current = false
       }}
-      onClick={activate}
+      onClick={(event) => {
+        if (event.detail > 0) activated.current = false
+        activate()
+      }}
     >
       <span className="action-content">{children}</span>
       <span className="dwell-progress" aria-hidden="true" />

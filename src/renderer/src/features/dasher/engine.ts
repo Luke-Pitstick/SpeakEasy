@@ -21,7 +21,7 @@ interface Choice {
 interface Ancestor {
   text: string
   selected: number
-  fractions: number[]
+  fractions: readonly number[]
   label: string
 }
 interface Box {
@@ -29,7 +29,7 @@ interface Box {
   text: string
   label: string
   choices: Choice[]
-  fractions: number[]
+  fractions: readonly number[]
   children: (Box | null)[]
   top: number
   height: number
@@ -59,11 +59,15 @@ export class DasherEngine {
     seed = '',
     literal = false,
     weighting: 'uniform' | 'ppm' = 'ppm',
-    private maxLength = literal ? 500 : 24
+    private maxLength = literal ? 500 : 24,
+    private readonly initialContext = ''
   ) {
     this.geometry = new Geometry(width, height)
     this.alphabet = literal ? LITERAL_ALPHABET : INITIAL_ALPHABET
-    this.predictor = new CharacterPredictor(this.alphabet, literal ? weighting : 'uniform')
+    this.predictor = new CharacterPredictor(
+      this.alphabet,
+      weighting === 'uniform' ? 'uniform' : literal ? 'ppm' : 'initials'
+    )
     this.output = seed
     // Store the character path for reversible seeding without enormous coordinates.
     let prefix = ''
@@ -83,22 +87,44 @@ export class DasherEngine {
       prefix += character
     }
     this.root = this.makeBox(seed, seed ? display([...seed].at(-1)!) : '')
-    this.root.height = height * 0.9
+    // A likely first initial can be much larger than a uniform letter. Keep
+    // every continuation ahead of the crosshair until the user steers into it.
+    this.root.height = Math.min(
+      height * 0.9,
+      (this.geometry.solveHeight(0) * 0.9) / Math.max(...this.root.fractions)
+    )
     this.root.top = -this.root.height / 2
     this.layout()
   }
 
   private makeBox(text: string, label: string): Box {
     const choices = this.alphabet.map((character) => ({ label: display(character), character }))
-    const weights = this.predictor.weights(text)
+    const weights = this.predictor.weights(this.initialContext + text)
     const mass = weights
     const total = mass.reduce((a, b) => a + b, 0)
+    let fractions = mass.map((weight) => weight / total)
+    if (this.alphabet === INITIAL_ALPHABET) {
+      // Reserve a visible interval for all 26 initials, then distribute the
+      // remaining space by prediction weight. Alphabet order never changes.
+      const largest = Math.max(...fractions)
+      const largestAllowed = (this.geometry.solveHeight(0) / this.geometry.height) * 0.9
+      const visibilityMix =
+        (this.alphabet.length * this.geometry.drawThresholdRect) / (this.geometry.height * 0.9)
+      const crosshairMix =
+        largest > largestAllowed
+          ? (largest - largestAllowed) / (largest - 1 / this.alphabet.length)
+          : 0
+      const uniformMix = Math.min(1, Math.max(visibilityMix, crosshairMix))
+      fractions = fractions.map(
+        (weight) => (1 - uniformMix) * weight + uniformMix / this.alphabet.length
+      )
+    }
     return {
       id: this.nextId++,
       text,
       label,
       choices,
-      fractions: mass.map((weight) => weight / total),
+      fractions: Object.freeze(fractions),
       children: choices.map(() => null),
       top: 0,
       height: 0,
@@ -114,7 +140,7 @@ export class DasherEngine {
       for (let i = 0; i < box.choices.length; i++) {
         const height = box.height * box.fractions[i]
         if (
-          height >= 2 &&
+          height >= this.geometry.spawnThreshold &&
           top < this.geometry.bottom &&
           top + height > this.geometry.top &&
           depth < 9 &&
@@ -188,6 +214,12 @@ export class DasherEngine {
         this.pointer.y + (this.root.top - this.pointer.y) * factor - this.pointer.y * 0.2 * dt
       this.root.height = rootHeight
     }
+    // There is no earlier branch to reveal outside the outer alphabet. Keep
+    // its edges reachable instead of panning the entire tree past the crosshair.
+    if (!this.ancestors.length) {
+      const margin = Math.min(this.geometry.height * 0.05, this.root.height / 2)
+      this.root.top = Math.max(margin - this.root.height, Math.min(-margin, this.root.top))
+    }
     this.layout()
     // Restore a trimmed ancestor when reversing exposes space around the root.
     const ancestor = this.ancestors.at(-1)
@@ -236,16 +268,17 @@ export class DasherEngine {
   regions(): Region[] {
     const result: Region[] = []
     const walk = (box: Box, depth: number): void => {
-      if (box.label)
-        result.push({
-          id: box.id,
-          label: box.label,
-          text: box.text,
-          left: box.left,
-          top: box.top,
-          height: box.height,
-          depth
-        })
+      // The empty root is the visible parent of the first alphabet. It follows
+      // the same camera transform as its letters, but contributes no character.
+      result.push({
+        id: box.id,
+        label: box.label,
+        text: box.text,
+        left: box.left,
+        top: box.top,
+        height: box.height,
+        depth
+      })
       for (const child of box.children) if (child) walk(child, depth + 1)
     }
     walk(this.root, 0)
