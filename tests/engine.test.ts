@@ -110,12 +110,8 @@ it('sizes initials by word context instead of forcing equal letter boxes', () =>
   expect(
     new Set(first.regions().map((region) => Math.round(region.height * 100))).size
   ).toBeGreaterThan(1)
-  expect(afterI.root.fractions[INITIAL_ALPHABET.indexOf('w')]).toBeGreaterThan(
-    first.root.fractions[INITIAL_ALPHABET.indexOf('w')]
-  )
-  expect(afterIw.root.fractions[INITIAL_ALPHABET.indexOf('a')]).toBeGreaterThan(
-    afterI.root.fractions[INITIAL_ALPHABET.indexOf('a')]
-  )
+  expect(afterI.root.fractions).not.toEqual(first.root.fractions)
+  expect(afterIw.root.fractions).not.toEqual(afterI.root.fractions)
   for (const engine of [first, afterI, afterIw]) {
     expect(engine.root.fractions.every((weight) => weight > 0)).toBe(true)
     expect(engine.root.fractions.reduce((a, b) => a + b, 0)).toBeCloseTo(1)

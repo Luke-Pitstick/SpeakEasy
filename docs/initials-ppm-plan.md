@@ -1,6 +1,6 @@
 # Word-initial PPM: training and validation plan
 
-Status: offline training and validation implemented, 2026-10-23. The [first frozen run](./initials-ppm-results.md) passes the development and held-out prediction gates; Dasher integration and gaze validation remain deferred. This supersedes the proposed fixed-order initials n-gram experiment. PPM predicts the next word initial from variable-length initial history; it does not expand initials into words.
+Status: offline training and local Dasher integration implemented, 2026-10-23. The [first frozen run](./initials-ppm-results.md) passes the development and held-out prediction gates; [integration checks](./initials-ppm-integration.md) cover stable regions, rare entry/reversal, and native mouse input. Gaze validation remains outstanding. This supersedes the proposed fixed-order initials n-gram experiment. PPM predicts the next word initial from variable-length initial history; it does not expand initials into words.
 
 ## Decision and scope
 
@@ -119,7 +119,7 @@ Treat the PRD's same-tracker improvement target as a provisional experiment targ
 
 ## Implementation deliverables and repeatable run
 
-The implemented offline commands use the existing Node/TypeScript tooling and tests; no ML framework or inference service is needed. See the [run instructions and results](./initials-ppm-results.md) for `npm run ppm -- prepare|train|test|report`. Acquisition/parsing, pure PPM/count training, and scoring/export are separate; the renderer adapter remains future work:
+The implemented offline commands use the existing Node/TypeScript tooling and tests; no ML framework or inference service is needed. See the [run instructions and results](./initials-ppm-results.md) for `npm run ppm -- prepare|train|test|report`. Acquisition/parsing, pure PPM/count training, scoring/export, and the [renderer adapter](./initials-ppm-integration.md) remain separate:
 
 1. **Prepare:** fetch pinned sources and validate schemas; produce manifests, split records, exclusion/overlap summaries, and token statistics. Prepare COMM2 only in the final-test stage.
 2. **Fit and validate:** train the declared candidates, score development data, and write a machine-readable metrics file plus selected configuration. Fail promotion if the declared gate fails.

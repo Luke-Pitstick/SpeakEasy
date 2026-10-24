@@ -4,3 +4,5 @@ pnpm-lock.yaml
 LICENSE.md
 tsconfig.json
 tsconfig.*.json
+artifacts/initials-ppm/
+src/renderer/src/features/dasher/initials-model.json

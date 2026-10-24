@@ -1,6 +1,6 @@
 # Initials PPM: first offline training run
 
-The frozen PPM passes the predeclared development and final prediction-quality gates. It is ready for a separate Dasher reachability experiment, not a claim of faster gaze entry. No renderer or engine consumes this model yet.
+The frozen PPM passes the predeclared development and final prediction-quality gates. These are the original offline results, not a claim of faster gaze entry. The subsequent [Dasher integration and reachability checks](./initials-ppm-integration.md) are documented separately.
 
 Run ID: `f70020135ab3a402`. Model SHA-256: `2780b90e230892ba92fd8c2c16053c8d61558595a1a92b2247b48ee02d5171ba`.
 
@@ -107,4 +107,4 @@ Keep the 10% floor for the first geometry/reachability check; do not retune it u
 
 The full repository test suite passed: **48 tests**, including nine new preparation/PPM/scoring tests. Lint, application and tool typechecks, and the production build passed. Core tests include parity against the existing jslm-derived estimator, frozen-export equivalence over seen/unseen/start contexts, message boundaries, unsupported-token resets, held-out membership, causal scoring, and deterministic paired bootstrap behavior.
 
-Current [AAC](https://aactext.org/imagine/), [Turk](https://aactext.org/turk/), and [COMM2](https://aactext.org/comm2/) source pages list CC BY 4.0, while the older packaged Turk/COMM2 READMEs list BY-ND. The local acquisition snapshots preserve that discrepancy; distribution of the derived artifact remains unresolved. No private user text was collected and the trained asset is not wired into or bundled with the renderer.
+Current [AAC](https://aactext.org/imagine/), [Turk](https://aactext.org/turk/), and [COMM2](https://aactext.org/comm2/) source pages list CC BY 4.0, while the older packaged Turk/COMM2 READMEs list BY-ND. The local acquisition snapshots preserve that discrepancy; public distribution of the derived artifact remains unresolved. No private user text was collected. This training run was offline; the later local renderer integration is recorded in the linked integration document.
