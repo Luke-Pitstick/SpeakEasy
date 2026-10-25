@@ -89,6 +89,7 @@ Use the upstream Angular UI as a behavioral reference and port the relevant inte
 The composition system must:
 
 - Expand initials and optional keywords into a small, diverse candidate set. Request up to six candidates from the selected model; keep their presentation stable and gaze-accessible.
+- Prioritize natural everyday AAC communication, including greetings and social check-ins initiated by the user. With absent or ambiguous context, favor familiar phrases over invented subjects merely to fill six slots; for example, `hhwyd?` should include “Hi, how was your day?” among the first alternatives when current constraints and context permit. Preserve the user’s full range of interests and agency rather than assuming disability implies medical or care-related topics.
 - Support constrained refinement of one selected word or span while keeping accepted text intact.
 - Allow related phrase branches with a visible way back and an undoable selection history.
 - Preserve entered initials, explicit wording, and locked spans. Mark incompatible candidates as invalid rather than quietly changing constraints.
