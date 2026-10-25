@@ -183,6 +183,14 @@ export function SpeakFasterPanel({
           )}
           {phrase !== null ? (
             <>
+              {state.selection && state.mode !== 'replacement' && state.status === 'idle' && (
+                <ActionButton
+                  identity={`find-replacements-${version}`}
+                  onAction={() => request('refinement')}
+                >
+                  Find replacements
+                </ActionButton>
+              )}
               {state.selection && state.mode !== 'replacement' && (
                 <ActionButton
                   identity={`spell-word-${version}`}
@@ -354,12 +362,16 @@ export function SpeakFasterPanel({
           ) : (
             <p className="empty-choices">
               {state.status === 'loading'
-                ? 'Finding suggestions…'
+                ? state.selection && !spelling
+                  ? 'Finding replacement words…'
+                  : 'Finding suggestions…'
                 : state.status === 'error' || state.status === 'empty'
                   ? state.notice
-                  : phrase !== null
-                    ? 'Your edited phrase is a preview until you speak it or lock the sentence.'
-                    : 'Gemini suggestions appear here. Enable Gemini and add context in Settings → Gemini.'}
+                  : state.selection && !spelling
+                    ? 'Choose Find replacements to generate word options, or Spell word to enter your own.'
+                    : phrase !== null
+                      ? 'Your edited phrase is a preview until you speak it or lock the sentence.'
+                      : 'Gemini suggestions appear here. Enable Gemini and add context in Settings → Gemini.'}
             </p>
           )}
         </div>
@@ -388,7 +400,9 @@ export function SpeakFasterPanel({
             (waiting
               ? 'Move off the dwell target to review suggestions.'
               : phrase !== null
-                ? 'Changes are a preview until you speak them or lock the sentence.'
+                ? state.selection && !spelling
+                  ? state.notice
+                  : 'Changes are a preview until you speak them or lock the sentence.'
                 : state.notice)}
         </p>
         {state.paused && state.request && (
@@ -405,7 +419,9 @@ export function SpeakFasterPanel({
         {state.paused && (state.status === 'error' || state.status === 'empty') && (
           <ActionButton
             identity={`retry-${version}`}
-            onAction={() => request(state.request?.purpose ?? 'expansion')}
+            onAction={() =>
+              request(state.selection ? 'refinement' : (state.request?.purpose ?? 'expansion'))
+            }
           >
             Retry
           </ActionButton>

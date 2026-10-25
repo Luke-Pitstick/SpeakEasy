@@ -13,6 +13,8 @@ import { PointerOverlay } from '../src/renderer/src/features/dasher/PointerOverl
 import { SvgRenderer } from '../src/renderer/src/features/dasher/SvgRenderer'
 import { Geometry } from '../src/renderer/src/features/dasher/geometry'
 import { DasherEngine } from '../src/renderer/src/features/dasher/engine'
+import { SpeakFasterPanel } from '../src/renderer/src/features/speakfaster/SpeakFasterPanel'
+import { useVoice } from '../src/renderer/src/features/voice/useVoice'
 
 beforeEach(() => {
   installGeminiMock()
@@ -350,6 +352,56 @@ function PredictionHarness(): React.JSX.Element {
     </>
   )
 }
+
+function WordOptionsHarness(): React.JSX.Element {
+  const dispatch = useCompositionDispatch()
+  const predictions = usePredictions()
+  const voice = useVoice()
+  return (
+    <>
+      <button
+        onClick={() => {
+          dispatch({ type: 'cloud', enabled: true })
+          dispatch({ type: 'mode', mode: 'literal' })
+          dispatch({ type: 'input', text: 'I want a coffee' })
+          dispatch({ type: 'edit-draft' })
+        }}
+      >
+        Prepare correction
+      </button>
+      <button onClick={() => dispatch({ type: 'memory-learned' })}>Memory learned</button>
+      <SpeakFasterPanel predictions={predictions} voice={voice} />
+    </>
+  )
+}
+
+it('offers word options before spelling and refreshes them after memory updates', async () => {
+  vi.useFakeTimers()
+  render(
+    <CompositionProvider>
+      <InteractionProvider>
+        <WordOptionsHarness />
+      </InteractionProvider>
+    </CompositionProvider>
+  )
+  await act(async () => {})
+  fireEvent.click(screen.getByText('Prepare correction'))
+  fireEvent.click(screen.getByRole('button', { name: 'Word 4 coffee Change word' }))
+  expect(screen.getByText('Finding replacement words…')).toBeTruthy()
+  expect(screen.getByRole('button', { name: 'Spell word' })).toBeTruthy()
+  await act(async () => vi.advanceTimersByTimeAsync(500))
+  expect(screen.getByRole('button', { name: 'cocoa', exact: true })).toBeTruthy()
+  fireEvent.click(screen.getByText('Memory learned'))
+  expect(screen.getByText('Finding replacement words…')).toBeTruthy()
+  await act(async () => vi.advanceTimersByTimeAsync(500))
+  expect(screen.getByRole('button', { name: 'cocoa', exact: true })).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'None of these' }))
+  fireEvent.click(screen.getByRole('button', { name: 'Find replacements' }))
+  await act(async () => vi.advanceTimersByTimeAsync(500))
+  expect(screen.getByRole('button', { name: 'cocoa', exact: true })).toBeTruthy()
+  fireEvent.click(screen.getByRole('button', { name: 'Spell word' }))
+  expect(screen.getByRole('button', { name: 'Cancel word' })).toBeTruthy()
+})
 
 it('does not let a late canceled response replace the current result staged behind dwell', async () => {
   const responses: { request: PredictionRequest; resolve: (result: PredictionResult) => void }[] =

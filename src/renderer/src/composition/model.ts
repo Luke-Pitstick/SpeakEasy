@@ -789,7 +789,8 @@ function reduceComposition(state: CompositionState, action: Action): Composition
       }
       if (action.purpose === 'expansion' && !wordTokens(next.tokens).length) return next
       if (action.purpose === 'refinement' && !next.selection) return next
-      const draft = next.phrase ?? next.draft
+      const draft =
+        action.purpose === 'expansion' && next.mode === 'literal' ? '' : (next.phrase ?? next.draft)
       return reducer(next, {
         type: 'request',
         request: {
@@ -1022,6 +1023,62 @@ export function reducer(state: CompositionState, action: Action): CompositionSta
         request: { ...next.request, conversationHistory: next.conversationArchive }
       }
   }
+  const replacedWord =
+    (action.type === 'done' && state.mode === 'replacement') ||
+    (action.type === 'accept' && state.request?.purpose === 'refinement')
+  if (replacedWord && state.selection && !next.validationError) {
+    const before = state.phrase ?? state.draft
+    const after = next.phrase ?? next.draft
+    const index = lexicalWords(before.slice(0, state.selection.start)).length
+    const replacement = after.slice(
+      state.selection.start,
+      after.length - (before.length - state.selection.end)
+    )
+    const words = [...replacement.matchAll(/[\p{L}\p{N}]+(?:['’-][\p{L}\p{N}]+)*/gu)]
+    const tokens =
+      wordTokens(state.tokens).length === lexicalWords(before).length
+        ? state.tokens
+        : initials(
+            lexicalWords(before)
+              .map((word) => word[0])
+              .join('') + (before.match(/[!?]$/)?.[0] ?? '')
+          )
+    let slot = 0
+    next = {
+      ...next,
+      tokens: tokens
+        .flatMap((token): AbbreviationToken[] => {
+          if (token.kind === 'punctuation' || slot++ !== index) return [token]
+          return words.map((word) => ({ ...token, kind: 'word', value: word[0] }))
+        })
+        .map((token, i) => ({ ...token, id: `initial-${i}` }))
+    }
+  }
+  if (
+    !next.validationError &&
+    next.cloudEnabled &&
+    (replacedWord || (action.type === 'done' && state.mode === 'keyword'))
+  ) {
+    // Regenerate the whole current sentence, retaining the edited preview until selection.
+    next = reducer(next, {
+      type: 'predict',
+      id: `correction-${next.revision}`,
+      purpose: 'expansion'
+    })
+  }
+  if (
+    next.selection &&
+    next.mode === 'literal' &&
+    next.cloudEnabled &&
+    (action.type === 'memory-learned' ||
+      action.type === 'memory-changed' ||
+      (action.type === 'cloud' && action.enabled))
+  )
+    next = reducer(next, {
+      type: 'predict',
+      purpose: 'refinement',
+      id: `replacement-${next.revision}`
+    })
   let workspace = next.workspace
   switch (action.type) {
     case 'spell':

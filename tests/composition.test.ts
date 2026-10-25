@@ -281,6 +281,134 @@ it('translates upstream FillMask selection without accepting a candidate', async
   expect(reducer(state, { type: 'use-phrase' }).draft).toBe('I want a cocoa')
 })
 
+it('regenerates full phrase options after a suggested correction and retains earlier locks', async () => {
+  let state = reducer(example(), { type: 'cloud', enabled: true })
+  state = reducer(state, { type: 'select-token', id: 'initial-1' })
+  state = reducer(state, { type: 'input', text: 'want' })
+  state = reducer(state, { type: 'done' })
+  expect(state.request?.tokens[1]).toMatchObject({ kind: 'word', value: 'want' })
+  state = await suggest(state)
+  state = reducer(state, { type: 'edit-candidate', id: state.candidates[0].id })
+  state = reducer(state, { type: 'select-span', range: { start: 9, end: 15 } })
+  const oldRequest = state.request!
+  const result = await new TestPhrasePredictor('normal', 0).predict(
+    oldRequest,
+    new AbortController().signal
+  )
+  state = reducer(state, { type: 'result', result })
+  state = reducer(state, { type: 'accept', id: state.candidates[0].id })
+  expect(state.phrase).toBe('I want a cocoa')
+  expect(state.draft).toBe('')
+  expect(state.status).toBe('loading')
+  expect(state.candidates).toEqual([])
+  expect(state.request).toMatchObject({
+    purpose: 'expansion',
+    draft: '',
+    revision: state.revision,
+    target: { start: 0, end: 0 }
+  })
+  expect(state.request?.tokens[1]).toMatchObject({ kind: 'word', value: 'want' })
+  expect(state.request?.tokens[3]).toMatchObject({ kind: 'word', value: 'cocoa' })
+  expect(reducer(state, { type: 'result', result })).toBe(state)
+  const retry = reducer(state, { type: 'predict', purpose: 'expansion', id: 'retry-correction' })
+  expect(retry.request?.draft).toBe('')
+  expect(retry.request?.tokens).toEqual(state.tokens)
+  const undone = reducer(state, { type: 'undo' })
+  expect(undone.phrase).toBe('I want a coffee')
+  expect(undone.tokens[3]).toMatchObject({ kind: 'initial', value: 'c' })
+  expect(undone.request).toBeNull()
+})
+
+it.each([false, true])(
+  'locks exact spelling and regenerates only with cloud enabled (%s)',
+  async (enabled) => {
+    let state = reducer(example(), { type: 'cloud', enabled })
+    state = await suggest(state)
+    state = reducer(state, { type: 'edit-candidate', id: state.candidates[0].id })
+    state = reducer(state, { type: 'select-span', range: { start: 9, end: 15 } })
+    state = reducer(state, { type: 'spell' })
+    state = reducer(state, { type: 'input', text: 'tea' })
+    expect(reducer(state, { type: 'cancel-edit' }).request).toBeNull()
+    state = reducer(state, { type: 'done' })
+    expect(state.phrase).toBe('I want a tea')
+    expect(state.draft).toBe('')
+    expect(state.workspace).toBe('phrases')
+    expect(state.tokens[3]).toMatchObject({ kind: 'word', value: 'tea' })
+    expect(state.request?.purpose ?? null).toBe(enabled ? 'expansion' : null)
+    if (!state.request) return
+    const response = validateResult(state.request, {
+      requestId: state.request.id,
+      revision: state.revision,
+      purpose: 'expansion',
+      provider: 'gemini',
+      status: 'success',
+      complete: true,
+      candidates: [{ replacement: 'I want another tea' }]
+    })
+    state = reducer(state, { type: 'result', result: response })
+    expect(state.phrase).toBe('I want a tea')
+    expect(state.candidates[0].text).toBe('I want another tea')
+    expect(
+      validateResult(state.request!, {
+        ...response,
+        candidates: [{ replacement: 'I want a coffee' }]
+      }).status
+    ).toBe('error')
+    state = reducer(state, { type: 'edit-candidate', id: state.candidates[0].id })
+    expect(state.phrase).toBe('I want another tea')
+    expect(state.tokens[3]).toMatchObject({ kind: 'word', value: 'tea' })
+  }
+)
+
+it('regenerates an edited literal sentence with punctuation and message context intact', () => {
+  let state = reducer(initialState(), { type: 'cloud', enabled: true })
+  state = reducer(state, { type: 'mode', mode: 'literal' })
+  state = reducer(state, { type: 'input', text: 'Hello, Alex!' })
+  state = reducer(state, { type: 'select-span', range: { start: 7, end: 11 } })
+  state = reducer(state, { type: 'spell' })
+  state = reducer(state, { type: 'input', text: 'Zephyr' })
+  state = reducer(state, { type: 'done' })
+  expect(state.draft).toBe('Hello, Zephyr!')
+  expect(state.request?.tokens.map(({ kind, value }) => ({ kind, value }))).toEqual([
+    { kind: 'initial', value: 'h' },
+    { kind: 'word', value: 'Zephyr' },
+    { kind: 'punctuation', value: '!' }
+  ])
+  expect(state.request?.conversationHistory).toEqual(state.conversationArchive)
+})
+
+it.each(['memory-learned', 'memory-changed'] as const)(
+  'refreshes replacement options after %s without requiring manual spelling',
+  async (type) => {
+    let state = reducer(example(), { type: 'cloud', enabled: true })
+    state = await suggest(state)
+    state = reducer(state, { type: 'edit-candidate', id: state.candidates[0].id })
+    state = reducer(state, { type: 'select-span', range: { start: 9, end: 15 } })
+    const previous = state.request!
+    state = reducer(state, { type })
+    expect(state.selection).toEqual({ start: 9, end: 15 })
+    expect(state.mode).toBe('literal')
+    expect(state.phrase).toBe('I want a coffee')
+    expect(state.status).toBe('loading')
+    expect(state.request).toMatchObject({
+      purpose: 'refinement',
+      revision: state.revision,
+      draft: 'I want a coffee',
+      target: state.selection
+    })
+    const predictor = new TestPhrasePredictor('normal', 0)
+    const stale = await predictor.predict(previous, new AbortController().signal)
+    expect(reducer(state, { type: 'result', result: stale })).toBe(state)
+    const result = await predictor.predict(state.request!, new AbortController().signal)
+    state = reducer(state, { type: 'result', result })
+    expect(state.candidates.map((candidate) => candidate.replacement)).toContain('cocoa')
+    expect(state.phrase).toBe('I want a coffee')
+    state = reducer(state, { type: 'spell' })
+    expect(reducer(state, { type }).mode).toBe('replacement')
+    expect(reducer(state, { type }).request).toBeNull()
+  }
+)
+
 it('ports the upstream a / br / c partial keyword example and can cancel it', () => {
   let state = reducer(initialState(), { type: 'example', initials: 'abc' })
   state = reducer(state, { type: 'open-keywords' })
