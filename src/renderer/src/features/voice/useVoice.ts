@@ -47,6 +47,10 @@ export function useVoice(): VoiceController {
     { speaker: 'me' | 'partner'; text: string; epoch: number }[]
   >([])
   const queue = useRef<{ speaker: 'me' | 'partner'; text: string; epoch: number }[]>([])
+  // A finished utterance is removed from the message at the next safe boundary, so it never
+  // pauses or re-seeds Dasher while the user has gone back to writing.
+  const completed = useRef<{ text: string; revision: number } | null>(null)
+  const [completedVersion, setCompletedVersion] = useState(0)
   const session = useRef('')
   const epoch = useRef(state.contextEpoch)
   useLayoutEffect(() => {
@@ -89,6 +93,12 @@ export function useVoice(): VoiceController {
   useEffect(() => {
     queue.current = []
   }, [state.contextEpoch])
+  useEffect(() => {
+    const spoken = completed.current
+    if (!spoken || busy || !state.paused) return
+    completed.current = null
+    dispatch({ type: 'speech-completed', ...spoken })
+  }, [completedVersion, busy, state.paused, dispatch])
   const refreshDevices = async (): Promise<void> => {
     const all = await navigator.mediaDevices.enumerateDevices()
     if (mounted.current)
@@ -296,7 +306,8 @@ export function useVoice(): VoiceController {
             (turn) => turn.id === state.savedSentences.at(-1) && turn.text === text.trim()
           )
           if (!alreadyCommitted) enqueue('me', text, current.epoch)
-          dispatch({ type: 'speech-completed', text, revision })
+          completed.current = { text, revision }
+          setCompletedVersion((version) => version + 1)
         }
         setSpeechStatus('Finished')
         setTimeout(() => {

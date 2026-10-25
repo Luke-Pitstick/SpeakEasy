@@ -214,10 +214,13 @@ export class DasherEngine {
     // A 1.5 power curve keeps the edge rate but damps gaze jitter near center.
     const reach = x / (this.geometry.width / 2)
     const factor = Math.exp(Math.sign(reach) * Math.abs(reach) ** 1.5 * 0.5 * 0.18 * dt)
+    // Vertical pan uses a gentler 1.25 curve at 75% of the old gain, so it stays damped
+    // relative to zoom while still scaling with the steering speed through dt.
+    const lift = this.pointer.y / (this.geometry.height / 2)
+    const pan = Math.sign(lift) * Math.abs(lift) ** 1.25 * (this.geometry.height / 2) * 0.15 * dt
     const rootHeight = this.root.height * factor
     if (rootHeight >= this.geometry.height * 0.45 || this.ancestors.length) {
-      this.root.top =
-        this.pointer.y + (this.root.top - this.pointer.y) * factor - this.pointer.y * 0.2 * dt
+      this.root.top = this.pointer.y + (this.root.top - this.pointer.y) * factor - pan
       this.root.height = rootHeight
     }
     // There is no earlier branch to reveal outside the outer alphabet. Keep

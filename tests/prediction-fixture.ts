@@ -58,7 +58,10 @@ function replacements(request: PredictionRequest): string[] {
     ['warmth', 'water', 'writing', 'wipes'],
     ['great', 'good', 'glad', 'grateful']
   ]
-  return groups.find((group) => group.includes(selected)) ?? []
+  // A replacement must differ from the selected word.
+  return (groups.find((group) => group.includes(selected)) ?? []).filter(
+    (word) => word !== selected
+  )
 }
 
 export class TestPhrasePredictor {

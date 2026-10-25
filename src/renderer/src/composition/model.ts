@@ -517,8 +517,24 @@ function reduceComposition(state: CompositionState, action: Action): Composition
           }
         : state
     }
-    case 'speech-completed':
-      if (state.revision !== action.revision || messageText(state) !== action.text) return state
+    case 'speech-completed': {
+      // Remove exactly what was spoken. Unrelated updates during playback (a transcribed partner
+      // turn, a newly locked sentence, fresh initials) change the revision but must not keep a
+      // spoken sentence in the message; a message that no longer starts with it is left alone.
+      const parts = [...state.lockedSentences, state.phrase ?? state.draft].filter(Boolean)
+      const spoken = parts.findIndex((_, i) => parts.slice(0, i + 1).join(' ') === action.text) + 1
+      if (!spoken) return state
+      // Work started after speaking (a later sentence, new initials or spelling) is kept.
+      // Literal entry is the draft itself, so leftover initials there are not new work.
+      const entering = state.mode !== 'literal' && (state.tokens.length > 0 || !!state.buffer)
+      if (spoken < parts.length || entering)
+        return {
+          ...edit(state, {
+            lockedSentences: state.lockedSentences.slice(spoken),
+            ...(spoken > state.lockedSentences.length ? { draft: '', phrase: null } : {})
+          }),
+          notice: 'Spoken text was removed from your message.'
+        }
       return {
         ...edit(state, {
           lockedSentences: [],
@@ -531,9 +547,12 @@ function reduceComposition(state: CompositionState, action: Action): Composition
           selection: null,
           selectedToken: null
         }),
+        // A finished message starts the next one on the writing screen.
+        workspace: 'dasher',
         branches: [],
         notice: 'Message spoken. Enter initials for a new message.'
       }
+    }
     case 'clear':
       return {
         ...edit(state, {

@@ -358,3 +358,55 @@ it('passes locked sentences as context outside the editable draft and validates 
   expect(candidateFor(input, 'I want a coffee', 0)?.text).toBe('I want a coffee')
   expect(validRequest({ ...input, lockedMessage: 'x'.repeat(2001) })).toBe(false)
 })
+
+describe('word replacement', () => {
+  const refinement = (): PredictionRequest => ({
+    ...request(),
+    purpose: 'refinement',
+    draft: 'I want a coffee',
+    target: { start: 9, end: 15 }
+  })
+  it('asks for single same-letter words instead of the expansion instructions', () => {
+    const [system, user] = predictionMessages(refinement())
+    expect(system.content).toContain('alternative single words')
+    expect(system.content).not.toContain('Expand initials')
+    const payload = JSON.parse(user.content)
+    expect(payload).toMatchObject({
+      sentence: 'I want a coffee',
+      before: 'I want a ',
+      selectedWord: 'coffee',
+      after: ''
+    })
+  })
+  it('accepts decorated single words but rejects sentences, other letters, and the same word', () => {
+    const input = refinement()
+    expect(candidateFor(input, '"Cocoa."', 0)).toMatchObject({
+      replacement: 'Cocoa',
+      text: 'I want a Cocoa'
+    })
+    expect(candidateFor(input, 'cookie,', 0)?.text).toBe('I want a cookie')
+    expect(candidateFor(input, 'I want a cookie', 0)).toBeNull()
+    expect(candidateFor(input, 'tea', 0)).toBeNull()
+    expect(candidateFor(input, 'Coffee', 0)).toBeNull()
+  })
+  it('repairs a reply with too few usable words once', async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(response([frame('I want a cocoa.\ncocoa\ncoffee', 'stop')]))
+      .mockResolvedValueOnce(response([frame('cookie\ncake\ncola', 'stop')]))
+    const results: PredictionResult[] = []
+    await streamGemini(
+      refinement(),
+      'secret',
+      new AbortController().signal,
+      (r) => results.push(r),
+      fetcher
+    )
+    expect(fetcher).toHaveBeenCalledTimes(2)
+    const repair = JSON.parse(String(fetcher.mock.calls[1][1]?.body))
+    expect(repair.messages.at(-1).content).toContain('too few usable replacement words')
+    const final = results.at(-1)!
+    if (final.status !== 'success') throw Error('Expected success')
+    expect(final.candidates.map((c) => c.replacement)).toEqual(['cocoa', 'cookie', 'cake', 'cola'])
+  })
+})

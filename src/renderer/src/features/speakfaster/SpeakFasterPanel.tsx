@@ -31,6 +31,10 @@ export function SpeakFasterPanel({
     !(state.mode === 'initials' && state.tokens.length > 0) &&
     !!message.trim() &&
     message.length <= 2000
+  // While suggestions are generating, controls that would start another request or change the
+  // text being generated are held. Escapes (Cancel, Spell word, Spell, Back, Cancel word, the
+  // edge bars) and already-streamed suggestions stay available.
+  const loading = state.status === 'loading'
   const tokens = keyword
     ? state.tokens.map((token) => ({
         id: token.id,
@@ -101,7 +105,7 @@ export function SpeakFasterPanel({
                   className="word-chip"
                   identity={`chip-${token.id}-${version}`}
                   selected={selected}
-                  disabled={state.mode === 'replacement' || !state.paused}
+                  disabled={state.mode === 'replacement' || !state.paused || loading}
                   onAction={() =>
                     keyword
                       ? dispatch({ type: 'select-token', id: token.id })
@@ -193,7 +197,9 @@ export function SpeakFasterPanel({
               <ActionButton
                 className="primary"
                 identity={`expand-${version}`}
-                disabled={state.mode === 'literal' ? !state.draft : !state.tokens.length}
+                disabled={
+                  loading || (state.mode === 'literal' ? !state.draft : !state.tokens.length)
+                }
                 onAction={() => request(state.mode === 'literal' ? 'completion' : 'expansion')}
               >
                 {state.mode === 'literal' ? 'Complete' : 'Expand'}
@@ -211,14 +217,14 @@ export function SpeakFasterPanel({
                 <>
                   <ActionButton
                     identity={`lock-${version}`}
-                    disabled={!state.buffer.trim()}
+                    disabled={loading || !state.buffer.trim()}
                     onAction={() => dispatch({ type: 'done' })}
                   >
                     Lock word
                   </ActionButton>
                   <ActionButton
                     identity={`initial-${version}`}
-                    disabled={!/^[A-Za-z]$/.test(state.buffer.trim())}
+                    disabled={loading || !/^[A-Za-z]$/.test(state.buffer.trim())}
                     onAction={() => dispatch({ type: 'use-initial' })}
                   >
                     Use initial
@@ -234,6 +240,7 @@ export function SpeakFasterPanel({
               {keyword && (
                 <ActionButton
                   identity={`continue-${version}`}
+                  disabled={loading}
                   onAction={() => {
                     dispatch({ type: 'keep-entering' })
                   }}
@@ -244,6 +251,7 @@ export function SpeakFasterPanel({
               {!keyword && !!state.branches.length && (
                 <ActionButton
                   identity={`previous-${version}`}
+                  disabled={loading}
                   onAction={() => dispatch({ type: 'back' })}
                 >
                   Previous phrase
@@ -305,12 +313,11 @@ export function SpeakFasterPanel({
                 disabled={!voice.speaking && !voice.configured}
                 onAction={() => {
                   if (voice.speaking) voice.stop()
-                  else if (phrase !== null) {
-                    // Speaking a reviewed phrase uses it. use-phrase advances the revision by one,
-                    // and speech completion only clears the message spoken at that revision.
-                    dispatch({ type: 'use-phrase' })
-                    void voice.speak(message, state.revision + 1)
-                  } else void voice.speak(message, state.revision)
+                  else {
+                    // Speaking a reviewed phrase uses it.
+                    if (phrase !== null) dispatch({ type: 'use-phrase' })
+                    void voice.speak(message, state.revision)
+                  }
                 }}
               >
                 <span className="speak-label">{voice.speaking ? 'Stop speaking' : 'Speak'}</span>
@@ -456,6 +463,7 @@ export function DraftPanel({ status }: { status?: ReactNode }): React.JSX.Elemen
           {state.mode === 'literal' && (
             <ActionButton
               identity={`lock-sentence-${state.revision}`}
+              disabled={state.status === 'loading'}
               onAction={() => dispatch({ type: 'lock-sentence' })}
             >
               Lock sentence
@@ -463,6 +471,7 @@ export function DraftPanel({ status }: { status?: ReactNode }): React.JSX.Elemen
           )}
           <ActionButton
             identity={`edit-draft-${state.revision}-${state.workspace}`}
+            disabled={state.status === 'loading'}
             onAction={() => dispatch({ type: 'edit-draft' })}
           >
             Edit message

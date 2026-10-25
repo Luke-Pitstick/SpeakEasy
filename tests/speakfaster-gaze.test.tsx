@@ -170,10 +170,18 @@ it('enters initials, rejects, spells a prefix, and edits an unaccepted phrase th
   )
   gaze.dwell('I want a coffee')
   gaze.dwell('Word 4 coffee Change word')
+  // Choosing another word waits for the replacements; respelling stays available.
+  expect(
+    screen.getByRole('button', { name: 'Word 1 I Change word' }).hasAttribute('disabled')
+  ).toBe(true)
+  expect(screen.getByRole('button', { name: 'Spell word' }).hasAttribute('disabled')).toBe(false)
   await act(async () => {
     await vi.advanceTimersByTimeAsync(500)
   })
   expect(screen.getByRole('button', { name: 'cocoa', exact: true })).toBeTruthy()
+  expect(
+    screen.getByRole('button', { name: 'Word 1 I Change word' }).hasAttribute('disabled')
+  ).toBe(false)
   // While a word is being changed the phrase isn't final, so Speak isn't offered.
   expect(screen.queryByRole('button', { name: 'Speak', exact: true })).toBeNull()
   gaze.dwell('cocoa')

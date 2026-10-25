@@ -88,7 +88,10 @@ export function candidateFor(
   index: number,
   cacheInitials?: string
 ): PhraseCandidate | null {
-  const replacement = request.purpose === 'completion' ? raw.trimEnd() : raw.trim()
+  const trimmed = request.purpose === 'completion' ? raw.trimEnd() : raw.trim()
+  // Models often wrap a single replacement word in quotes or end it with punctuation.
+  const replacement =
+    request.purpose === 'refinement' ? trimmed.replace(/^["“‘(]+|["”’).,!?;:]+$/gu, '') : trimmed
   if (
     !replacement.trim() ||
     replacement.length > 500 ||
@@ -115,7 +118,9 @@ export function candidateFor(
   if (
     request.purpose === 'refinement' &&
     (!/^[\p{L}\p{N}]+(?:['’-][\p{L}\p{N}]+)*$/u.test(replacement) ||
-      !replacement.toLowerCase().startsWith(request.draft[request.target.start].toLowerCase()))
+      !replacement.toLowerCase().startsWith(request.draft[request.target.start].toLowerCase()) ||
+      replacement.toLowerCase() ===
+        request.draft.slice(request.target.start, request.target.end).toLowerCase())
   )
     return null
   const prefix = request.draft.slice(0, request.target.start)

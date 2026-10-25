@@ -45,9 +45,14 @@ describe('shared composition', () => {
     let state = reducer(example(), { type: 'mode', mode: 'literal' })
     state = reducer(state, { type: 'input', text: 'I want a coffee' })
     const next = reducer(state, { type: 'example', initials: 'insw' })
-    expect(
-      reducer(next, { type: 'speech-completed', text: state.draft, revision: state.revision })
-    ).toBe(next)
+    const spoken = reducer(next, {
+      type: 'speech-completed',
+      text: state.draft,
+      revision: state.revision
+    })
+    // The spoken sentence leaves the message; initials entered afterwards stay.
+    expect(messageText(spoken)).toBe('')
+    expect(entrySeed(spoken)).toBe(entrySeed(next))
     const edited = reducer(state, { type: 'input', text: 'A different message' })
     expect(
       reducer(edited, { type: 'speech-completed', text: state.draft, revision: state.revision })
@@ -123,7 +128,7 @@ describe('shared composition', () => {
     state = reducer(state, { type: 'input', text: 'I want a coffee!' })
     state = reducer(state, { type: 'select-span', range: { start: 9, end: 15 } })
     const refined = await suggest(state, 'refinement')
-    expect(refined.candidates[1].text).toBe('I want a cocoa!')
+    expect(refined.candidates[0].text).toBe('I want a cocoa!')
     state = reducer(state, { type: 'input', text: 'I want a co' })
     const completed = await suggest(state, 'completion')
     expect(completed.candidates.map((candidate) => candidate.text)).toEqual([
@@ -264,7 +269,8 @@ it('translates upstream FillMask selection without accepting a candidate', async
   )
   state = reducer(state, { type: 'result', result })
   expect(state.candidates.every((candidate) => candidate.replacement.startsWith('c'))).toBe(true)
-  state = reducer(state, { type: 'accept', id: state.candidates[1].id })
+  expect(state.candidates.some((candidate) => candidate.replacement === 'coffee')).toBe(false)
+  state = reducer(state, { type: 'accept', id: state.candidates[0].id })
   expect(state.draft).toBe('')
   expect(state.phrase).toBe('I want a cocoa')
   expect(
@@ -358,17 +364,22 @@ describe('multi-sentence composition', () => {
     expect(state.request?.draft).toBe('')
     expect(state.request?.target).toEqual({ start: 0, end: 0 })
   })
-  it('clears only the exact completed revision and preserves locked text during spelling', () => {
+  it('removes only the spoken sentences and keeps initials entered during playback', () => {
     let state = reducer(initialState(), { type: 'mode', mode: 'literal' })
     state = reducer(state, { type: 'input', text: 'First.' })
     state = reducer(state, { type: 'workspace', workspace: 'phrases' })
     state = reducer(state, { type: 'workspace', workspace: 'dasher' })
     const spoken = state
     state = reducer(state, { type: 'input', text: 'iwac' })
-    expect(
-      reducer(state, { type: 'speech-completed', text: 'First.', revision: spoken.revision })
-    ).toBe(state)
     expect(state.lockedSentences).toEqual(['First.'])
+    const during = reducer(state, {
+      type: 'speech-completed',
+      text: 'First.',
+      revision: spoken.revision
+    })
+    expect(during.lockedSentences).toEqual([])
+    expect(entrySeed(during)).toBe('iwac')
+    expect(during.workspace).toBe(state.workspace)
     const complete = reducer(spoken, {
       type: 'speech-completed',
       text: 'First.',
@@ -376,5 +387,40 @@ describe('multi-sentence composition', () => {
     })
     expect(messageText(complete)).toBe('')
     expect(entrySeed(complete)).toBe('')
+  })
+  it('clears a spoken message even when a partner turn arrived during playback', () => {
+    let state = reducer(initialState(), { type: 'mode', mode: 'literal' })
+    state = reducer(state, { type: 'input', text: 'I want a coffee' })
+    state = reducer(state, { type: 'workspace', workspace: 'phrases' })
+    const spoken = state
+    state = reducer(state, { type: 'conversation-add', speaker: 'partner', text: 'Sure thing.' })
+    expect(state.revision).not.toBe(spoken.revision)
+    const done = reducer(state, {
+      type: 'speech-completed',
+      text: 'I want a coffee',
+      revision: spoken.revision
+    })
+    expect(messageText(done)).toBe('')
+    expect(done.workspace).toBe('dasher')
+  })
+  it('returns to writing once a message spoken from phrases finishes, but not after a stale one', () => {
+    let state = reducer(initialState(), { type: 'mode', mode: 'literal' })
+    state = reducer(state, { type: 'input', text: 'I want a coffee' })
+    state = reducer(state, { type: 'workspace', workspace: 'phrases' })
+    expect(state.workspace).toBe('phrases')
+    const stale = reducer(state, {
+      type: 'speech-completed',
+      text: 'Something else',
+      revision: state.revision
+    })
+    expect(stale).toBe(state)
+    const done = reducer(state, {
+      type: 'speech-completed',
+      text: 'I want a coffee',
+      revision: state.revision
+    })
+    expect(done.workspace).toBe('dasher')
+    expect(done.paused).toBe(true)
+    expect(messageText(done)).toBe('')
   })
 })
