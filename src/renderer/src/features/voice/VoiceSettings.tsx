@@ -35,13 +35,13 @@ export function VoiceSettings({ voice }: { voice: VoiceController }): React.JSX.
         )}
         <p role="status">{voice.tone.message}</p>
       </section>
-      <section aria-label="Preset voice">
+      <section aria-label="Voice selection">
         <h3>
           Voice ·{' '}
           {selected?.name ??
-            (voice.settings.voiceId === 'db6b0ed5-d5d3-463d-ae85-518a07d3c2b4'
-              ? 'Skylar'
-              : 'Selected preset')}
+            (voice.settings.voiceId === '688ada9f-c7d4-44f5-99ee-ad46dec3ed8c'
+              ? 'Cole Evolved'
+              : 'Selected voice')}
         </h3>
         <div className="voice-presets">
           {shown.map((v) => (

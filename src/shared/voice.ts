@@ -11,7 +11,7 @@ export interface VoiceSettings {
   microphoneId: string
 }
 export const DEFAULT_VOICE: VoiceSettings = {
-  voiceId: 'db6b0ed5-d5d3-463d-ae85-518a07d3c2b4',
+  voiceId: '688ada9f-c7d4-44f5-99ee-ad46dec3ed8c',
   speed: 1,
   volume: 1,
   tone: 'neutral',

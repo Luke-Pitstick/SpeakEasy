@@ -89,9 +89,17 @@ export function installCartesiaIpc(window: BrowserWindow): void {
     if (!own(event) || !client) throw Error('Cartesia is not configured')
     try {
       const voices: { id: string; name: string; language: string; description: string }[] = []
-      for await (const v of client.voices.list({ limit: 100, is_owner: false })) {
-        if (v.language === 'en')
-          voices.push({ id: v.id, name: v.name, language: v.language, description: v.description })
+      for (const is_owner of [true, false]) {
+        for await (const v of client.voices.list({ limit: 100, is_owner })) {
+          if (v.language === 'en' && !voices.some((voice) => voice.id === v.id))
+            voices.push({
+              id: v.id,
+              name: v.name,
+              language: v.language,
+              description: v.description
+            })
+          if (voices.length >= 200) break
+        }
         if (voices.length >= 200) break
       }
       return voices
