@@ -20,7 +20,7 @@ export class PreferenceStore {
     this.db.exec(`PRAGMA secure_delete = ON;
       PRAGMA synchronous = FULL;
       CREATE TABLE IF NOT EXISTS settings (id INTEGER PRIMARY KEY, retrieve INTEGER NOT NULL);
-      INSERT OR IGNORE INTO settings (id, retrieve) VALUES (1, 0);
+      INSERT OR IGNORE INTO settings (id, retrieve) VALUES (1, 1);
       CREATE TABLE IF NOT EXISTS sentences (id TEXT PRIMARY KEY, data TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS facts (id TEXT PRIMARY KEY, data TEXT NOT NULL);
       CREATE TABLE IF NOT EXISTS sentence_learning (

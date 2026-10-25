@@ -25,7 +25,7 @@ function FactEditor({
       set: (text: string) => onChange({ ...value, relationship: text })
     },
     {
-      label: 'Preference value',
+      label: 'Value',
       value: value.value,
       max: 160,
       set: (text: string) => onChange({ ...value, value: text })
@@ -170,7 +170,7 @@ export function PreferencePanel(): React.JSX.Element {
           <p>
             {snapshot.learning
               ? 'Automatic memory learning is on with Gemini.'
-              : 'Enable Gemini to learn preferences automatically from confirmed messages.'}
+              : 'Enable Gemini to learn preferences and personal facts automatically from confirmed messages.'}
           </p>
           <ActionButton
             identity={`${identity}-retrieve-${snapshot.retrieve}`}
@@ -178,9 +178,7 @@ export function PreferencePanel(): React.JSX.Element {
             selected={snapshot.retrieve}
             onAction={() => update({ type: 'settings', retrieve: !snapshot.retrieve })}
           >
-            {snapshot.retrieve
-              ? 'Stop using preference facts'
-              : 'Use saved preference facts in suggestions'}
+            {snapshot.retrieve ? 'Stop using saved facts' : 'Use saved facts in suggestions'}
           </ActionButton>
           <div role="group" aria-label="Preference views">
             {(['facts', 'sentences'] as const).map((tab) => (

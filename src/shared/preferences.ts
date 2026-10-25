@@ -2,8 +2,9 @@ import { z } from 'zod'
 
 const text = (max: number): z.ZodString => z.string().trim().min(1).max(max)
 export const preferenceFieldsSchema = z.strictObject({
-  type: z.literal('preference'),
-  subject: z.literal('user'),
+  type: z.enum(['preference', 'personal_fact']),
+  // An enum, not a literal: Gemini structured output ignores JSON Schema `const`.
+  subject: z.enum(['user']),
   relationship: text(80),
   value: text(160),
   scope: z.strictObject({ game: text(100).nullable(), topic: text(100).nullable() }),

@@ -17,8 +17,14 @@ type LearningJob = {
   conversation: { speaker: 'me' | 'partner'; text: string }[]
   done: () => void
 }
+// A later preference replaces its slot; personal facts can hold several values (siblings, friends).
 const slot = (fact: PreferenceFields): string =>
-  JSON.stringify([fact.relationship, fact.scope.game, fact.scope.topic])
+  JSON.stringify([
+    fact.relationship,
+    fact.scope.game,
+    fact.scope.topic,
+    fact.type === 'personal_fact' ? fact.value : null
+  ])
     .normalize('NFKC')
     .toLowerCase()
 

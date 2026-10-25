@@ -147,6 +147,59 @@ describe('Moss context and durable-memory selection', () => {
     expect(payload.punctuationContext).toEqual([{ afterWord: 4, mark: '?' }])
     expect(payload.lockedWords).toEqual([])
   })
+  it('answers from a backup context request when the first is slow, then cancels the first', async () => {
+    const ok = (): Response =>
+      Response.json({
+        choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(decision) } }]
+      })
+    const signals: AbortSignal[] = []
+    const fetcher = vi.fn<typeof fetch>(async (_url, init) => {
+      signals.push(init!.signal!)
+      if (signals.length === 1)
+        return new Promise<Response>((_resolve, reject) =>
+          init!.signal!.addEventListener('abort', () => reject(init!.signal!.reason))
+        )
+      return ok()
+    })
+    const result = await modelContextResolver('test-key', fetcher, 10)(
+      sample.request,
+      sample.history,
+      new AbortController().signal
+    )
+    expect(result).toEqual(decision)
+    expect(fetcher).toHaveBeenCalledTimes(2)
+    expect(signals[0].aborted).toBe(true)
+
+    const fast = vi.fn<typeof fetch>(async () => ok())
+    await modelContextResolver('test-key', fast, 10)(
+      sample.request,
+      sample.history,
+      new AbortController().signal
+    )
+    await new Promise((r) => setTimeout(r, 30))
+    expect(fast).toHaveBeenCalledTimes(1)
+  })
+  it('retries a failed context request once and reports the first error when both fail', async () => {
+    const failing = vi.fn<typeof fetch>(async () => new Response('busy', { status: 503 }))
+    await expect(
+      modelContextResolver('test-key', failing, 60_000)(
+        sample.request,
+        sample.history,
+        new AbortController().signal
+      )
+    ).rejects.toThrow('Model provider unavailable')
+    expect(failing).toHaveBeenCalledTimes(2)
+
+    const cancelled = new AbortController()
+    cancelled.abort()
+    const idle = vi.fn<typeof fetch>(async (_url, init) => {
+      throw init!.signal!.reason
+    })
+    await expect(
+      modelContextResolver('test-key', idle, 10)(sample.request, sample.history, cancelled.signal)
+    ).rejects.toThrow()
+    expect(idle).toHaveBeenCalledTimes(1)
+  })
   it('rejects late results when a memory is forgotten and removes the indexed record', async () => {
     let release!: (value: ContextDecision) => void
     const started = Promise.withResolvers<void>()

@@ -80,7 +80,7 @@ it('shows automatically learned facts with editable evidence and forgetting cont
   expect(store.facts()).toHaveLength(1)
   expect(screen.queryByRole('button', { name: 'Approve preference' })).toBeNull()
   fireEvent.change(screen.getByRole('textbox', { name: 'Game' }), { target: { value: '' } })
-  fireEvent.change(screen.getByRole('textbox', { name: 'Preference value' }), {
+  fireEvent.change(screen.getByRole('textbox', { name: 'Value' }), {
     target: { value: 'Log Bait' }
   })
   fireEvent.click(screen.getByRole('button', { name: 'Save fact changes' }), { detail: 1 })

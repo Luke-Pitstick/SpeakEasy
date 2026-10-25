@@ -363,6 +363,49 @@ describe('automatic preference memory', () => {
     await service.update({ type: 'forget', id })
     expect(service.read().facts).toEqual([])
   })
+  it('keeps several grounded personal facts for one relationship and forgets them individually', async () => {
+    const mock = vi.fn<typeof fetch>().mockImplementation(async (_url, init) => {
+      const sentence = JSON.parse(JSON.parse(String(init?.body)).messages[1].content)
+        .sentence as string
+      const name = sentence.split(' ').at(-1)!
+      return Response.json(
+        envelope([
+          {
+            ...proposal,
+            quote: sentence,
+            scopeBasis: 'explicit',
+            fact: {
+              type: 'personal_fact',
+              subject: 'user',
+              relationship: 'sister',
+              value: name,
+              scope: { game: null, topic: null },
+              relatedTerms: ['family']
+            }
+          }
+        ])
+      )
+    })
+    const service = new PreferenceService(
+      store(),
+      'key',
+      () => {},
+      () => true,
+      mock
+    )
+    for (const [i, text] of ['My sister is Ana', 'My sister is Mia', 'My sister is Ana'].entries())
+      await service.update({ type: 'commit', id: `sister-${i}`, text, conversation: [] })
+    await vi.waitFor(() => expect(service.read().busy).toBe(false))
+    expect(
+      service
+        .read()
+        .facts.map((f) => f.fact.value)
+        .sort()
+    ).toEqual(['Ana', 'Mia'])
+    const ana = service.read().facts.find((f) => f.fact.value === 'Ana')!
+    await service.update({ type: 'forget', id: ana.id })
+    expect(service.read().facts.map((f) => f.fact.value)).toEqual(['Mia'])
+  })
   it('keeps failed extraction recoverable without saving an ungrounded fact', async () => {
     const mock = vi
       .fn<typeof fetch>()
