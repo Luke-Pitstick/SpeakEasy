@@ -126,37 +126,19 @@ describe('always-on context bridge', () => {
       expect(current.sentenceEvents).toEqual([])
     }
   )
-  it('summarizes only with Gemini enabled and ignores a late result after clearing conversation', async () => {
+  it('synchronizes retained history and clears the local projection without summarization', async () => {
     await setup()
-    let resolveSummary: (text: string) => void = () => {}
-    const summarize = vi.fn(
-      () =>
-        new Promise<string>((resolve) => {
-          resolveSummary = resolve
-        })
-    )
-    const cancelSummary = vi.fn()
-    window.gemini!.summarize = summarize
-    window.gemini!.cancelSummary = cancelSummary
+    const syncContext = vi.fn(async () => {})
+    window.gemini!.syncContext = syncContext
     act(() => {
       for (let i = 0; i < 9; i++)
-        dispatch({
-          type: 'conversation-add',
-          speaker: 'partner',
-          text: i === 0 ? 'Clash Royale' : 'Go on.'
-        })
+        dispatch({ type: 'conversation-add', speaker: 'partner', text: `Message ${i}` })
     })
-    expect(summarize).not.toHaveBeenCalled()
-    act(() => dispatch({ type: 'cloud', enabled: true }))
-    await waitFor(() => expect(summarize).toHaveBeenCalledOnce())
+    await waitFor(() => expect(syncContext).toHaveBeenLastCalledWith(current.conversationArchive))
+    expect(current.conversationArchive).toHaveLength(9)
     act(() => dispatch({ type: 'conversation-clear' }))
-    expect(cancelSummary).toHaveBeenCalledOnce()
-    await act(async () => {
-      resolveSummary('Clash Royale')
-      await Promise.resolve()
-    })
-    expect(current.conversationSummary).toBe('')
-    expect(current.summaryPending).toEqual([])
+    await waitFor(() => expect(syncContext).toHaveBeenLastCalledWith([]))
+    expect(current.conversationArchive).toEqual([])
   })
   it('retains a locked sentence after speech without duplicating it', async () => {
     await setup()

@@ -65,10 +65,7 @@ function Workspace({
     initials: state.tokens.map((t) => t.value).join(' '),
     lockedMessage: state.lockedSentences.join(' '),
     conversation: state.conversation.map(({ speaker, text }) => ({ speaker, text })),
-    summary: state.conversationSummary,
-    pendingSummary: state.summaryPending
-      .slice(-100)
-      .map(({ speaker, text }) => ({ speaker, text })),
+    retainedTurnCount: state.conversationArchive.length,
     partial: voice.partial,
     queuedTranscripts: voice.queuedTranscripts,
     listening: voice.listening,

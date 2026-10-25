@@ -162,11 +162,11 @@ export function PreferencePanel(): React.JSX.Element {
         forgotten; unreviewed proposals last only for this app session.
       </p>
       <p>
-        Find preferences sends newly locked sentences and up to eight conversation turns to Gemini
-        through OpenRouter. Semantic retrieval uses Gemini to identify the current topic from recent
-        conversation and its temporary summary. It sends that focused query and approved facts to
-        OpenAI embeddings through OpenRouter, then shares relevant approved facts with Gemini. Both
-        cloud features start off.
+        Find preferences sends committed sentences and recent context to OpenRouter for reviewable
+        proposals. With preference retrieval enabled, Moss embeds approved facts locally. One shared
+        OpenRouter context decision selects the current topic; only retrieved approved facts are
+        included with suggestions. Moss usage telemetry and model-loading connectivity still apply.
+        Preference extraction and sharing both start off.
       </p>
       <p role="status">
         {error ||
@@ -201,15 +201,6 @@ export function PreferencePanel(): React.JSX.Element {
               ? 'Stop using preference facts'
               : 'Use approved facts with semantic retrieval'}
           </ActionButton>
-          {!!snapshot.unindexed && (
-            <ActionButton
-              identity={`${identity}-index`}
-              disabled={pending || !snapshot.retrieve}
-              onAction={() => update({ type: 'index' })}
-            >
-              Retry semantic indexing ({snapshot.unindexed})
-            </ActionButton>
-          )}
           <div role="group" aria-label="Preference views">
             {(['proposals', 'facts', 'sentences'] as const).map((tab) => (
               <ActionButton

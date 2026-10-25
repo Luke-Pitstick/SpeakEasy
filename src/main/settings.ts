@@ -7,7 +7,12 @@ export class SettingsStore {
 
   constructor(private readonly path: string) {
     try {
-      const saved: unknown = JSON.parse(readFileSync(path, 'utf8'))
+      const raw: unknown = JSON.parse(readFileSync(path, 'utf8'))
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+        throw Error('Invalid saved settings')
+      const saved = Object.fromEntries(
+        Object.entries(raw).filter(([key]) => Object.hasOwn(DEFAULT_SETTINGS, key))
+      )
       if (!validSettingsPatch(saved, true)) throw Error('Invalid saved settings')
       this.settings = { ...DEFAULT_SETTINGS, ...saved }
     } catch (error) {

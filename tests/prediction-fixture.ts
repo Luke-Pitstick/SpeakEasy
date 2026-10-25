@@ -130,6 +130,7 @@ export function installGeminiMock(): void {
   const listeners = new Set<(result: PredictionResult) => void>()
   const controllers = new Map<string, AbortController>()
   window.gemini = {
+    syncContext: async () => {},
     models: async () => [
       { id: EXPANSION_MODEL, name: 'Default model' },
       { id: 'test/alternative', name: 'Alternative model' }
@@ -138,8 +139,6 @@ export function installGeminiMock(): void {
       model = value
       return { configured: true, enabled: false, model }
     },
-    summarize: async () => 'Earlier conversation.',
-    cancelSummary: () => {},
     clearPhraseCache: async () => {},
     status: async () => ({ configured: true, enabled: false, model }),
     setEnabled: async (enabled) => ({ configured: true, enabled, model }),

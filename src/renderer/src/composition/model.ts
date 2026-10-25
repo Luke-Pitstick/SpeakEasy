@@ -1,4 +1,5 @@
 import { wordInitials } from '../../../shared/initialsPpm'
+import { boundConversationHistory } from '../../../shared/conversationHistory'
 import { lexicalWords } from '../../../shared/predictionValidation'
 import { validCorrection, type MemoryOperation } from '../../../shared/memory'
 import type { PreferenceOperation } from '../../../shared/preferences'
@@ -39,10 +40,7 @@ export interface CompositionState extends Content {
   memoryEvents: { sequence: number; operation: MemoryOperation }[]
   memoryNotice: string
   conversation: ConversationTurn[]
-  conversationSummary: string
-  summaryPending: ConversationTurn[]
-  summaryVersion: number
-  summaryError: string
+  conversationArchive: ConversationTurn[]
   contextEpoch: number
   cloudEnabled: boolean
   workspace: 'dasher' | 'phrases'
@@ -120,10 +118,7 @@ export function initialState(): CompositionState {
     sentenceEvents: [],
     memoryNotice: '',
     conversation: [],
-    conversationSummary: '',
-    summaryPending: [],
-    summaryVersion: 0,
-    summaryError: '',
+    conversationArchive: [],
     contextEpoch: 0,
     cloudEnabled: false,
     workspace: 'dasher',
@@ -149,10 +144,7 @@ export type Action =
   | { type: 'conversation-edit'; id: string; text: string }
   | { type: 'conversation-remove'; id: string }
   | { type: 'conversation-clear' }
-  | { type: 'summary-result'; version: number; ids: string[]; summary: string }
-  | { type: 'summary-error'; version: number }
-  | { type: 'summary-reset' }
-  | { type: 'summary-retry' }
+  | { type: 'history-reset' }
   | { type: 'workspace'; workspace: 'dasher' | 'phrases' }
   | { type: 'open-keywords' }
   | { type: 'keep-entering' }
@@ -279,48 +271,14 @@ function reduceComposition(state: CompositionState, action: Action): Composition
           ? 'Gemini enabled. Sends constraints, listed conversation, and personal memory if permitted.'
           : 'Cloud suggestions are off. Exact spelling remains available.'
       }
-    case 'summary-result':
-      if (
-        action.version !== state.summaryVersion ||
-        action.summary.length > 2000 ||
-        !action.ids.length ||
-        !action.ids.every((id, i) => state.summaryPending[i]?.id === id)
-      )
-        return state
-      return {
-        ...state,
-        conversationSummary: action.summary,
-        summaryPending: state.summaryPending.slice(action.ids.length),
-        summaryError: ''
-      }
-    case 'summary-error':
-      return action.version === state.summaryVersion
-        ? {
-            ...state,
-            summaryError:
-              'Could not update the conversation summary. Earlier turns are waiting; retry when Gemini is available.'
-          }
-        : state
-    case 'summary-retry':
-      return { ...state, summaryVersion: state.summaryVersion + 1, summaryError: '' }
-    case 'summary-reset':
-      return {
-        ...edit(state, {}, false),
-        conversationSummary: '',
-        summaryPending: [],
-        summaryVersion: state.summaryVersion + 1,
-        summaryError: ''
-      }
+    case 'history-reset':
+      return edit(state, {}, false)
     case 'conversation-add': {
       const text = action.text.trim()
       if (!text || text.length > 1000)
         return { ...state, validationError: 'Use a conversation turn of at most 1,000 characters.' }
       const next: CompositionState = {
         ...edit(state, {}, false),
-        summaryPending: [
-          ...state.summaryPending,
-          ...state.conversation.slice(0, Math.max(0, state.conversation.length - 7))
-        ],
         conversation: [
           ...state.conversation.slice(-7),
           { id: `turn-${state.revision + 1}`, speaker: action.speaker, text }
@@ -340,7 +298,6 @@ function reduceComposition(state: CompositionState, action: Action): Composition
     case 'conversation-edit':
       return {
         ...edit(state, {}, false),
-        summaryVersion: state.summaryVersion + 1,
         conversation: state.conversation.map((t) =>
           t.id === action.id ? { ...t, text: action.text.slice(0, 1000) } : t
         )
@@ -348,17 +305,12 @@ function reduceComposition(state: CompositionState, action: Action): Composition
     case 'conversation-remove':
       return {
         ...edit(state, {}, false),
-        summaryVersion: state.summaryVersion + 1,
         conversation: state.conversation.filter((t) => t.id !== action.id)
       }
     case 'conversation-clear':
       return {
         ...edit(state, {}, false),
         conversation: [],
-        conversationSummary: '',
-        summaryPending: [],
-        summaryVersion: state.summaryVersion + 1,
-        summaryError: '',
         contextEpoch: state.contextEpoch + 1,
         notice: 'Conversation cleared. Pending suggestions were cancelled.'
       }
@@ -700,7 +652,7 @@ function reduceComposition(state: CompositionState, action: Action): Composition
             draft: phrase,
             lockedMessage: next.lockedSentences.join(' '),
             conversation: next.conversation.filter((t) => t.text.trim()).map((t) => ({ ...t })),
-            conversationSummary: next.conversationSummary,
+            conversationHistory: next.conversationArchive,
             tokens: next.tokens,
             target: action.range
           }
@@ -813,7 +765,7 @@ function reduceComposition(state: CompositionState, action: Action): Composition
           draft,
           lockedMessage: next.lockedSentences.join(' '),
           conversation: next.conversation.filter((t) => t.text.trim()).map((t) => ({ ...t })),
-          conversationSummary: next.conversationSummary,
+          conversationHistory: next.conversationArchive,
           tokens: tokens.map((token) => ({ ...token })),
           target:
             action.purpose === 'refinement'
@@ -923,10 +875,6 @@ export function reducer(state: CompositionState, action: Action): CompositionSta
     next = {
       ...next,
       savedSentences: [...next.savedSentences, id],
-      summaryPending: [
-        ...next.summaryPending,
-        ...next.conversation.slice(0, Math.max(0, next.conversation.length - 7))
-      ],
       conversation: [
         ...next.conversation.slice(-7),
         { id, speaker: 'me', text: committedText.trim().slice(0, 1000) }
@@ -971,10 +919,6 @@ export function reducer(state: CompositionState, action: Action): CompositionSta
       next = {
         ...next,
         conversation: next.conversation.filter((turn) => !sentencesRemoved.includes(turn.id)),
-        // Compacted prose has no reliable per-sentence provenance; undo discards it.
-        conversationSummary: '',
-        summaryPending: next.summaryPending.filter((turn) => !sentencesRemoved.includes(turn.id)),
-        summaryVersion: next.summaryVersion + 1,
         sentenceEvents: [
           ...next.sentenceEvents,
           {
@@ -991,6 +935,34 @@ export function reducer(state: CompositionState, action: Action): CompositionSta
           ...next.memoryEvents,
           { sequence: next.revision, operation: { type: 'forget' as const, ids: removed } }
         ].slice(-100)
+      }
+  }
+  if (
+    next.conversation !== state.conversation ||
+    ['history-reset', 'memory-changed'].includes(action.type)
+  ) {
+    const removed = new Set(state.savedSentences.filter((id) => !next.savedSentences.includes(id)))
+    if (action.type === 'conversation-remove') removed.add(action.id)
+    const archive =
+      action.type === 'conversation-clear' ||
+      action.type === 'history-reset' ||
+      action.type === 'memory-changed'
+        ? []
+        : state.conversationArchive.filter((t) => !removed.has(t.id))
+    const turns = new Map(archive.map((t) => [t.id, t]))
+    for (const turn of next.conversation) if (!removed.has(turn.id)) turns.set(turn.id, turn)
+    const bounded = boundConversationHistory([...turns.values()])
+    next = {
+      ...next,
+      conversationArchive:
+        JSON.stringify(bounded) === JSON.stringify(state.conversationArchive)
+          ? state.conversationArchive
+          : bounded
+    }
+    if (next.request && next.request.conversationHistory !== next.conversationArchive)
+      next = {
+        ...next,
+        request: { ...next.request, conversationHistory: next.conversationArchive }
       }
   }
   let workspace = next.workspace

@@ -1,9 +1,8 @@
 import { postModelJson } from './modelJson'
 import { z } from 'zod'
 import { EXPANSION_MODEL, MODEL_REASONING } from '../shared/prediction'
-import { embeddingSchema, extractionSchema, type SentenceMemory } from '../shared/preferences'
+import { extractionSchema, type SentenceMemory } from '../shared/preferences'
 
-export const EMBEDDING_MODEL = 'openai/text-embedding-3-small'
 export async function extractPreferences(
   key: string,
   source: SentenceMemory,
@@ -55,38 +54,4 @@ export async function extractPreferences(
       source.text.includes(proposal.quote) &&
       normalize(proposal.quote).includes(normalize(proposal.fact.value))
   )
-}
-export async function embedPreferenceText(
-  key: string,
-  text: string,
-  signal: AbortSignal,
-  fetcher: typeof fetch = fetch
-): Promise<number[]> {
-  const response = await postModelJson(
-    key,
-    'embeddings',
-    { model: EMBEDDING_MODEL, input: text, dimensions: 1536, encoding_format: 'float' },
-    signal,
-    fetcher
-  )
-  const result = z
-    .object({
-      data: z.array(z.object({ index: z.literal(0), embedding: embeddingSchema })).length(1)
-    })
-    .parse(response)
-  const vector = result.data[0].embedding
-  if (!vector.some((value) => value !== 0)) throw Error('Invalid zero embedding')
-  return vector
-}
-export function cosine(a: number[], b: number[]): number {
-  if (a.length !== b.length) return 0
-  let dot = 0,
-    aa = 0,
-    bb = 0
-  for (let i = 0; i < a.length; i++) {
-    dot += a[i] * b[i]
-    aa += a[i] ** 2
-    bb += b[i] ** 2
-  }
-  return aa && bb ? dot / Math.sqrt(aa * bb) : 0
 }

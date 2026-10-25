@@ -17,6 +17,15 @@ afterEach(() => {
 })
 
 describe('settings persistence', () => {
+  it('retains current settings while discarding removed settings from persisted files', () => {
+    const path = settingsPath()
+    writeFileSync(path, JSON.stringify({ theme: 'dark', geminiEnabled: true, mossEnabled: false }))
+    const store = new SettingsStore(path)
+    expect(store.read()).toEqual({ ...DEFAULT_SETTINGS, theme: 'dark', geminiEnabled: true })
+    store.save({ speed: 0.8 })
+    expect(JSON.parse(readFileSync(path, 'utf8'))).not.toHaveProperty('mossEnabled')
+    expect(validSettingsPatch({ mossEnabled: true }, true)).toBe(false)
+  })
   it('restores every preference from disk in a new store without a shutdown hook', () => {
     const path = settingsPath()
     const first = new SettingsStore(path)

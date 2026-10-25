@@ -1,7 +1,8 @@
-import { ExpansionContextCache } from './expansionContext'
+import type { PreferenceSnapshot } from '../shared/preferences'
+import { openMossMemory, modelContextResolver } from './mossMemory'
+import { conversationHistorySchema } from '../shared/conversationHistory'
+import type { ConversationTurn } from '../shared/prediction'
 import { diagnostics } from './diagnosticStore'
-import { summarizeConversation } from './conversationSummary'
-import { summaryRequestSchema } from '../shared/conversationSummary'
 import {
   app,
   ipcMain,
@@ -41,15 +42,36 @@ export function installGeminiIpc(window: BrowserWindow, settings: SettingsStore 
   } catch {
     memoryError = 'Memory storage is unavailable. Composition still works without personalization.'
   }
-  let key = process.env.OPENROUTER_TOKEN ?? ''
-  if (!key) {
-    try {
-      key = parseEnv(readFileSync(join(app.getAppPath(), '.env'), 'utf8')).OPENROUTER_TOKEN ?? ''
-    } catch {
-      /* Missing .env is surfaced through the configuration status, never a log. */
-    }
+  let env: Record<string, string | undefined> = { ...process.env }
+  try {
+    env = { ...parseEnv(readFileSync(join(app.getAppPath(), '.env'), 'utf8')), ...process.env }
+  } catch {
+    /* Status reports missing keys. */
   }
-  const expansionContext = new ExpansionContextCache()
+  const key = env.OPENROUTER_TOKEN ?? ''
+  const mossConfigured = !!env.MOSS_PROJECT_ID && !!env.MOSS_PROJECT_TOKEN
+  let moss: Promise<Awaited<ReturnType<typeof openMossMemory>>> | null = null
+  let sourceHistory: ConversationTurn[] = []
+  const openMoss = (): NonNullable<typeof moss> => {
+    if (!mossConfigured) return Promise.reject(Error('Configure Moss project credentials'))
+    if (!moss) {
+      const pending = openMossMemory(
+        env.MOSS_PROJECT_ID!,
+        env.MOSS_PROJECT_TOKEN!,
+        modelContextResolver(key)
+      )
+      moss = pending
+      void pending.catch(() => {
+        if (moss === pending) moss = null
+      })
+    }
+    return moss
+  }
+  const closeMoss = (): void => {
+    const previous = moss
+    moss = null
+    void previous?.then((runtime) => runtime.close()).catch(() => {})
+  }
   let enabled = settings?.read().geminiEnabled ?? false
   let model = settings?.read().phraseModel ?? EXPANSION_MODEL
   let active: { id: string; controller: AbortController } | null = null
@@ -58,21 +80,26 @@ export function installGeminiIpc(window: BrowserWindow, settings: SettingsStore 
     active?.controller.abort()
     active = null
   }
-  let summaryJob: AbortController | null = null
-  const cancelSummary = (): void => {
-    summaryJob?.abort()
-    summaryJob = null
-  }
-  const status = (): GeminiStatus => ({ configured: !!key, enabled, model })
+  const status = (): GeminiStatus => ({
+    configured: !!key,
+    enabled,
+    model,
+    mossConfigured
+  })
   const preferences = installPreferenceIpc(
     window,
     key,
     () => {
       cancel()
-      expansionContext.clear()
+      const facts = permittedFacts()
+      void moss?.then((runtime) => runtime.memory.reconcile(sourceHistory, facts)).catch(() => {})
     },
     phraseCache
   )
+  const permittedFacts = (): PreferenceSnapshot['facts'] => {
+    const snapshot = preferences?.read()
+    return snapshot?.retrieve ? snapshot.facts : []
+  }
   const own = (event: IpcMainInvokeEvent | IpcMainEvent): boolean =>
     !window.isDestroyed() &&
     event.sender === window.webContents &&
@@ -122,7 +149,6 @@ export function installGeminiIpc(window: BrowserWindow, settings: SettingsStore 
     if (!valid) throw Error('Invalid memory operation')
     cancel()
     diagnostics.clear()
-    expansionContext.clear()
     try {
       if (!memory) throw Error('Unavailable')
       memory.update(op)
@@ -134,26 +160,6 @@ export function installGeminiIpc(window: BrowserWindow, settings: SettingsStore 
     window.webContents.send('memory:changed')
     return readMemory()
   })
-  ipcMain.handle('gemini:summarize', async (event, value: unknown) => {
-    if (!own(event) || !enabled || !key) throw Error('Enable Gemini to summarize conversation')
-    const input = summaryRequestSchema.parse(value)
-    cancelSummary()
-    const controller = new AbortController()
-    summaryJob = controller
-    try {
-      const summary = await summarizeConversation(key, input, controller.signal)
-      if (controller.signal.aborted) throw Error('Summary cancelled')
-      return summary
-    } finally {
-      if (summaryJob === controller) summaryJob = null
-    }
-  })
-  const onCancelSummary = (event: IpcMainEvent): void => {
-    if (own(event)) cancelSummary()
-  }
-  ipcMain.on('gemini:cancel-summary', onCancelSummary)
-  window.webContents.on('did-start-navigation', cancelSummary)
-  window.webContents.on('render-process-gone', cancelSummary)
   ipcMain.handle('gemini:status', (event) => {
     if (!own(event)) throw new Error('Unauthorized sender')
     return status()
@@ -180,22 +186,31 @@ export function installGeminiIpc(window: BrowserWindow, settings: SettingsStore 
     if (!own(event) || typeof value !== 'boolean') throw new Error('Invalid settings request')
     if (!settings) throw new Error('Settings storage is unavailable')
     settings.save({ geminiEnabled: value })
-    expansionContext.clear()
     enabled = value
     if (!enabled) {
       cancel()
-      cancelSummary()
+      closeMoss()
     }
     return status()
+  })
+  ipcMain.handle('gemini:context', async (event, value: unknown) => {
+    if (!own(event)) throw Error('Unauthorized sender')
+    const history = conversationHistorySchema.parse(value)
+    if (JSON.stringify(history) === JSON.stringify(sourceHistory)) return
+    sourceHistory = history
+    cancel()
+    if (enabled && key) {
+      const runtime = await openMoss()
+      await runtime.memory.reconcile(sourceHistory, permittedFacts())
+    }
   })
   ipcMain.handle('gemini:start', (event, value: unknown) => {
     if (!own(event) || !validRequest(value)) throw new Error('Invalid prediction request')
     cancel()
+    sourceHistory = value.conversationHistory ?? value.conversation
     // Context must rank saved phrases too; initials and frequency cannot establish relevance.
     const cached =
-      enabled &&
-      key &&
-      (value.lockedMessage.trim() || value.conversation.length || value.conversationSummary?.trim())
+      enabled && key && (value.lockedMessage.trim() || sourceHistory.length)
         ? []
         : (phraseCache?.lookup(value) ?? [])
     diagnostics.record('request', { model, request: value, cached }, value.id)
@@ -247,14 +262,38 @@ export function installGeminiIpc(window: BrowserWindow, settings: SettingsStore 
         complete: false
       })
     void (async () => {
-      const [facts, preparedContext] = await Promise.all([
-        preferences?.retrieve(value, controller.signal) ?? Promise.resolve([]),
-        expansionContext.resolve(value, key, controller.signal)
-      ])
+      const contextStarted = performance.now()
+      const runtime = await openMoss()
+      if (controller.signal.aborted) return
+      const bundle = await runtime.memory.retrieve(
+        value,
+        sourceHistory,
+        permittedFacts(),
+        controller.signal
+      )
+      const effectiveRequest = bundle.request
+      const facts = bundle.facts
+      const preparedContext = bundle.context
+      personalMemory = memoryError
+        ? emptyMemory()
+        : (memory?.retrieve(effectiveRequest) ?? emptyMemory())
+      diagnostics.record(
+        'retrieval',
+        {
+          engine: 'moss',
+          decision: bundle.decision,
+          selectedIds: bundle.factIds,
+          candidates: bundle.candidates,
+          timings: bundle.timings,
+          cacheHit: bundle.cacheHit
+        },
+        value.id
+      )
+      const preparationMs = performance.now() - contextStarted
       if (controller.signal.aborted || active?.controller !== controller) return
       diagnostics.record('memory', { ...personalMemory, facts }, value.id)
       await streamGemini(
-        value,
+        effectiveRequest,
         key,
         controller.signal,
         (result) => {
@@ -263,6 +302,7 @@ export function installGeminiIpc(window: BrowserWindow, settings: SettingsStore 
             !controller.signal.aborted &&
             !window.isDestroyed()
           ) {
+            result.elapsedMs += preparationMs
             diagnostics.record('result', result, value.id)
             window.webContents.send('gemini:result', result)
           }
@@ -273,9 +313,28 @@ export function installGeminiIpc(window: BrowserWindow, settings: SettingsStore 
         requestModel,
         preparedContext
       )
-    })().finally(() => {
-      if (active?.controller === controller) active = null
-    })
+    })()
+      .catch(() => {
+        if (
+          active?.controller === controller &&
+          !controller.signal.aborted &&
+          !window.isDestroyed()
+        )
+          window.webContents.send('gemini:result', {
+            requestId: value.id,
+            revision: value.revision,
+            purpose: value.purpose,
+            provider: 'gemini',
+            elapsedMs: 0,
+            status: 'error',
+            message:
+              'Memory context unavailable. Check Moss credentials and connection, then retry. Your message is intact and exact spelling remains available.'
+          })
+      })
+      .finally(() => {
+        controller.abort()
+        if (active?.controller === controller) active = null
+      })
   })
   const onCancel = (event: IpcMainEvent, id: unknown): void => {
     if (own(event) && typeof id === 'string' && active?.id === id) cancel()
@@ -285,10 +344,7 @@ export function installGeminiIpc(window: BrowserWindow, settings: SettingsStore 
   window.webContents.on('render-process-gone', cancel)
   window.on('closed', () => {
     cancel()
-    cancelSummary()
-    ipcMain.removeHandler('gemini:summarize')
-    ipcMain.removeListener('gemini:cancel-summary', onCancelSummary)
-    expansionContext.clear()
+    closeMoss()
     memory?.close()
     ipcMain.removeHandler('gemini:clear-cache')
     for (const channel of [
@@ -297,6 +353,7 @@ export function installGeminiIpc(window: BrowserWindow, settings: SettingsStore 
       'gemini:model',
       'gemini:enabled',
       'gemini:start',
+      'gemini:context',
       'memory:read',
       'memory:update'
     ])

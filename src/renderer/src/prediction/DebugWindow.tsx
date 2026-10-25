@@ -87,16 +87,7 @@ export function DebugWindow(): React.JSX.Element {
               </li>
             ))}
           </ol>
-          <h3>Older context summary</h3>
-          <p>{current?.summary || 'None'}</p>
-          <h3>Waiting for summary</h3>
-          <ol>
-            {current?.pendingSummary.map((turn, i) => (
-              <li key={i}>
-                {turn.speaker}: {turn.text}
-              </li>
-            ))}
-          </ol>
+          <p>Retained session turns: {current?.retainedTurnCount ?? 0}/500</p>
         </section>
         <section>
           <h2>Request and context history</h2>

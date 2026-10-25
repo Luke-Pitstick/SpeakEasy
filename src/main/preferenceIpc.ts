@@ -39,7 +39,6 @@ export function installPreferenceIpc(
       facts: [],
       proposals: [],
       sentences: [],
-      unindexed: 0,
       busy: false,
       error: 'Preference storage unavailable. Restart or continue composing without memory.'
     }

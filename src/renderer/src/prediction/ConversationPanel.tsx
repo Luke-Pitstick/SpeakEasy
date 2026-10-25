@@ -52,6 +52,18 @@ export function ConversationPanel({
       </ActionButton>
       {cacheNotice && <p role="status">{cacheNotice}</p>}
       <PhraseModelPicker predictions={predictions} />
+      <p>
+        Moss searches conversation and approved memories locally. Moss contacts its service for
+        authentication and model loading and sends usage telemetry, including device identifiers,
+        but no conversation text. Relevant context still goes to OpenRouter when Gemini is enabled.
+        Conversation history is bounded and kept only for this session.
+      </p>
+      {!predictions.connection?.mossConfigured && (
+        <p>
+          Configure MOSS_PROJECT_ID and MOSS_PROJECT_TOKEN in the app .env and restart to connect
+          memory search.
+        </p>
+      )}
       <ActionButton
         identity={`cloud-${state.cloudEnabled}`}
         selected={state.cloudEnabled}
@@ -68,35 +80,14 @@ export function ConversationPanel({
             : 'Set OPENROUTER_TOKEN in the app .env and restart to connect Gemini.')}
       </p>
       <p>
-        Session only · Locked sentences and spoken messages stay here as you compose your next
-        reply. Keeps eight recent turns plus a temporary summary of earlier dialogue ·{' '}
-        {state.conversation.length}/8 turns · Clear or edit a turn to cancel suggestions using old
-        context.
+        Session only · {state.conversationArchive.length}/500 retained turns, bounded to 250,000
+        characters. Older turns beyond either limit are discarded. The eight recent turns below
+        remain editable. Clear conversation removes the local search context. {state.memoryNotice}
       </p>
-      <p>
-        With Gemini enabled, older turns are summarized through OpenRouter. The summary is
-        session-only, helps with follow-ups, and is not saved as a preference. Clear conversation
-        removes both.
-      </p>
-      <p aria-label="Conversation summary">
-        {state.conversationSummary || 'No earlier conversation summarized yet.'}
-      </p>
-      {!!state.summaryPending.length && (
-        <p>{state.summaryPending.length} earlier turns waiting for summary.</p>
-      )}
-      {state.summaryError && <p role="status">{state.summaryError}</p>}
-      {!!state.summaryPending.length && (
+      {state.conversationArchive.length > state.conversation.length && (
         <ActionButton
-          identity="retry-conversation-summary"
-          onAction={() => dispatch({ type: 'summary-retry' })}
-        >
-          Retry summary
-        </ActionButton>
-      )}
-      {(state.conversationSummary || state.summaryPending.length > 0) && (
-        <ActionButton
-          identity="forget-conversation-summary"
-          onAction={() => dispatch({ type: 'summary-reset' })}
+          identity="forget-moss-history"
+          onAction={() => dispatch({ type: 'history-reset' })}
         >
           Forget earlier context
         </ActionButton>

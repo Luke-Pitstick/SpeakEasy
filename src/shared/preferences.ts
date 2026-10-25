@@ -24,16 +24,14 @@ export const sentenceSchema = z.strictObject({
   initials: z.string().max(500),
   createdAt: z.number().int().nonnegative()
 })
-export const embeddingSchema = z.array(z.number().finite()).length(1536)
-export const approvedPreferenceSchema = z.strictObject({
+export const approvedPreferenceSchema = z.object({
   id: text(150),
   fact: preferenceFieldsSchema,
   source: sentenceSchema,
   quote: text(500),
   scopeBasis: z.enum(['explicit', 'conversation', 'inferred']),
   scopeExplanation: z.string().max(300),
-  updatedAt: z.number().int().nonnegative(),
-  embedding: embeddingSchema.nullable()
+  updatedAt: z.number().int().nonnegative()
 })
 export const preferenceOperationSchema = z.discriminatedUnion('type', [
   z.strictObject({ type: z.literal('settings'), extract: z.boolean(), retrieve: z.boolean() }),
@@ -56,8 +54,7 @@ export const preferenceOperationSchema = z.discriminatedUnion('type', [
   z.strictObject({ type: z.literal('reject'), id: text(150) }),
   z.strictObject({ type: z.literal('forget'), id: text(150) }),
   z.strictObject({ type: z.literal('forget-sentences'), ids: z.array(text(150)).max(100) }),
-  z.strictObject({ type: z.literal('clear') }),
-  z.strictObject({ type: z.literal('index') })
+  z.strictObject({ type: z.literal('clear') })
 ])
 export type PreferenceFields = z.infer<typeof preferenceFieldsSchema>
 export type PreferenceProposal = z.infer<typeof preferenceProposalSchema> & {
@@ -70,10 +67,9 @@ export type PreferenceOperation = z.infer<typeof preferenceOperationSchema>
 export interface PreferenceSnapshot {
   extract: boolean
   retrieve: boolean
-  facts: Omit<ApprovedPreference, 'embedding'>[]
+  facts: ApprovedPreference[]
   proposals: PreferenceProposal[]
   sentences: SentenceMemory[]
-  unindexed: number
   busy: boolean
   error: string
 }

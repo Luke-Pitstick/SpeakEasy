@@ -4,25 +4,14 @@ import { StateContext, DispatchContext } from './state'
 export function CompositionProvider({ children }: { children: ReactNode }): React.JSX.Element {
   const [state, dispatch] = useReducer(reducer, undefined, initialState)
   useEffect(() => {
-    const api = window.gemini
-    if (!api || !state.cloudEnabled || !state.summaryPending.length) return
-    let alive = true
-    const turns = state.summaryPending.slice(0, 8)
-    const version = state.summaryVersion
-    void api
-      .summarize({ summary: state.conversationSummary, turns })
-      .then((summary) => {
-        if (alive)
-          dispatch({ type: 'summary-result', version, ids: turns.map((turn) => turn.id), summary })
+    if (!window.gemini) return
+    void window.gemini.syncContext(state.conversationArchive).catch(() => {
+      dispatch({
+        type: 'memory-notice',
+        text: 'Moss context could not be indexed. Check the connection and retry suggestions.'
       })
-      .catch(() => {
-        if (alive) dispatch({ type: 'summary-error', version })
-      })
-    return () => {
-      alive = false
-      api.cancelSummary()
-    }
-  }, [state.cloudEnabled, state.summaryPending, state.conversationSummary, state.summaryVersion])
+    })
+  }, [state.conversationArchive])
   const namespace = useRef(crypto.randomUUID())
   const processed = useRef(-1)
   const sentencesProcessed = useRef(-1)

@@ -9,11 +9,24 @@ const mocked = vi.hoisted(() => ({
   handlers: new Map<string, (...args: unknown[]) => unknown>(),
   folder: ''
 }))
-vi.mock('../src/main/expansionContext', () => ({
-  ExpansionContextCache: class {
-    clear = vi.fn()
-    resolve = vi.fn(async () => null)
-  }
+vi.mock('../src/main/mossMemory', () => ({
+  modelContextResolver: vi.fn(),
+  openMossMemory: vi.fn(async () => ({
+    memory: {
+      retrieve: vi.fn(async (request) => ({
+        request,
+        facts: [],
+        context: null,
+        decision: {},
+        factIds: [],
+        candidates: [],
+        timings: {},
+        cacheHit: false
+      })),
+      reconcile: vi.fn(async () => {})
+    },
+    close: vi.fn(async () => {})
+  }))
 }))
 vi.mock('electron', () => ({
   app: { getPath: () => mocked.folder, getAppPath: () => mocked.folder },
@@ -34,6 +47,8 @@ afterEach(() => {
 })
 
 it('cancels the old generation on a model change and sends subsequent requests to the saved model', async () => {
+  vi.stubEnv('MOSS_PROJECT_ID', 'test-project')
+  vi.stubEnv('MOSS_PROJECT_TOKEN', 'test-key')
   vi.stubEnv('OPENROUTER_TOKEN', 'test-key')
   mocked.folder = mkdtempSync(join(tmpdir(), 'speakeasy-model-ipc-'))
   const fetcher = vi
@@ -101,6 +116,8 @@ function launch(): { event: object; close: () => void } {
 }
 
 it('restores Gemini consent and general settings after closing and creating a new window', () => {
+  vi.stubEnv('MOSS_PROJECT_ID', 'test-project')
+  vi.stubEnv('MOSS_PROJECT_TOKEN', 'test-key')
   vi.stubEnv('OPENROUTER_TOKEN', '')
   mocked.folder = mkdtempSync(join(tmpdir(), 'speakeasy-settings-ipc-'))
   const first = launch()
@@ -139,6 +156,8 @@ it('restores Gemini consent and general settings after closing and creating a ne
 })
 
 it('retrieves locked sentences before speech without cloud access and rejects untrusted saves', async () => {
+  vi.stubEnv('MOSS_PROJECT_ID', 'test-project')
+  vi.stubEnv('MOSS_PROJECT_TOKEN', 'test-key')
   vi.stubEnv('OPENROUTER_TOKEN', '')
   mocked.folder = mkdtempSync(join(tmpdir(), 'speakeasy-cache-ipc-'))
   const app = launch()

@@ -22,8 +22,7 @@ it('shows active context and inspectable prior requests, filters history, and cl
         initials: 'ittitc',
         lockedMessage: '',
         conversation: [{ speaker: 'me', text: "I didn't like math." }],
-        summary: 'School subjects',
-        pendingSummary: [],
+        retainedTurnCount: 12,
         partial: 'What is wrong with math',
         queuedTranscripts: [],
         listening: 'Listening',
@@ -45,7 +44,7 @@ it('shows active context and inspectable prior requests, filters history, and cl
   render(<DebugWindow />)
   await screen.findByText("I didn't like math.", { exact: false })
   expect(screen.getByText('What is wrong with math', { exact: false })).toBeTruthy()
-  expect(screen.getByText('School subjects')).toBeTruthy()
+  expect(screen.getByText('Retained session turns: 12/500')).toBeTruthy()
   expect(screen.getByText('{"initials":"idlm"}')).toBeTruthy()
   fireEvent.change(screen.getByRole('combobox'), { target: { value: 'retrieval' } })
   expect(screen.queryByText('{"initials":"idlm"}')).toBeNull()

@@ -35,10 +35,9 @@ const settings: SettingsApi = {
 }
 contextBridge.exposeInMainWorld('settings', settings)
 const gemini: GeminiApi = {
+  syncContext: (turns) => ipcRenderer.invoke('gemini:context', turns),
   models: () => ipcRenderer.invoke('gemini:models'),
   setModel: (model) => ipcRenderer.invoke('gemini:model', model),
-  summarize: (request) => ipcRenderer.invoke('gemini:summarize', request),
-  cancelSummary: () => ipcRenderer.send('gemini:cancel-summary'),
   clearPhraseCache: () => ipcRenderer.invoke('gemini:clear-cache'),
   status: () => ipcRenderer.invoke('gemini:status'),
   setEnabled: (enabled) => ipcRenderer.invoke('gemini:enabled', enabled),

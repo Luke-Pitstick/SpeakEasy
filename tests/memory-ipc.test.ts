@@ -10,11 +10,24 @@ const mocked = vi.hoisted(() => ({
   handlers: new Map<string, (...args: unknown[]) => unknown>(),
   folder: ''
 }))
-vi.mock('../src/main/expansionContext', () => ({
-  ExpansionContextCache: class {
-    clear = vi.fn()
-    resolve = vi.fn(async () => null)
-  }
+vi.mock('../src/main/mossMemory', () => ({
+  modelContextResolver: vi.fn(),
+  openMossMemory: vi.fn(async () => ({
+    memory: {
+      retrieve: vi.fn(async (request) => ({
+        request,
+        facts: [],
+        context: null,
+        decision: {},
+        factIds: [],
+        candidates: [],
+        timings: {},
+        cacheHit: false
+      })),
+      reconcile: vi.fn(async () => {})
+    },
+    close: vi.fn(async () => {})
+  }))
 }))
 vi.mock('electron', () => ({
   app: { getPath: () => mocked.folder, getAppPath: () => mocked.folder },
@@ -37,6 +50,8 @@ afterEach(() => {
 })
 
 function launch(): { event: object; send: ReturnType<typeof vi.fn> } {
+  vi.stubEnv('MOSS_PROJECT_ID', 'test-project')
+  vi.stubEnv('MOSS_PROJECT_TOKEN', 'test-key')
   vi.stubEnv('OPENROUTER_TOKEN', 'test-token')
   mocked.folder = mkdtempSync(join(tmpdir(), 'speakeasy-memory-ipc-'))
   const frame = { url: 'file:///speakeasy/index.html' }
@@ -119,7 +134,7 @@ it('enforces sender and input validation, independent sharing consent, and in-fl
   })
 })
 
-it.each(['locked message', 'partner question', 'summary'])(
+it.each(['locked message', 'partner question'])(
   'uses context instead of six unchecked cache matches: %s',
   async (context) => {
     const { event, send } = launch()
@@ -143,22 +158,18 @@ it.each(['locked message', 'partner question', 'summary'])(
         context === 'locked message'
           ? 'I have been playing Clash Royale. Let me tell you about my favorite deck.'
           : '',
-      conversationSummary: context === 'summary' ? 'The user is discussing Clash Royale.' : '',
       target: { start: 0, end: 0 },
       tokens: [...'iphc'].map((value, i) => ({ id: String(i), kind: 'initial', value })),
-      conversation:
-        context === 'summary'
-          ? []
-          : [
-              {
-                id: 'background',
-                speaker: 'partner',
-                text:
-                  context === 'locked message'
-                    ? 'What is for dinner?'
-                    : 'Which Clash Royale deck do you play?'
-              }
-            ]
+      conversation: [
+        {
+          id: 'background',
+          speaker: 'partner',
+          text:
+            context === 'locked message'
+              ? 'What is for dinner?'
+              : 'Which Clash Royale deck do you play?'
+        }
+      ]
     }
     send.mockClear()
     mocked.handlers.get('gemini:start')!(event, input)

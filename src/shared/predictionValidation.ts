@@ -4,6 +4,7 @@ import {
   type PhraseCandidate,
   type PredictionResult
 } from './prediction'
+import { conversationHistorySchema } from './conversationHistory'
 const record = (value: unknown): value is Record<string, unknown> =>
   !!value && typeof value === 'object' && !Array.isArray(value)
 const bounded = (value: unknown, max: number): value is string =>
@@ -20,7 +21,8 @@ export function validRequest(value: unknown): value is PredictionRequest {
     !['expansion', 'refinement', 'completion'].includes(String(value.purpose)) ||
     !bounded(value.draft, 500) ||
     !bounded(value.lockedMessage, 2000) ||
-    (value.conversationSummary !== undefined && !bounded(value.conversationSummary, 2000)) ||
+    (value.conversationHistory !== undefined &&
+      !conversationHistorySchema.safeParse(value.conversationHistory).success) ||
     !Array.isArray(value.tokens) ||
     value.tokens.length > 24 ||
     !record(value.target) ||
@@ -51,6 +53,18 @@ export function validRequest(value: unknown): value is PredictionRequest {
   )
     return false
   if (value.purpose === 'completion' && (start !== value.draft.length || end !== start))
+    return false
+  const history = value.conversationHistory
+  if (
+    Array.isArray(history) &&
+    value.conversation.some(
+      (t) =>
+        !record(t) ||
+        !history.some(
+          (h: unknown) => record(h) && h.id === t.id && h.speaker === t.speaker && h.text === t.text
+        )
+    )
+  )
     return false
   return (
     value.tokens.every(

@@ -1,4 +1,4 @@
-import { ExpansionContextCache } from '../src/main/expansionContext'
+import { modelContextResolver } from '../src/main/mossMemory'
 import { diagnostics } from '../src/main/diagnosticStore'
 import { expect, it } from 'vitest'
 import { readFileSync } from 'node:fs'
@@ -12,7 +12,7 @@ it.skipIf(process.env.SPEAKEASY_LIVE_SCHOOL_TEST !== '1')(
     const key =
       process.env.OPENROUTER_TOKEN || parseEnv(readFileSync('.env', 'utf8')).OPENROUTER_TOKEN
     if (!key) throw Error('OPENROUTER_TOKEN required')
-    const contextCache = new ExpansionContextCache()
+    const resolve = modelContextResolver(key)
     const conversation: PredictionRequest['conversation'] = [
       {
         id: 'q1',
@@ -43,15 +43,14 @@ it.skipIf(process.env.SPEAKEASY_LIVE_SCHOOL_TEST !== '1')(
         initials,
         lockedMessage: '',
         conversation: [],
-        summary: '',
-        pendingSummary: [],
+        retainedTurnCount: conversation.length,
         partial: '',
         queuedTranscripts: [],
         listening: '',
         paused: true,
         busy: false
       })
-      const preparedContext = await contextCache.resolve(request, key, new AbortController().signal)
+      const preparedContext = await resolve(request, conversation, new AbortController().signal)
       console.info('Prepared context', JSON.stringify(preparedContext))
       expect(preparedContext).not.toBeNull()
       let result: PredictionResult | undefined
