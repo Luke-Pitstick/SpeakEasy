@@ -277,6 +277,21 @@ function reduceComposition(state: CompositionState, action: Action): Composition
       const text = action.text.trim()
       if (!text || text.length > 1000)
         return { ...state, validationError: 'Use a conversation turn of at most 1,000 characters.' }
+      // Displayed suggestions stay until the user uses or dismisses them; the new turn conditions
+      // the next request instead of replacing what the user is reading.
+      if (state.request && state.candidates.length) {
+        const prefix = `turn-${state.revision}.`
+        const used = [...state.conversationArchive, ...state.conversation].filter((t) =>
+          t.id.startsWith(prefix)
+        ).length
+        return {
+          ...state,
+          conversation: [
+            ...state.conversation.slice(-7),
+            { id: `${prefix}${used}`, speaker: action.speaker, text }
+          ]
+        }
+      }
       const next: CompositionState = {
         ...edit(state, {}, false),
         conversation: [
@@ -286,7 +301,7 @@ function reduceComposition(state: CompositionState, action: Action): Composition
         notice: 'Conversation updated for your next request.'
       }
       // External finalized turns must be dispatched at a safe interaction boundary.
-      // Refresh only an existing expansion, never accepted text or an edited phrase.
+      // Refresh only an expansion with nothing shown yet, never accepted text or an edited phrase.
       return action.speaker === 'partner' &&
         state.cloudEnabled &&
         state.paused &&
@@ -959,7 +974,13 @@ export function reducer(state: CompositionState, action: Action): CompositionSta
           ? state.conversationArchive
           : bounded
     }
-    if (next.request && next.request.conversationHistory !== next.conversationArchive)
+    // Only a request created by this action may take the new archive; rewriting an existing one
+    // would restart its stream.
+    if (
+      next.request &&
+      next.request !== state.request &&
+      next.request.conversationHistory !== next.conversationArchive
+    )
       next = {
         ...next,
         request: { ...next.request, conversationHistory: next.conversationArchive }

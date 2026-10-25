@@ -3,15 +3,18 @@ import { initialState, reducer } from './model'
 import { StateContext, DispatchContext } from './state'
 export function CompositionProvider({ children }: { children: ReactNode }): React.JSX.Element {
   const [state, dispatch] = useReducer(reducer, undefined, initialState)
+  // Syncing cancels the active generation, so a turn heard while suggestions stream waits for the
+  // stream to finish; the request already carries its own history.
+  const generating = state.status === 'loading'
   useEffect(() => {
-    if (!window.gemini) return
+    if (!window.gemini || generating) return
     void window.gemini.syncContext(state.conversationArchive).catch(() => {
       dispatch({
         type: 'memory-notice',
         text: 'Moss context could not be indexed. Check the connection and retry suggestions.'
       })
     })
-  }, [state.conversationArchive])
+  }, [state.conversationArchive, generating])
   const namespace = useRef(crypto.randomUUID())
   const processed = useRef(-1)
   const sentencesProcessed = useRef(-1)
@@ -42,7 +45,13 @@ export function CompositionProvider({ children }: { children: ReactNode }): Reac
         })
     }
   }, [state.sentenceEvents])
-  useEffect(() => window.memory?.onChanged(() => dispatch({ type: 'memory-changed' })), [])
+  useEffect(
+    () =>
+      window.memory?.onChanged((invalidate) => {
+        if (invalidate) dispatch({ type: 'memory-changed' })
+      }),
+    []
+  )
   useEffect(() => {
     for (const event of state.memoryEvents) {
       if (event.sequence <= processed.current) continue

@@ -113,7 +113,7 @@ it('enforces sender and input validation, independent sharing consent, and in-fl
   send.mockClear()
   call('memory:update', { type: 'forget-word', word: 'ANJALI' })
   expect(generation[2].aborted).toBe(true)
-  expect(send).toHaveBeenCalledWith('memory:changed')
+  expect(send).toHaveBeenCalledWith('memory:changed', true)
   generation[3]({
     requestId: 'two',
     revision: 1,

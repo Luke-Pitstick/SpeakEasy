@@ -177,6 +177,41 @@ describe('always-on context bridge', () => {
     expect(current.request?.id).not.toBe('before')
     expect(current.request?.conversation.at(-1)?.text).toBe('Would you like coffee or tea?')
   })
+  it('keeps streaming suggestions and syncs a heard turn only after the stream finishes', async () => {
+    await setup()
+    const syncContext = vi.fn(async () => {})
+    window.gemini!.syncContext = syncContext
+    act(() => {
+      dispatch({ type: 'cloud', enabled: true })
+      dispatch({ type: 'example', initials: 'iwac' })
+      dispatch({ type: 'predict', purpose: 'expansion', id: 'streaming' })
+    })
+    const request = current.request!
+    const shown = { id: 'c1', text: 'I want a coffee', replacement: 'I want a coffee' }
+    const result = (complete: boolean): void =>
+      dispatch({
+        type: 'result',
+        result: {
+          requestId: request.id,
+          revision: request.revision,
+          purpose: 'expansion',
+          provider: 'gemini',
+          elapsedMs: 1,
+          status: 'success',
+          complete,
+          candidates: [shown]
+        }
+      })
+    act(() => result(false))
+    syncContext.mockClear()
+    act(() => emit('Would you like coffee or tea?'))
+    expect(current.request).toBe(request)
+    expect(current.candidates).toEqual([shown])
+    expect(syncContext).not.toHaveBeenCalled()
+    act(() => result(true))
+    await waitFor(() => expect(syncContext).toHaveBeenLastCalledWith(current.conversationArchive))
+    expect(current.conversationArchive.at(-1)?.text).toBe('Would you like coffee or tea?')
+  })
   it('defers context changes during dwell and drops queued and late speech on Clear', async () => {
     await setup()
     const oldSession = vi.mocked(api.listen).mock.calls.at(-1)![0]

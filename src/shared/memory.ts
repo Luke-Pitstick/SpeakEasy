@@ -27,7 +27,7 @@ export type MemoryOperation =
 export interface MemoryApi {
   read(): Promise<MemorySnapshot>
   update(operation: MemoryOperation): Promise<MemorySnapshot>
-  onChanged(listener: () => void): () => void
+  onChanged(listener: (invalidate: boolean) => void): () => void
 }
 export interface MemoryContext {
   facts?: PreferenceFields[]

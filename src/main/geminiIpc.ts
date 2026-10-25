@@ -147,8 +147,12 @@ export function installGeminiIpc(window: BrowserWindow, settings: SettingsStore 
         op.ids.length <= 100 &&
         op.ids.every(validId))
     if (!valid) throw Error('Invalid memory operation')
-    cancel()
-    diagnostics.clear()
+    // Learning only adds data for later requests; edits and removals must drop pending generations.
+    const invalidate = op.type !== 'learn'
+    if (invalidate) {
+      cancel()
+      diagnostics.clear()
+    }
     try {
       if (!memory) throw Error('Unavailable')
       memory.update(op)
@@ -157,7 +161,7 @@ export function installGeminiIpc(window: BrowserWindow, settings: SettingsStore 
       memoryError =
         'Could not update memory. Storage may be unavailable or full (2,000 corrections). Retry or continue without learning.'
     }
-    window.webContents.send('memory:changed')
+    window.webContents.send('memory:changed', invalidate)
     return readMemory()
   })
   ipcMain.handle('gemini:status', (event) => {

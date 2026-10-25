@@ -22,9 +22,11 @@ const memory: MemoryApi = {
   read: () => ipcRenderer.invoke('memory:read'),
   update: (operation) => ipcRenderer.invoke('memory:update', operation),
   onChanged: (listener) => {
-    ipcRenderer.on('memory:changed', listener)
+    const receive = (_event: Electron.IpcRendererEvent, invalidate: boolean): void =>
+      listener(invalidate)
+    ipcRenderer.on('memory:changed', receive)
     return () => {
-      ipcRenderer.removeListener('memory:changed', listener)
+      ipcRenderer.removeListener('memory:changed', receive)
     }
   }
 }
