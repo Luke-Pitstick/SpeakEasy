@@ -162,7 +162,7 @@ export function candidateFor(
   }
 }
 
-/** Fuzzy initials never loosen explicit word or prefix constraints. */
+/** Cached wording must match every initial and preserve explicit word or prefix constraints. */
 export function cacheMatch(request: PredictionRequest, text: string, saved: string): number | null {
   if (request.purpose !== 'expansion' || !/^[a-z]{1,24}$/.test(saved)) return null
   const tokens = wordTokens(request.tokens)
@@ -179,12 +179,7 @@ export function cacheMatch(request: PredictionRequest, text: string, saved: stri
     )
   )
     return null
-  const distance = (key: string): number =>
-    key.length !== query.length
-      ? Infinity
-      : [...query].filter((letter, i) => letter !== key[i]).length
-  const score = Math.min(distance(saved), distance(words.map((word) => word[0]).join('')))
-  return score === 0 || (query.length >= 4 && score === 1) ? score : null
+  return query === words.map((word) => word[0]).join('') ? 0 : null
 }
 export function validateResult(request: PredictionRequest, result: unknown): PredictionResult {
   const base = {

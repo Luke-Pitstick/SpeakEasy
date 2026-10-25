@@ -31,16 +31,16 @@ afterEach(() => {
   for (const folder of folders.splice(0)) rmSync(folder, { recursive: true, force: true })
 })
 describe('spoken phrase cache', () => {
-  it('persists corrected text under original and corrected initials, and clears across restarts', () => {
+  it('persists corrected text under its actual initials and clears across restarts', () => {
     const { cache, path } = store()
     cache.save('iwac', 'I need some hot tea')
     const reopened = new PhraseCache(path)
-    expect(reopened.lookup(request())[0].text).toBe('I need some hot tea')
+    expect(reopened.lookup(request())).toEqual([])
     expect(reopened.lookup(request('insht'))[0].text).toBe('I need some hot tea')
     reopened.clear()
     expect(new PhraseCache(path).lookup(request())).toEqual([])
   })
-  it('ranks exact matches first, then frequency, deduplicates punctuation and limits fuzzy matching', () => {
+  it('requires exact initials, ranks by frequency and deduplicates punctuation', () => {
     const { cache } = store()
     cache.save('iwat', 'I want a tea')
     cache.save('iwac', 'I want a coffee')
@@ -48,16 +48,15 @@ describe('spoken phrase cache', () => {
     cache.save('iwac', 'I want a coffee.')
     expect(cache.lookup(request()).map((c) => c.text)).toEqual([
       'I want a coffee.',
-      'I want a cookie',
-      'I want a tea'
+      'I want a cookie'
     ])
     expect(cache.lookup(request('izzz'))).toEqual([])
     cache.save('ic', 'Ice cream')
     expect(cache.lookup(request('it'))).toEqual([])
   })
-  it('enforces locked words and prefixes even for original-initial aliases and revalidates in the renderer', () => {
+  it('enforces locked words and prefixes and revalidates in the renderer', () => {
     const { cache } = store()
-    cache.save('iwac', 'I want a tea')
+    cache.save('iwac', 'I want a coffee')
     const input = request()
     const candidates = cache.lookup(input)
     expect(
@@ -72,9 +71,9 @@ describe('spoken phrase cache', () => {
         candidates
       }).status
     ).toBe('success')
-    input.tokens[3] = { id: '3', kind: 'prefix', value: 'co' }
+    input.tokens[3] = { id: '3', kind: 'prefix', value: 'ca' }
     expect(cache.lookup(input)).toEqual([])
-    input.tokens[3] = { id: '3', kind: 'word', value: 'coffee' }
+    input.tokens[3] = { id: '3', kind: 'word', value: 'cookie' }
     expect(cache.lookup(input)).toEqual([])
     expect(candidateFor(request(), 'I want a tea', 0)).toBeNull()
   })
@@ -191,10 +190,19 @@ describe('cache-first generation', () => {
 it('matches word initials independently of punctuation and respects the selected mark', () => {
   const { cache } = store()
   cache.save('cyhm', 'Can you help me?')
-  cache.save('cyhe', 'Can you hear everything!')
+  cache.save('cyhm', 'Can you hear me!')
   const input = request('cyhm')
   input.tokens.push({ id: 'end', kind: 'punctuation', value: '?' })
   expect(cache.lookup(input).map((c) => c.text)).toEqual(['Can you help me?'])
   input.tokens.at(-1)!.value = '!'
-  expect(cache.lookup(input).map((c) => c.text)).toEqual(['Can you hear everything!'])
+  expect(cache.lookup(input).map((c) => c.text)).toEqual(['Can you hear me!'])
+})
+
+it('rejects a one-letter mismatch and a saved alias in both lookup and renderer validation', () => {
+  const { cache } = store()
+  cache.save('spwbn', 'Some pasta would be awesome')
+  const input = request('spwbn')
+  expect(cache.lookup(input)).toEqual([])
+  expect(candidateFor(input, 'Some pasta would be awesome', 0, 'spwbn')).toBeNull()
+  expect(cache.lookup(request('spwba'))[0].text).toBe('Some pasta would be awesome')
 })

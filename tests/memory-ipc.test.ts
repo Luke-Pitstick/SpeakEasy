@@ -136,7 +136,7 @@ it('enforces sender and input validation, independent sharing consent, and in-fl
 })
 
 it.each(['locked message', 'partner question'])(
-  'uses context instead of six unchecked cache matches: %s',
+  'publishes two cache matches immediately while preserving contextual generation: %s',
   async (context) => {
     const { event, send } = launch()
     const save = mocked.handlers.get('preferences:update')!
@@ -174,24 +174,37 @@ it.each(['locked message', 'partner question'])(
     }
     send.mockClear()
     mocked.handlers.get('gemini:start')!(event, input)
+    expect(send).toHaveBeenCalledWith(
+      'gemini:result',
+      expect.objectContaining({
+        complete: false,
+        candidates: expect.any(Array)
+      })
+    )
+    const immediate = send.mock.calls.find(([channel]) => channel === 'gemini:result')![1]
+    expect(immediate.candidates).toHaveLength(2)
+    expect(streamGemini).not.toHaveBeenCalled()
     await new Promise((resolve) => setTimeout(resolve, 0))
     expect(streamGemini).toHaveBeenCalledOnce()
     const generation = vi.mocked(streamGemini).mock.calls[0]
     expect(generation[0].lockedMessage).toBe(input.lockedMessage)
-    expect(generation[6]).toEqual([])
-    expect(send).not.toHaveBeenCalledWith(
+    expect(generation[6]).toHaveLength(2)
+    expect(send).toHaveBeenCalledWith(
       'gemini:result',
       expect.objectContaining({
-        candidates: expect.arrayContaining([
-          expect.objectContaining({ text: 'I prefer hot chicken' })
-        ])
+        complete: false,
+        candidates: generation[6]
       })
     )
     mocked.handlers.get('gemini:enabled')!(event, false)
     mocked.handlers.get('gemini:start')!(event, { ...input, id: 'offline' })
     expect(send).toHaveBeenCalledWith(
       'gemini:result',
-      expect.objectContaining({ status: 'success', candidates: expect.any(Array) })
+      expect.objectContaining({
+        status: 'success',
+        complete: true,
+        candidates: expect.any(Array)
+      })
     )
     expect(streamGemini).toHaveBeenCalledOnce()
   }

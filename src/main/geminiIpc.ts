@@ -216,11 +216,9 @@ export function installGeminiIpc(window: BrowserWindow, settings: SettingsStore 
     if (!own(event) || !validRequest(value)) throw new Error('Invalid prediction request')
     cancel()
     sourceHistory = value.conversationHistory ?? value.conversation
-    // Context must rank saved phrases too; initials and frequency cannot establish relevance.
-    const cached =
-      enabled && key && (value.lockedMessage.trim() || sourceHistory.length)
-        ? []
-        : (phraseCache?.lookup(value) ?? [])
+    // Reuse familiar phrases immediately, leaving room for context-specific alternatives.
+    const contextual = enabled && key && (value.lockedMessage.trim() || sourceHistory.length)
+    const cached = (phraseCache?.lookup(value) ?? []).slice(0, contextual ? 2 : 6)
     diagnostics.record('request', { model, request: value, cached }, value.id)
     if (cached.length && (!enabled || !key || cached.length === 6)) {
       event.sender.send('gemini:result', {
