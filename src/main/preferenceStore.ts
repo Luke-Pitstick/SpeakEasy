@@ -46,7 +46,7 @@ export class PreferenceStore {
   commit(sentence: SentenceMemory, conversation: LearningContext = [], learn = false): boolean {
     const value = sentenceSchema.parse(sentence)
     if (this.db.prepare('SELECT id FROM sentences WHERE id = ?').get(value.id)) return false
-    if (this.sentences().length >= 2000)
+    if (Number(this.db.prepare('SELECT COUNT(*) AS count FROM sentences').get()!.count) >= 20000)
       throw Error('Sentence memory is full. Forget saved sentences before saving more.')
     this.db.exec('BEGIN')
     try {
@@ -112,7 +112,10 @@ export class PreferenceStore {
   }
   save(fact: ApprovedPreference): void {
     const value = approvedPreferenceSchema.parse(fact)
-    if (this.facts().length >= 200 && !this.facts().some((f) => f.id === value.id))
+    if (
+      Number(this.db.prepare('SELECT COUNT(*) AS count FROM facts').get()!.count) >= 2000 &&
+      !this.db.prepare('SELECT id FROM facts WHERE id = ?').get(value.id)
+    )
       throw Error('Fact memory is full. Forget a fact before adding more.')
     this.db
       .prepare('INSERT OR REPLACE INTO facts VALUES (?, ?)')

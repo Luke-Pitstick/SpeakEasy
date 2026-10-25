@@ -206,6 +206,31 @@ describe('Gemini streaming boundary', () => {
       results[0].status === 'success' ? results[0].candidates[0].id : ''
     )
   })
+  it.each(['How are you?', ''])(
+    'does not demand more alternatives after a clean short response: %s',
+    async (line) => {
+      const input: PredictionRequest = {
+        ...request(),
+        conversation: [],
+        tokens: [...'hay'].map((value, i) => ({ id: String(i), kind: 'initial', value }))
+      }
+      const fetcher = vi.fn<typeof fetch>().mockResolvedValue(response([frame(line, 'stop')]))
+      const results: PredictionResult[] = []
+      await streamGemini(
+        input,
+        'secret',
+        new AbortController().signal,
+        (r) => results.push(r),
+        fetcher
+      )
+      expect(fetcher).toHaveBeenCalledTimes(1)
+      expect(results.at(-1)).toMatchObject({
+        status: 'success',
+        complete: true,
+        candidates: line ? [expect.objectContaining({ replacement: line })] : []
+      })
+    }
+  )
   it('aborts an in-flight request without publishing an error or late candidates', async () => {
     const controller = new AbortController(),
       emit = vi.fn()
