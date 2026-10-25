@@ -162,7 +162,7 @@ it('starts from a click on a box, pauses on empty space, and resumes without ano
   bounds.mockRestore()
 })
 
-it('paints every starting initial in alphabetical order at short and full panel heights', () => {
+it('paints a-z followed by ! and ? at short and full panel heights', () => {
   for (const height of [188, 282, 600, 1200]) {
     const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg')
     const renderer = new SvgRenderer(svg)
@@ -174,10 +174,10 @@ it('paints every starting initial in alphabetical order at short and full panel 
       engine.geometry
     )
     const labels = [...svg.querySelectorAll('text')]
-    expect(labels.map((label) => label.textContent).join('')).toBe('abcdefghijklmnopqrstuvwxyz')
+    expect(labels.map((label) => label.textContent).join('')).toBe('abcdefghijklmnopqrstuvwxyz!?')
     expect(labels.every((label) => label.getAttribute('visibility') === 'visible')).toBe(true)
     const rectangles = [...svg.querySelectorAll('rect')]
-    expect(rectangles).toHaveLength(26)
+    expect(rectangles).toHaveLength(28)
     expect(new Set(rectangles.map((rect) => rect.getAttribute('height'))).size).toBeGreaterThan(1)
     renderer.dispose()
   }

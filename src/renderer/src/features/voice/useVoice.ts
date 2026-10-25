@@ -8,9 +8,11 @@ import {
 import { useComposition, useCompositionDispatch } from '../../composition/state'
 import { useInteraction } from '../../interaction/state'
 import { captureMicrophone, SpeechPlayer } from './audio'
+import { useTone } from './useTone'
 
 export interface VoiceController {
   settings: VoiceSettings
+  tone: ReturnType<typeof useTone>
   update(patch: Partial<VoiceSettings>): void
   configured: boolean
   voices: PresetVoice[]
@@ -42,6 +44,7 @@ export function useVoice(): VoiceController {
   const [error, setError] = useState('')
   const [speechStatus, setSpeechStatus] = useState('Ready')
   const [speaking, setSpeaking] = useState(false)
+  const tone = useTone(settings.tone, speaking)
   const [retry, setRetry] = useState(0)
   const [queuedTranscripts, setQueuedTranscripts] = useState<
     { speaker: 'me' | 'partner'; text: string; epoch: number }[]
@@ -283,8 +286,9 @@ export function useVoice(): VoiceController {
       revision,
       text,
       origin,
-      settings: { ...settings }
+      settings: { ...settings, tone: origin === 'speak' ? tone.value : settings.tone }
     }
+    if (origin === 'speak') dispatch({ type: 'speech-confirmed', id: request.id, text })
     const context = playback.current ?? new AudioContext()
     playback.current = context
     const player = new SpeechPlayer(
@@ -301,11 +305,6 @@ export function useVoice(): VoiceController {
         if (current?.request.id !== request.id) return
         active.current = null
         if (origin === 'speak' && current.started) {
-          // A locked sentence already entered the session before playback.
-          const alreadyCommitted = state.conversation.some(
-            (turn) => turn.id === state.savedSentences.at(-1) && turn.text === text.trim()
-          )
-          if (!alreadyCommitted) enqueue('me', text, current.epoch)
           completed.current = { text, revision }
           setCompletedVersion((version) => version + 1)
         }
@@ -347,6 +346,7 @@ export function useVoice(): VoiceController {
     }, 300)
   }
   const update = (patch: Partial<VoiceSettings>): void => {
+    if (patch.tone !== undefined) tone.select(patch.tone)
     const next = { ...settings, ...patch }
     setSettings(next)
     void window.voice
@@ -355,6 +355,7 @@ export function useVoice(): VoiceController {
   }
   return {
     settings,
+    tone,
     update,
     configured,
     voices,

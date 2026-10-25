@@ -20,8 +20,8 @@ export function CompositionProvider({ children }: { children: ReactNode }): Reac
   const sentencesProcessed = useRef(-1)
   useEffect(
     () =>
-      window.preferences?.onChanged((invalidate) => {
-        if (invalidate) dispatch({ type: 'memory-changed' })
+      window.preferences?.onChanged((invalidate, automatic) => {
+        if (invalidate && !automatic) dispatch({ type: 'memory-changed' })
       }),
     []
   )

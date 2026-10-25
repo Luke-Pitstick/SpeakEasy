@@ -15,6 +15,26 @@ export function VoiceSettings({ voice }: { voice: VoiceController }): React.JSX.
         Audio is sent to Cartesia; recordings are not saved by SpeakEasy. Conversation text stays in
         this session and is supplied to Gemini when enabled.
       </p>
+      <section aria-label="Jev tone suggestions">
+        <h3>Suggested delivery</h3>
+        <p>
+          When enabled, Jev receives your ready-to-speak message and up to eight recent conversation
+          turns to suggest its tone. This is separate from Gemini generation. It sends no audio,
+          camera frames, or saved memories. Review or override the tone beside Speak.
+        </p>
+        <ActionButton
+          identity={`jev-tone-enabled-${voice.tone.enabled}`}
+          selected={voice.tone.enabled}
+          disabled={!voice.tone.configured && !voice.tone.enabled}
+          onAction={() => voice.tone.setEnabled(!voice.tone.enabled)}
+        >
+          {voice.tone.enabled ? 'Turn off Jev tone suggestions' : 'Suggest tone with Jev'}
+        </ActionButton>
+        {!voice.tone.configured && (
+          <p>Set TYPESAFE_AI_API_TOKEN in .env and restart SpeakEasy to use Jev.</p>
+        )}
+        <p role="status">{voice.tone.message}</p>
+      </section>
       <section aria-label="Preset voice">
         <h3>
           Voice ·{' '}

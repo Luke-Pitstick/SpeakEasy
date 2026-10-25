@@ -155,7 +155,7 @@ it('selects exactly the entered letters on the path to the output', () => {
   for (const region of unselected) expect(engine.text.startsWith(region.text)).toBe(false)
 })
 
-it('starts with all 26 first initials visible in a-z order before any steering', () => {
+it('starts with a-z followed by ! and ? visible before any steering', () => {
   for (const height of [188, 330, 600, 1200]) {
     const engine = new DasherEngine(1280, height)
     const letters = engine.regions().filter((region) => region.depth === 1)

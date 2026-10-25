@@ -16,6 +16,8 @@ export function usePredictions(): {
     dispatch = useCompositionDispatch(),
     { busy } = useInteraction()
   const [staged, setStaged] = useState<PredictionResult | null>(null)
+  const memoryUpdatePending = useRef(false)
+  const [memoryVersion, setMemoryVersion] = useState(0)
   const [connection, setConnection] = useState<GeminiStatus | null>(null)
   const [connectionError, setConnectionError] = useState(() =>
     window.gemini ? '' : 'Open the desktop app to connect Gemini.'
@@ -23,6 +25,22 @@ export function usePredictions(): {
   const counter = useRef(0),
     delivered = useRef<PredictionResult | null>(null)
   const pending = state.request
+  useEffect(
+    () =>
+      window.preferences?.onChanged((invalidate, automatic) => {
+        if (invalidate && automatic) {
+          memoryUpdatePending.current = true
+          setStaged(null)
+          setMemoryVersion((version) => version + 1)
+        }
+      }),
+    []
+  )
+  useEffect(() => {
+    if (!memoryUpdatePending.current || busy) return
+    memoryUpdatePending.current = false
+    dispatch({ type: 'memory-learned' })
+  }, [memoryVersion, busy, dispatch])
   const setModel = async (model: string): Promise<void> => {
     dispatch({ type: 'dismiss' })
     setStaged(null)

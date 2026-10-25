@@ -93,7 +93,7 @@ export function PreferencePanel(): React.JSX.Element {
   const [snapshot, setSnapshot] = useState<PreferenceSnapshot | null>(null)
   const [error, setError] = useState('')
   const [pending, setPending] = useState(false)
-  const [view, setView] = useState<'proposals' | 'facts' | 'sentences'>('proposals')
+  const [view, setView] = useState<'facts' | 'sentences'>('facts')
   const [page, setPage] = useState(0)
   const [editing, setEditing] = useState<{ id: string; fact: PreferenceFields } | null>(null)
   const dispatch = useCompositionDispatch()
@@ -138,18 +138,10 @@ export function PreferencePanel(): React.JSX.Element {
       )
       .finally(() => setPending(false))
   }
-  const entries = snapshot
-    ? view === 'proposals'
-      ? snapshot.proposals
-      : view === 'facts'
-        ? snapshot.facts
-        : snapshot.sentences
-    : []
+  const entries = snapshot ? (view === 'facts' ? snapshot.facts : snapshot.sentences) : []
   const index = Math.min(page, Math.max(0, entries.length - 1))
-  const proposal = view === 'proposals' ? snapshot?.proposals[index] : undefined
-  const approved = view === 'facts' ? snapshot?.facts[index] : undefined
+  const entry = view === 'facts' ? snapshot?.facts[index] : undefined
   const sentence = view === 'sentences' ? snapshot?.sentences[index] : undefined
-  const entry = proposal ?? approved
   const fact = entry && (editing?.id === entry.id ? editing.fact : entry.fact)
   const valid = fact && preferenceFieldsSchema.safeParse(fact).success
   const identity = `preference-${view}-${index}-${entries[index]?.id}-${pending}-${JSON.stringify(fact)}-${snapshot?.busy}`
@@ -157,52 +149,41 @@ export function PreferencePanel(): React.JSX.Element {
     <section aria-label="Preference memory">
       <h3>Preferences and saved sentences</h3>
       <p>
-        Every locked sentence is saved on this device, even before speech. Extracted preferences are
-        proposals until you approve them. Source sentences and approved facts persist until
-        forgotten; unreviewed proposals last only for this app session.
+        Confirmed messages are saved on this device when you choose a phrase, lock a sentence, or
+        choose Speak. With Gemini enabled, clear personal preferences are learned automatically from
+        your messages and relevant recent conversation through OpenRouter. You can edit or forget
+        saved facts below. Partner speech and unselected suggestions do not teach your preferences.
       </p>
       <p>
-        Find preferences sends committed sentences and recent context to OpenRouter for reviewable
-        proposals. With preference retrieval enabled, Moss embeds approved facts locally. One shared
-        OpenRouter context decision selects the current topic; only retrieved approved facts are
-        included with suggestions. Moss usage telemetry and model-loading connectivity still apply.
-        Preference extraction and sharing both start off.
+        Moss searches saved facts locally. Preference sharing controls whether relevant saved facts
+        go to the suggestion model. Moss usage telemetry and model-loading connectivity apply.
       </p>
       <p role="status">
         {error ||
           snapshot?.error ||
           (snapshot?.busy
             ? 'Processing preference memory…'
-            : `${snapshot?.facts.length ?? 0} approved facts`)}
+            : `${snapshot?.facts.length ?? 0} saved facts`)}
       </p>
       {snapshot && (
         <>
-          <ActionButton
-            identity={`${identity}-extract-${snapshot.extract}`}
-            disabled={pending}
-            selected={snapshot.extract}
-            onAction={() =>
-              update({ type: 'settings', extract: !snapshot.extract, retrieve: snapshot.retrieve })
-            }
-          >
-            {snapshot.extract
-              ? 'Stop finding preferences'
-              : 'Find preferences when I lock sentences'}
-          </ActionButton>
+          <p>
+            {snapshot.learning
+              ? 'Automatic memory learning is on with Gemini.'
+              : 'Enable Gemini to learn preferences automatically from confirmed messages.'}
+          </p>
           <ActionButton
             identity={`${identity}-retrieve-${snapshot.retrieve}`}
             disabled={pending}
             selected={snapshot.retrieve}
-            onAction={() =>
-              update({ type: 'settings', extract: snapshot.extract, retrieve: !snapshot.retrieve })
-            }
+            onAction={() => update({ type: 'settings', retrieve: !snapshot.retrieve })}
           >
             {snapshot.retrieve
               ? 'Stop using preference facts'
-              : 'Use approved facts with semantic retrieval'}
+              : 'Use saved preference facts in suggestions'}
           </ActionButton>
           <div role="group" aria-label="Preference views">
-            {(['proposals', 'facts', 'sentences'] as const).map((tab) => (
+            {(['facts', 'sentences'] as const).map((tab) => (
               <ActionButton
                 key={tab}
                 identity={`${identity}-${tab}`}
@@ -214,11 +195,9 @@ export function PreferencePanel(): React.JSX.Element {
                   setEditing(null)
                 }}
               >
-                {tab === 'proposals'
-                  ? `Review proposals (${snapshot.proposals.length})`
-                  : tab === 'facts'
-                    ? `Approved facts (${snapshot.facts.length})`
-                    : `Saved sentences (${snapshot.sentences.length})`}
+                {tab === 'facts'
+                  ? `Saved facts (${snapshot.facts.length})`
+                  : `Saved sentences (${snapshot.sentences.length})`}
               </ActionButton>
             ))}
           </div>
@@ -270,55 +249,20 @@ export function PreferencePanel(): React.JSX.Element {
                   within its length limit.
                 </p>
               )}
-              {proposal ? (
-                <>
-                  <ActionButton
-                    identity={`${identity}-approve`}
-                    disabled={pending || !valid}
-                    onAction={() =>
-                      update({ type: 'approve', id: proposal.id, fact, replaceId: null })
-                    }
-                  >
-                    Approve preference
-                  </ActionButton>
-                  <ActionButton
-                    identity={`${identity}-reject`}
-                    disabled={pending}
-                    onAction={() => update({ type: 'reject', id: proposal.id })}
-                  >
-                    Reject proposal
-                  </ActionButton>
-                  {snapshot.facts.map((existing) => (
-                    <ActionButton
-                      key={existing.id}
-                      identity={`${identity}-replace-${existing.id}-${existing.updatedAt}`}
-                      disabled={pending || !valid}
-                      onAction={() =>
-                        update({ type: 'approve', id: proposal.id, fact, replaceId: existing.id })
-                      }
-                    >
-                      Replace {existing.fact.relationship}: {existing.fact.value}
-                    </ActionButton>
-                  ))}
-                </>
-              ) : (
-                <>
-                  <ActionButton
-                    identity={`${identity}-save`}
-                    disabled={pending || !valid || !editing}
-                    onAction={() => update({ type: 'edit', id: entry.id, fact })}
-                  >
-                    Save fact changes
-                  </ActionButton>
-                  <ActionButton
-                    identity={`${identity}-forget`}
-                    disabled={pending}
-                    onAction={() => update({ type: 'forget', id: entry.id })}
-                  >
-                    Forget this fact
-                  </ActionButton>
-                </>
-              )}
+              <ActionButton
+                identity={`${identity}-save`}
+                disabled={pending || !valid || !editing}
+                onAction={() => update({ type: 'edit', id: entry.id, fact })}
+              >
+                Save fact changes
+              </ActionButton>
+              <ActionButton
+                identity={`${identity}-forget`}
+                disabled={pending}
+                onAction={() => update({ type: 'forget', id: entry.id })}
+              >
+                Forget this fact
+              </ActionButton>
             </>
           )}
           {sentence && (
@@ -327,10 +271,10 @@ export function PreferencePanel(): React.JSX.Element {
               <p>Initials: {sentence.initials}</p>
               <ActionButton
                 identity={`${identity}-extract-sentence`}
-                disabled={pending || !snapshot.extract}
+                disabled={pending || !snapshot.learning}
                 onAction={() => update({ type: 'extract', id: sentence.id })}
               >
-                Find preferences in this sentence
+                Retry learning from this sentence
               </ActionButton>
               <ActionButton
                 identity={`${identity}-forget-sentence`}
@@ -344,15 +288,12 @@ export function PreferencePanel(): React.JSX.Element {
           <p>
             Forgetting a fact deletes its search vector and cancels pending generation. Its source
             sentence remains until you forget that sentence. Source sentences are not automatically
-            reprocessed; Find preferences can propose a fact again. Clear all also clears the
-            sentence suggestion cache. Correction-word memory has its own controls above.
+            reprocessed; explicitly retrying learning can save the preference again. Clear all also
+            clears the sentence suggestion cache. Correction-word memory has its own controls above.
           </p>
           <ActionButton
             identity={`${identity}-clear`}
-            disabled={
-              pending ||
-              (!snapshot.facts.length && !snapshot.sentences.length && !snapshot.proposals.length)
-            }
+            disabled={pending || (!snapshot.facts.length && !snapshot.sentences.length)}
             onAction={() => update({ type: 'clear' })}
           >
             Forget all preference facts and sentences

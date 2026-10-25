@@ -14,7 +14,7 @@ import {
   type MemoryOperation,
   type MemorySnapshot
 } from '../shared/memory'
-import type { PredictionRequest } from '../shared/prediction'
+import { wordTokens, type PredictionRequest } from '../shared/prediction'
 import { lexicalWords } from '../shared/predictionValidation'
 
 export class MemoryStore {
@@ -134,6 +134,7 @@ export function retrieveMemories(
   request: PredictionRequest,
   forgottenWords: string[] = []
 ): MemoryContext {
+  const tokens = wordTokens(request.tokens)
   const context = new Set(
     lexicalWords(
       [
@@ -148,7 +149,7 @@ export function retrieveMemories(
   const compatible = (word: string): number =>
     Math.max(
       0,
-      ...request.tokens.map((t) => {
+      ...tokens.map((t) => {
         const value = t.value.toLowerCase()
         return (t.kind === 'word' ? word === value : word.startsWith(value)) ? value.length : 0
       })
@@ -188,8 +189,8 @@ export function retrieveMemories(
     .map((r) => {
       const ws = lexicalWords(r.after)
       const exact =
-        ws.length === request.tokens.length &&
-        request.tokens.every((t, i) =>
+        ws.length === tokens.length &&
+        tokens.every((t, i) =>
           t.kind === 'word'
             ? ws[i] === t.value.toLowerCase()
             : ws[i].startsWith(t.value.toLowerCase())

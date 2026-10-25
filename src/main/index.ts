@@ -4,6 +4,7 @@ import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { installDiagnosticsIpc } from './diagnosticsIpc'
 import { installGeminiIpc } from './geminiIpc'
 import { installCartesiaIpc } from './cartesiaIpc'
+import { installJevIpc } from './jevIpc'
 import { installSettingsIpc } from './settingsIpc'
 import icon from '../../resources/icon.png?asset'
 
@@ -29,6 +30,7 @@ function createWindow(): void {
   const settings = installSettingsIpc(mainWindow)
   installGeminiIpc(mainWindow, settings)
   installCartesiaIpc(mainWindow)
+  installJevIpc(mainWindow, settings)
 
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()

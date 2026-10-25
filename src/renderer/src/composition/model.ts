@@ -3,14 +3,15 @@ import { boundConversationHistory } from '../../../shared/conversationHistory'
 import { lexicalWords } from '../../../shared/predictionValidation'
 import { validCorrection, type MemoryOperation } from '../../../shared/memory'
 import type { PreferenceOperation } from '../../../shared/preferences'
-import type {
-  ConversationTurn,
-  AbbreviationToken,
-  PhraseCandidate,
-  PredictionRequest,
-  PredictionPurpose,
-  PredictionResult,
-  TextRange
+import {
+  wordTokens,
+  type ConversationTurn,
+  type AbbreviationToken,
+  type PhraseCandidate,
+  type PredictionRequest,
+  type PredictionPurpose,
+  type PredictionResult,
+  type TextRange
 } from '../../../shared/prediction'
 
 export type EntryMode = 'initials' | 'literal' | 'keyword' | 'replacement'
@@ -138,6 +139,7 @@ export function initialState(): CompositionState {
 export type Action =
   | { type: 'lock-sentence' }
   | { type: 'memory-changed' }
+  | { type: 'memory-learned' }
   | { type: 'memory-notice'; text: string }
   | { type: 'cloud'; enabled: boolean }
   | { type: 'conversation-add'; speaker: 'me' | 'partner'; text: string }
@@ -163,6 +165,7 @@ export type Action =
   | { type: 'undo' }
   | { type: 'back' }
   | { type: 'clear' }
+  | { type: 'speech-confirmed'; id: string; text: string }
   | { type: 'speech-completed'; text: string; revision: number }
   | { type: 'example'; initials: string }
   | { type: 'select-token'; id: string }
@@ -180,9 +183,13 @@ export function initials(text: string): AbbreviationToken[] {
   return [
     ...text
       .toLowerCase()
-      .replace(/[^a-z]/g, '')
+      .replace(/[^a-z!?]/g, '')
       .slice(0, 24)
-  ].map((value, i) => ({ id: `initial-${i}`, kind: 'initial', value }))
+  ].map((value, i) => ({
+    id: `initial-${i}`,
+    kind: /[!?]/.test(value) ? 'punctuation' : 'initial',
+    value
+  }))
 }
 
 function invalidate(state: CompositionState): CompositionState {
@@ -212,7 +219,9 @@ function edit(state: CompositionState, changes: Partial<Content>, save = true): 
 /** Locked tokens precede the editable trailing run and are never parsed from engine text. */
 export function entrySeed(state: Content): string {
   if (state.mode !== 'initials') return entryText(state)
-  const lastWord = state.tokens.findLastIndex((token) => token.kind !== 'initial')
+  const lastWord = state.tokens.findLastIndex(
+    (token) => token.kind === 'word' || token.kind === 'prefix'
+  )
   return state.tokens
     .slice(lastWord + 1)
     .map((token) => token.value)
@@ -226,6 +235,7 @@ export function entryContext(state: Content): string {
   let context = ''
   for (const token of state.tokens.slice(0, lockedCount)) {
     if (token.kind === 'initial') context += token.value
+    else if (token.kind === 'punctuation') context = ''
     else {
       const { segments, barriers } = wordInitials(token.value)
       context = barriers || !segments.length ? '' : context + segments[0][0]
@@ -239,7 +249,9 @@ function applyInput(state: CompositionState, text: string): Partial<Content> {
   if (state.mode === 'literal')
     return { [state.phrase === null ? 'draft' : 'phrase']: bounded, selection: null }
   if (state.mode !== 'initials') return { buffer: bounded }
-  const lastWord = state.tokens.findLastIndex((token) => token.kind !== 'initial')
+  const lastWord = state.tokens.findLastIndex(
+    (token) => token.kind === 'word' || token.kind === 'prefix'
+  )
   const locked = state.tokens.slice(0, lastWord + 1)
   return {
     tokens: [
@@ -259,6 +271,8 @@ function reduceComposition(state: CompositionState, action: Action): Composition
       return state.phrase === null && state.mode === 'literal' && state.draft.trim()
         ? edit(state, {})
         : state
+    case 'memory-learned':
+      return { ...invalidate(state), revision: state.revision + 1 }
     case 'memory-changed':
       return { ...edit(state, {}, false), memoryNotice: '' }
     case 'memory-notice':
@@ -484,6 +498,8 @@ function reduceComposition(state: CompositionState, action: Action): Composition
           }
         : state
     }
+    case 'speech-confirmed':
+      return action.text === messageText(state) ? { ...state } : state
     case 'speech-completed': {
       // Remove exactly what was spoken. Unrelated updates during playback (a transcribed partner
       // turn, a newly locked sentence, fresh initials) change the revision but must not keep a
@@ -596,7 +612,10 @@ function reduceComposition(state: CompositionState, action: Action): Composition
               candidate && state.request?.purpose === 'expansion'
                 ? lexicalWords(state.request.draft)
                     .map((word) => word[0])
-                    .join('') + state.request.tokens.map((t) => t.value[0].toLowerCase()).join('')
+                    .join('') +
+                  wordTokens(state.request.tokens)
+                    .map((t) => t.value[0].toLowerCase())
+                    .join('')
                 : state.phraseInitials,
             correctionOrigin: phrase,
             tokens:
@@ -631,7 +650,7 @@ function reduceComposition(state: CompositionState, action: Action): Composition
         next = reducer(state, { type: 'use-prefix' })
         if (next.validationError) return next
       }
-      return next.tokens.some((token) => token.id === action.id)
+      return next.tokens.some((token) => token.id === action.id && token.kind !== 'punctuation')
         ? edit(
             next,
             {
@@ -768,7 +787,7 @@ function reduceComposition(state: CompositionState, action: Action): Composition
             : token
         )
       }
-      if (action.purpose === 'expansion' && !next.tokens.length) return next
+      if (action.purpose === 'expansion' && !wordTokens(next.tokens).length) return next
       if (action.purpose === 'refinement' && !next.selection) return next
       const draft = next.phrase ?? next.draft
       return reducer(next, {
@@ -844,7 +863,10 @@ function reduceComposition(state: CompositionState, action: Action): Composition
           request.purpose === 'expansion'
             ? lexicalWords(request.draft)
                 .map((word) => word[0])
-                .join('') + request.tokens.map((t) => t.value[0].toLowerCase()).join('')
+                .join('') +
+              wordTokens(request.tokens)
+                .map((t) => t.value[0].toLowerCase())
+                .join('')
             : request.purpose === 'completion'
               ? ''
               : state.phraseInitials,
@@ -885,27 +907,41 @@ export function reducer(state: CompositionState, action: Action): CompositionSta
     action.type === 'use-phrase' ||
     (action.type === 'accept' && next.phrase === null) ||
     (action.type === 'done' && state.mode === 'replacement' && state.phrase === null)
-  if (sentenceCommitted && !next.validationError && committedText.trim()) {
-    const id = `sentence-${next.revision}`
+  const saveSentence = (text: string, id: string): void => {
+    const sequence = Math.max(next.revision, (next.sentenceEvents.at(-1)?.sequence ?? -1) + 1)
     next = {
       ...next,
       savedSentences: [...next.savedSentences, id],
       conversation: [
         ...next.conversation.slice(-7),
-        { id, speaker: 'me', text: committedText.trim().slice(0, 1000) }
+        { id, speaker: 'me', text: text.trim().slice(0, 1000) }
       ],
       sentenceEvents: [
         ...next.sentenceEvents,
         {
-          sequence: next.revision,
+          sequence,
           operation: {
             type: 'commit' as const,
             id,
-            text: committedText,
+            text,
             conversation: next.conversation.map(({ speaker, text }) => ({ speaker, text }))
           }
         }
       ].slice(-100)
+    }
+  }
+  if (sentenceCommitted && !next.validationError && committedText.trim())
+    saveSentence(committedText, `sentence-${next.revision}`)
+  if (action.type === 'speech-confirmed') {
+    const parts = [...state.lockedSentences, state.phrase ?? state.draft].filter(Boolean)
+    for (const [index, text] of parts.entries()) {
+      const exists = state.sentenceEvents.some(
+        ({ operation }) =>
+          operation.type === 'commit' &&
+          state.savedSentences.includes(operation.id) &&
+          operation.text === text
+      )
+      if (!exists) saveSentence(text, `spoken-${action.id}:${index}`)
     }
   }
   const commit =

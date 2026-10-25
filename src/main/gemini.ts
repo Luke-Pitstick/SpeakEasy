@@ -1,6 +1,8 @@
 import type { ExpansionContext } from '../shared/expansionContext'
 import {
   CANDIDATE_LIMIT,
+  wordTokens,
+  punctuationContext,
   compositionContextPriority,
   EXPANSION_MODEL,
   MODEL_REASONING,
@@ -81,9 +83,10 @@ export function predictionMessages(
       }
     ]
   }
+  const tokens = wordTokens(request.tokens)
   const task =
     request.purpose === 'expansion'
-      ? "Expand initials into natural spoken replies to the conversation. Build each candidate word by word in the supplied numbered slots: exactly one word per slot, in order, starting with its initial/prefix or preserving its exact locked word. A contraction is ONE word: don't and didn't both occupy a d slot; I'm occupies an i slot. Never count its expanded words as extra slots. Before output, count the written words and check each against its numbered constraint. Preserve grammatical tense, agreement, necessary words, and intended meaning. Explore topic-specific nouns fitting the slots as well as generic replies; use your knowledge of the topic to suggest related subjects, activities, or reasons. Choose everyday wording over unusual or forced constructions. Express emotion only when supported by the conversation. Return each complete candidate on its own line, without numbering. Examples: i d k → I don't know; i c w → I can't wait!"
+      ? "Expand initials into natural spoken replies to the conversation. punctuationContext provides literal sentence marks after the indicated word: ? signals a question and ! signals emphasis. Use them to guide the wording and preserve a selected final mark. They never occupy a word slot and must never be expanded into words. Build each candidate word by word in the supplied numbered slots: exactly one word per slot, in order, starting with its initial/prefix or preserving its exact locked word. A contraction is ONE word: don't and didn't both occupy a d slot; I'm occupies an i slot. Never count its expanded words as extra slots. Before output, count the written words and check each against its numbered constraint. Preserve grammatical tense, agreement, necessary words, and intended meaning. Explore topic-specific nouns fitting the slots as well as generic replies; use your knowledge of the topic to suggest related subjects, activities, or reasons. Choose everyday wording over unusual or forced constructions. Express emotion only when supported by the conversation or the user's punctuationContext. Return each complete candidate on its own line, without numbering. Examples: i d k → I don't know; i c w → I can't wait!"
       : 'Return only text to append to the draft. Include any leading space required to complete the current word or begin the next word. Do not repeat the draft.'
   return [
     {
@@ -103,13 +106,12 @@ export function predictionMessages(
         personalMemory: memory,
         alreadyDisplayed,
         initials:
-          request.purpose === 'expansion'
-            ? request.tokens.map((t) => t.value[0]).join('')
-            : undefined,
-        wordCount: request.purpose === 'expansion' ? request.tokens.length : undefined,
+          request.purpose === 'expansion' ? tokens.map((t) => t.value[0]).join('') : undefined,
+        punctuationContext: punctuationContext(request.tokens),
+        wordCount: request.purpose === 'expansion' ? tokens.length : undefined,
         constraints:
           request.purpose === 'expansion'
-            ? request.tokens.map(({ kind, value }, index) => ({ position: index + 1, kind, value }))
+            ? tokens.map(({ kind, value }, index) => ({ position: index + 1, kind, value }))
             : []
       })
     }
@@ -201,8 +203,9 @@ export async function streamGemini(
           content: JSON.stringify({
             task: 'Complete the candidate set. The previous response provided too few usable choices. Repair these rejected lines while preserving their intended meaning and the conversation topic. Remove unnecessary filler words when that fixes the alignment. Produce additional natural alternatives, including synonym variations. Explore concrete topic-specific nouns that fit the slots instead of only reusing that/this/it from accepted replies. Keep grammar natural; do not change tense merely to manufacture variation. Each line must have exactly one word per constraint in the given order. Do not repeat accepted alternatives.',
             rejectedLines: rejected,
-            requiredWordCount: request.tokens.length,
-            orderedConstraints: request.tokens.map((t, i) => ({
+            requiredWordCount: wordTokens(request.tokens).length,
+            punctuationContext: punctuationContext(request.tokens),
+            orderedConstraints: wordTokens(request.tokens).map((t, i) => ({
               position: i + 1,
               kind: t.kind,
               value: t.value

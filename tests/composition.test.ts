@@ -424,3 +424,59 @@ describe('multi-sentence composition', () => {
     expect(messageText(done)).toBe('')
   })
 })
+
+describe('punctuation in initials entry', () => {
+  it('retains sentence marks through entry, backspace, undo, and prediction', () => {
+    let state = reducer(initialState(), { type: 'input', text: 'cyhm?' })
+    expect(entrySeed(state)).toBe('cyhm?')
+    expect(state.tokens.at(-1)).toMatchObject({ kind: 'punctuation', value: '?' })
+    const punctuationId = state.tokens.at(-1)!.id
+    expect(reducer(state, { type: 'select-token', id: punctuationId })).toBe(state)
+    state = reducer(state, { type: 'backspace' })
+    expect(entrySeed(state)).toBe('cyhm')
+    state = reducer(state, { type: 'undo' })
+    expect(entrySeed(state)).toBe('cyhm?')
+    state = reducer(state, { type: 'predict', purpose: 'expansion', id: 'question' })
+    expect(state.request?.tokens.at(-1)).toMatchObject({ kind: 'punctuation', value: '?' })
+    expect(
+      reducer(reducer(initialState(), { type: 'input', text: '!?' }), {
+        type: 'predict',
+        purpose: 'expansion',
+        id: 'marks-only'
+      }).request
+    ).toBeNull()
+  })
+
+  it('keeps punctuation editable after a locked word', () => {
+    let state = reducer(initialState(), { type: 'input', text: 'cyhm?' })
+    state = reducer(state, { type: 'select-token', id: state.tokens[0].id })
+    state = reducer(state, { type: 'input', text: 'can' })
+    state = reducer(state, { type: 'done' })
+    expect(state.tokens[0]).toMatchObject({ kind: 'word', value: 'can' })
+    expect(entrySeed(state)).toBe('yhm?')
+    state = reducer(state, { type: 'input', text: 'yhm!' })
+    expect(state.tokens.at(-1)).toMatchObject({ kind: 'punctuation', value: '!' })
+  })
+})
+
+it('saves a punctuated expansion under its word initials only', () => {
+  let state = reducer(initialState(), { type: 'input', text: 'cyhm?' })
+  state = reducer(state, { type: 'predict', purpose: 'expansion', id: 'question' })
+  const request = state.request!
+  state = reducer(state, {
+    type: 'result',
+    result: {
+      requestId: request.id,
+      revision: request.revision,
+      purpose: 'expansion',
+      provider: 'gemini',
+      elapsedMs: 0,
+      status: 'success',
+      complete: true,
+      candidates: [{ id: 'question:0', text: 'Can you help me?', replacement: 'Can you help me?' }]
+    }
+  })
+  state = reducer(state, { type: 'accept', id: state.candidates[0].id })
+  expect(state.draft).toBe('Can you help me?')
+  expect(state.phraseInitials).toBe('cyhm')
+})

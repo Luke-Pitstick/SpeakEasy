@@ -16,6 +16,7 @@ const state = vi.hoisted(() => ({
   close: vi.fn(async () => {}),
   retrieve: vi.fn()
 }))
+vi.mock('../src/main/preferenceProvider', () => ({ extractPreferences: vi.fn(async () => []) }))
 vi.mock('electron', () => ({
   app: { getPath: () => state.folder, getAppPath: () => state.folder },
   ipcMain: {
@@ -115,10 +116,10 @@ it('uses selected context over IPC, rejects untrusted histories, and clears the 
   await new Promise((r) => setTimeout(r, 0))
   expect(vi.mocked(streamGemini).mock.calls.at(-1)?.[0]).toEqual(selected)
   expect(state.retrieve.mock.calls.at(-1)?.[2]).toEqual([])
-  await call('preferences:update', { type: 'settings', extract: false, retrieve: true })
+  await call('preferences:update', { type: 'settings', retrieve: true })
   await new Promise((r) => setTimeout(r, 0))
   expect(state.reconcile).toHaveBeenLastCalledWith(sample.history, [approved])
-  await call('preferences:update', { type: 'settings', extract: false, retrieve: false })
+  await call('preferences:update', { type: 'settings', retrieve: false })
   await new Promise((r) => setTimeout(r, 0))
   expect(state.reconcile).toHaveBeenLastCalledWith(sample.history, [])
   await call('gemini:context', [])

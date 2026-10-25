@@ -11,6 +11,7 @@ vi.mock('../src/renderer/src/features/voice/useVoice', () => ({
   useVoice: () => ({
     configured: true,
     settings: { voiceId: 'test-voice', speed: 1, tone: 'neutral' },
+    tone: { value: 'neutral', message: 'Manual tone', configured: false, enabled: false },
     speaking: false,
     listening: 'Test voice',
     speechStatus: 'Idle',

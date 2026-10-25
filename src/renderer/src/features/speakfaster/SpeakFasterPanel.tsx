@@ -6,6 +6,8 @@ import { entryText, messageText } from '../../composition/model'
 import { ActionButton } from '../../interaction/controls'
 import type { usePredictions } from '../../prediction/usePredictions'
 import type { VoiceController } from '../voice/useVoice'
+import { DwellSelect } from '../../interaction/DwellSelect'
+import { VOICE_TONES } from '../../../../shared/voice'
 
 export function SpeakFasterPanel({
   predictions,
@@ -105,7 +107,12 @@ export function SpeakFasterPanel({
                   className="word-chip"
                   identity={`chip-${token.id}-${version}`}
                   selected={selected}
-                  disabled={state.mode === 'replacement' || !state.paused || loading}
+                  disabled={
+                    state.mode === 'replacement' ||
+                    !state.paused ||
+                    loading ||
+                    token.kind === 'punctuation'
+                  }
                   onAction={() =>
                     keyword
                       ? dispatch({ type: 'select-token', id: token.id })
@@ -115,7 +122,17 @@ export function SpeakFasterPanel({
                         })
                   }
                 >
-                  <span className="token-position">Word {activePage * 6 + index + 1}</span>{' '}
+                  <span className="token-position">
+                    {token.kind === 'punctuation'
+                      ? 'Punctuation'
+                      : `Word ${
+                          keyword
+                            ? state.tokens
+                                .slice(0, activePage * 6 + index)
+                                .filter((t) => t.kind !== 'punctuation').length + 1
+                            : activePage * 6 + index + 1
+                        }`}
+                  </span>{' '}
                   <span className="chip-text">
                     {entered ? state.buffer || token.text : token.text}
                     {!entered && token.kind === 'prefix' ? '…' : ''}
@@ -128,7 +145,9 @@ export function SpeakFasterPanel({
                           ? 'Locked word'
                           : token.kind === 'prefix'
                             ? 'Prefix'
-                            : 'Initial'
+                            : token.kind === 'punctuation'
+                              ? 'Context'
+                              : 'Initial'
                         : selected
                           ? 'Selected'
                           : 'Change word'}
@@ -198,7 +217,10 @@ export function SpeakFasterPanel({
                 className="primary"
                 identity={`expand-${version}`}
                 disabled={
-                  loading || (state.mode === 'literal' ? !state.draft : !state.tokens.length)
+                  loading ||
+                  (state.mode === 'literal'
+                    ? !state.draft
+                    : !state.tokens.some((token) => token.kind !== 'punctuation'))
                 }
                 onAction={() => request(state.mode === 'literal' ? 'completion' : 'expansion')}
               >
@@ -207,7 +229,7 @@ export function SpeakFasterPanel({
               {!keyword && (
                 <ActionButton
                   identity={`spell-${version}`}
-                  disabled={!state.tokens.length}
+                  disabled={!state.tokens.some((token) => token.kind !== 'punctuation')}
                   onAction={openKeywords}
                 >
                   Spell
@@ -308,7 +330,7 @@ export function SpeakFasterPanel({
                 identity={
                   voice.speaking
                     ? `stop-speaking-${message}`
-                    : `speak-${message}-${voice.settings.voiceId}-${voice.settings.speed}-${voice.settings.tone}`
+                    : `speak-${message}-${voice.settings.voiceId}-${voice.settings.speed}-${voice.tone.value}`
                 }
                 disabled={!voice.speaking && !voice.configured}
                 onAction={() => {
@@ -343,6 +365,21 @@ export function SpeakFasterPanel({
         </div>
       )}
       <div className="suggestion-footer">
+        {final && !voice.speaking && (
+          <>
+            <DwellSelect
+              label="Delivery tone"
+              identity={`message-tone-${version}`}
+              value={voice.tone.value}
+              options={VOICE_TONES.map((value) => ({
+                value,
+                label: value[0].toUpperCase() + value.slice(1)
+              }))}
+              onChange={(tone) => voice.update({ tone })}
+            />
+            <span role="status">{voice.tone.message}</span>
+          </>
+        )}
         <p
           role="status"
           className={`status-line ${state.validationError || state.status === 'error' ? 'error' : ''}`}

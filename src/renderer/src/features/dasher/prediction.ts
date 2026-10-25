@@ -94,7 +94,7 @@ const TRAINING =
 export const LITERAL_ALPHABET = [
   ...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 .,!?\'"-:;/@()&+\n'
 ]
-export const INITIAL_ALPHABET = [...'abcdefghijklmnopqrstuvwxyz']
+export const INITIAL_ALPHABET = [...'abcdefghijklmnopqrstuvwxyz!?']
 
 export function normalize(weights: number[], size: number): number[] {
   if (weights.length !== size || weights.some((weight) => !Number.isFinite(weight) || weight < 0))
@@ -136,9 +136,23 @@ export class CharacterPredictor {
 
   weights(text: string): readonly number[] {
     if (this.mode === 'uniform') return this.uniform
-    // Return the evaluated distribution unchanged: normalize() would add a
-    // second smoothing pass. Neither training nor model replacement runs here.
-    if (this.mode === 'initials') return trainedInitials.model?.weights(text) ?? this.uniform
+    // Keep the trained letters' relative probabilities without a second smoothing pass.
+    if (this.mode === 'initials') {
+      const context = text.split(/[!?]/).at(-1) ?? ''
+      const cached = this.cache.get(context)
+      if (cached) return cached
+      const letters = trainedInitials.model?.weights(context)
+      if (!letters) return this.uniform
+      // The frozen asset predicts letters; reserve stable mass for ! and ?.
+      const weights = [
+        ...letters.map((weight) => weight * (letters.length / this.alphabet.length)),
+        1 / this.alphabet.length,
+        1 / this.alphabet.length
+      ]
+      if (this.cache.size >= 256) this.cache.delete(this.cache.keys().next().value!)
+      this.cache.set(context, weights)
+      return weights
+    }
     const tail = [...text].slice(-ORDER)
     while (tail.length && !this.cache.has(tail.join(''))) tail.shift()
     return this.cache.get(tail.join('')) ?? this.uniform

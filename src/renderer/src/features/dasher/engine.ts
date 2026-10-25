@@ -108,7 +108,7 @@ export class DasherEngine {
     const total = mass.reduce((a, b) => a + b, 0)
     let fractions = mass.map((weight) => weight / total)
     if (this.alphabet === INITIAL_ALPHABET) {
-      // Reserve a visible interval for all 26 initials, then distribute the
+      // Reserve a visible interval for all initials and punctuation, then distribute the
       // remaining space by prediction weight. Alphabet order never changes.
       const largest = Math.max(...fractions)
       const largestAllowed = (this.geometry.solveHeight(0) / this.geometry.height) * 0.9

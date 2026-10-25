@@ -9,6 +9,7 @@ import { useInteraction } from '../src/renderer/src/interaction/state'
 import { useVoice } from '../src/renderer/src/features/voice/useVoice'
 import { DEFAULT_VOICE, type VoiceApi, type VoiceEvent } from '../src/shared/voice'
 import { installGeminiMock } from './prediction-fixture'
+import { usePredictions } from '../src/renderer/src/prediction/usePredictions'
 vi.mock('../src/renderer/src/features/voice/audio', () => ({
   captureMicrophone: vi.fn(async () => ({ rate: 48000, close: vi.fn() })),
   SpeechPlayer: vi.fn(function (_context, _volume, started: () => void, done: () => void) {
@@ -77,7 +78,9 @@ beforeEach(() => {
 afterEach(() => {
   cleanup()
   delete window.voice
+  delete window.tone
   delete window.gemini
+  delete window.preferences
   vi.unstubAllGlobals()
 })
 async function setup(): Promise<void> {
@@ -91,6 +94,36 @@ async function setup(): Promise<void> {
   await waitFor(() => expect(api.listen).toHaveBeenCalledOnce())
 }
 describe('always-on context bridge', () => {
+  it('speaks the exact reviewed phrase with the visible Jev tone and freezes that snapshot', async () => {
+    window.tone = {
+      status: vi.fn().mockResolvedValue({ configured: true, enabled: true }),
+      setEnabled: vi.fn(async (enabled) => ({ configured: true, enabled })),
+      cancel: vi.fn(),
+      suggest: vi.fn(async (request) => ({
+        requestId: request.id,
+        revision: request.revision,
+        contextEpoch: request.contextEpoch,
+        tone: 'happy',
+        confidence: 0.9,
+        model: 'jev-test'
+      }))
+    }
+    await setup()
+    act(() => {
+      dispatch({ type: 'mode', mode: 'literal' })
+      dispatch({ type: 'input', text: 'That is wonderful news!' })
+      dispatch({ type: 'workspace', workspace: 'phrases' })
+    })
+    await waitFor(() => expect(voice.tone.value).toBe('happy'))
+    expect(api.speak).not.toHaveBeenCalled()
+    await act(async () => voice.speak('That is wonderful news!', current.revision))
+    const snapshot = vi.mocked(api.speak).mock.calls.at(-1)![0]
+    expect(snapshot.text).toBe('That is wonderful news!')
+    expect(snapshot.settings.tone).toBe('happy')
+    act(() => voice.update({ tone: 'calm' }))
+    expect(snapshot.settings.tone).toBe('happy')
+    expect(voice.tone.value).toBe('calm')
+  })
   it.each(['completed', 'stopped', 'failed', 'preview'] as const)(
     'clears initials only after successful spoken playback: %s',
     async (outcome) => {
@@ -123,7 +156,9 @@ describe('always-on context bridge', () => {
       expect(current.draft).toBe(outcome === 'completed' ? '' : 'I want a coffee')
       if (outcome === 'completed') expect(current.conversation.at(-1)?.text).toBe('I want a coffee')
       expect(current.mode).toBe(outcome === 'completed' ? 'initials' : 'literal')
-      expect(current.sentenceEvents).toEqual([])
+      expect(
+        current.sentenceEvents.filter((event) => event.operation.type === 'commit')
+      ).toHaveLength(outcome === 'preview' ? 0 : 1)
     }
   )
   it('synchronizes retained history and clears the local projection without summarization', async () => {
@@ -261,4 +296,57 @@ describe('always-on context bridge', () => {
     cleanup()
     expect(api.endListening).toHaveBeenCalledWith(id)
   })
+})
+
+it('holds automatic-memory invalidation during dwell and preserves active steering afterward', async () => {
+  const listeners = new Set<(invalidate: boolean, automatic?: boolean) => void>()
+  const snapshot = {
+    learning: true,
+    retrieve: false,
+    facts: [],
+    sentences: [],
+    busy: false,
+    error: ''
+  }
+  window.preferences = {
+    read: async () => snapshot,
+    update: async () => snapshot,
+    onChanged: (listener) => {
+      listeners.add(listener)
+      return () => {
+        listeners.delete(listener)
+      }
+    }
+  }
+  function PredictionsHarness(): React.JSX.Element {
+    usePredictions()
+    return <Harness />
+  }
+  render(
+    <CompositionProvider>
+      <InteractionProvider>
+        <PredictionsHarness />
+      </InteractionProvider>
+    </CompositionProvider>
+  )
+  await waitFor(() => expect(api.listen).toHaveBeenCalledOnce())
+  act(() => {
+    for (let i = 0; i < 10; i++)
+      dispatch({ type: 'conversation-add', speaker: 'partner', text: `Turn ${i}` })
+    dispatch({ type: 'input', text: 'sushi' })
+    dispatch({ type: 'resume' })
+    interaction.setBusy(true)
+  })
+  const revision = current.revision,
+    session = current.session,
+    history = current.conversationArchive
+  act(() => {
+    for (const listener of listeners) listener(true, true)
+  })
+  expect(current.revision).toBe(revision)
+  act(() => interaction.setBusy(false))
+  expect(current.revision).toBe(revision + 1)
+  expect(current.paused).toBe(false)
+  expect(current.session).toBe(session)
+  expect(current.conversationArchive).toBe(history)
 })

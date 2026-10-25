@@ -39,7 +39,8 @@ describe('settings persistence', () => {
       showGazeDot: false,
       dwell: false,
       duration: 1500,
-      geminiEnabled: true
+      geminiEnabled: true,
+      toneSuggestionsEnabled: true
     }
     first.save(changed)
     expect(new SettingsStore(path).read()).toEqual(changed)

@@ -29,6 +29,7 @@ vi.mock('../src/main/mossMemory', () => ({
     close: vi.fn(async () => {})
   }))
 }))
+vi.mock('../src/main/preferenceProvider', () => ({ extractPreferences: vi.fn(async () => []) }))
 vi.mock('electron', () => ({
   app: { getPath: () => mocked.folder, getAppPath: () => mocked.folder },
   ipcMain: {

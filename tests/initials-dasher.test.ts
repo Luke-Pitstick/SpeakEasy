@@ -71,7 +71,7 @@ describe('frozen initials PPM in Dasher', () => {
     engine.resume()
     enter(engine, 'iwz')
   })
-  it('bundles the tested artifact and passes its already-smoothed vectors unchanged', () => {
+  it('preserves trained letter proportions while reserving mass for punctuation', () => {
     const raw = readFileSync('src/renderer/src/features/dasher/initials-model.json')
     expect(createHash('sha256').update(raw).digest('hex')).toBe(
       '2780b90e230892ba92fd8c2c16053c8d61558595a1a92b2247b48ee02d5171ba'
@@ -83,9 +83,24 @@ describe('frozen initials PPM in Dasher', () => {
     })
     const predictor = new CharacterPredictor(INITIAL_ALPHABET, 'initials')
     for (const context of ['', 'iw', 'ty', 'qxz', 'z'.repeat(24)]) {
-      expect(predictor.weights(context)).toBe(trainedInitials.model!.weights(context))
-      expect(predictor.weights(context).every((p) => p >= 0.1 / 26)).toBe(true)
+      expect(predictor.weights(context)).toEqual([
+        ...trainedInitials.model!.weights(context).map((p) => p * (26 / 28)),
+        1 / 28,
+        1 / 28
+      ])
+      expect(predictor.weights(context).every((p) => p >= 0.1 / 28)).toBe(true)
     }
+    expect(predictor.weights('iw?ty')).toEqual(predictor.weights('ty'))
+    expect(predictor.weights('iw!')).toEqual(predictor.weights(''))
+  })
+
+  it('places ! and ? after z and can enter and reverse both marks', () => {
+    const engine = new DasherEngine(1280, 600, 'cyhm')
+    expect(engine.root.choices.slice(-3).map((choice) => choice.character)).toEqual(['z', '!', '?'])
+    engine.resume()
+    enter(engine, 'cyhm?')
+    reverse(engine, 'cyhm')
+    enter(engine, 'cyhm!')
   })
 
   it('reports a uniform fallback if an invalid or differently smoothed asset is supplied', () => {

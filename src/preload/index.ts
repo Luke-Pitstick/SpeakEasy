@@ -1,4 +1,5 @@
 import type { DiagnosticsApi } from '../shared/diagnostics'
+import type { ToneApi } from '../shared/tone'
 import { contextBridge, ipcRenderer } from 'electron'
 import type { VoiceApi, VoiceEvent } from '../shared/voice'
 import type { GeminiApi, PredictionResult } from '../shared/prediction'
@@ -9,8 +10,11 @@ const preferences: PreferenceApi = {
   read: () => ipcRenderer.invoke('preferences:read'),
   update: (operation) => ipcRenderer.invoke('preferences:update', operation),
   onChanged: (listener) => {
-    const receive = (_event: Electron.IpcRendererEvent, invalidate: boolean): void =>
-      listener(invalidate)
+    const receive = (
+      _event: Electron.IpcRendererEvent,
+      invalidate: boolean,
+      automatic: boolean
+    ): void => listener(invalidate, automatic)
     ipcRenderer.on('preferences:changed', receive)
     return () => {
       ipcRenderer.removeListener('preferences:changed', receive)
@@ -74,6 +78,14 @@ const voice: VoiceApi = {
   }
 }
 contextBridge.exposeInMainWorld('voice', voice)
+
+const tone: ToneApi = {
+  status: () => ipcRenderer.invoke('tone:status'),
+  setEnabled: (enabled) => ipcRenderer.invoke('tone:enabled', enabled),
+  suggest: (request) => ipcRenderer.invoke('tone:suggest', request),
+  cancel: (id) => ipcRenderer.send('tone:cancel', id)
+}
+contextBridge.exposeInMainWorld('tone', tone)
 
 const diagnostics: DiagnosticsApi = {
   open: (context) => ipcRenderer.invoke('diagnostics:open', context),

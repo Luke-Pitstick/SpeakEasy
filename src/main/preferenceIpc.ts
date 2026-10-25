@@ -10,17 +10,20 @@ export function installPreferenceIpc(
   window: BrowserWindow,
   key: string,
   cancelGeneration: () => void,
-  cache: PhraseCache | null
+  cache: PhraseCache | null,
+  learningEnabled: () => boolean
 ): PreferenceService | null {
   let service: PreferenceService | null = null
   try {
     service = new PreferenceService(
       new PreferenceStore(join(app.getPath('userData'), 'preferences.sqlite')),
       key,
-      (invalidate = false) => {
+      (invalidate = false, automatic = false) => {
         if (invalidate) cancelGeneration()
-        if (!window.isDestroyed()) window.webContents.send('preferences:changed', invalidate)
-      }
+        if (!window.isDestroyed())
+          window.webContents.send('preferences:changed', invalidate, automatic)
+      },
+      learningEnabled
     )
   } catch {
     /* Exposed by read; composition remains available. */
@@ -34,10 +37,9 @@ export function installPreferenceIpc(
     if (!own(event)) throw Error('Unauthorized sender')
     if (service) return service.read()
     return {
-      extract: false,
+      learning: false,
       retrieve: false,
       facts: [],
-      proposals: [],
       sentences: [],
       busy: false,
       error: 'Preference storage unavailable. Restart or continue composing without memory.'

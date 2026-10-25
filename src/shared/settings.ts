@@ -10,6 +10,7 @@ export interface AppSettings {
   dwell: boolean
   duration: number
   geminiEnabled: boolean
+  toneSuggestionsEnabled: boolean
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -21,10 +22,13 @@ export const DEFAULT_SETTINGS: AppSettings = {
   showGazeDot: true,
   dwell: true,
   duration: 1000,
-  geminiEnabled: false
+  geminiEnabled: false,
+  toneSuggestionsEnabled: false
 }
 
-export type GeneralSettingsPatch = Partial<Omit<AppSettings, 'geminiEnabled' | 'phraseModel'>>
+export type GeneralSettingsPatch = Partial<
+  Omit<AppSettings, 'geminiEnabled' | 'phraseModel' | 'toneSuggestionsEnabled'>
+>
 
 export interface SettingsApi {
   load(): Promise<AppSettings>
@@ -54,6 +58,7 @@ export function validSettingsPatch(
       case 'duration':
         return typeof setting === 'number' && [700, 1000, 1500].includes(setting)
       case 'geminiEnabled':
+      case 'toneSuggestionsEnabled':
         return allowGemini && typeof setting === 'boolean'
       default:
         return false

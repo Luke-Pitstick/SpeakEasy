@@ -34,7 +34,7 @@ export const approvedPreferenceSchema = z.object({
   updatedAt: z.number().int().nonnegative()
 })
 export const preferenceOperationSchema = z.discriminatedUnion('type', [
-  z.strictObject({ type: z.literal('settings'), extract: z.boolean(), retrieve: z.boolean() }),
+  z.strictObject({ type: z.literal('settings'), retrieve: z.boolean() }),
   z.strictObject({
     type: z.literal('commit'),
     id: text(150),
@@ -44,31 +44,19 @@ export const preferenceOperationSchema = z.discriminatedUnion('type', [
       .max(8)
   }),
   z.strictObject({ type: z.literal('extract'), id: text(150) }),
-  z.strictObject({
-    type: z.literal('approve'),
-    id: text(150),
-    fact: preferenceFieldsSchema,
-    replaceId: text(150).nullable()
-  }),
   z.strictObject({ type: z.literal('edit'), id: text(150), fact: preferenceFieldsSchema }),
-  z.strictObject({ type: z.literal('reject'), id: text(150) }),
   z.strictObject({ type: z.literal('forget'), id: text(150) }),
   z.strictObject({ type: z.literal('forget-sentences'), ids: z.array(text(150)).max(100) }),
   z.strictObject({ type: z.literal('clear') })
 ])
 export type PreferenceFields = z.infer<typeof preferenceFieldsSchema>
-export type PreferenceProposal = z.infer<typeof preferenceProposalSchema> & {
-  id: string
-  source: SentenceMemory
-}
 export type ApprovedPreference = z.infer<typeof approvedPreferenceSchema>
 export type SentenceMemory = z.infer<typeof sentenceSchema>
 export type PreferenceOperation = z.infer<typeof preferenceOperationSchema>
 export interface PreferenceSnapshot {
-  extract: boolean
+  learning: boolean
   retrieve: boolean
   facts: ApprovedPreference[]
-  proposals: PreferenceProposal[]
   sentences: SentenceMemory[]
   busy: boolean
   error: string
@@ -76,7 +64,7 @@ export interface PreferenceSnapshot {
 export interface PreferenceApi {
   read(): Promise<PreferenceSnapshot>
   update(operation: PreferenceOperation): Promise<PreferenceSnapshot>
-  onChanged(listener: (invalidate: boolean) => void): () => void
+  onChanged(listener: (invalidate: boolean, automatic?: boolean) => void): () => void
 }
 export function preferenceText(fact: PreferenceFields): string {
   return `User ${fact.relationship}: ${fact.value}. Context: ${[fact.scope.game, fact.scope.topic].filter(Boolean).join(', ')}. Related: ${fact.relatedTerms.join(', ')}`

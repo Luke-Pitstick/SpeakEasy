@@ -1,5 +1,6 @@
 import {
   CANDIDATE_LIMIT,
+  wordTokens,
   type PredictionRequest,
   type PhraseCandidate,
   type PredictionResult
@@ -49,7 +50,9 @@ export function validRequest(value: unknown): value is PredictionRequest {
     return false
   if (
     value.purpose === 'expansion' &&
-    (!value.tokens.length || start !== value.draft.length || end !== start)
+    (!value.tokens.some((t) => record(t) && t.kind !== 'punctuation') ||
+      start !== value.draft.length ||
+      end !== start)
   )
     return false
   if (value.purpose === 'completion' && (start !== value.draft.length || end !== start))
@@ -71,10 +74,12 @@ export function validRequest(value: unknown): value is PredictionRequest {
       (t) =>
         record(t) &&
         bounded(t.id, 100) &&
-        ['initial', 'prefix', 'word'].includes(String(t.kind)) &&
+        ['initial', 'prefix', 'word', 'punctuation'].includes(String(t.kind)) &&
         bounded(t.value, 60) &&
-        /^[a-z]+(?:['-][a-z]+)*$/i.test(t.value) &&
-        (t.kind !== 'initial' || t.value.length === 1)
+        (t.kind === 'punctuation'
+          ? /^[!?]$/.test(t.value)
+          : /^[a-z]+(?:['-][a-z]+)*$/i.test(t.value) &&
+            (t.kind !== 'initial' || t.value.length === 1))
     ) &&
     new Set(value.tokens.map((t) => t.id)).size === value.tokens.length &&
     value.conversation.every(
@@ -114,6 +119,7 @@ export function candidateFor(
     /^\s*(?:\d+[.)]|[-*#])/.test(replacement)
   )
     return null
+  const tokens = wordTokens(request.tokens)
   const words = lexicalWords(replacement)
   if (!words.length) return null
   if (cacheInitials !== undefined && cacheMatch(request, replacement, cacheInitials) === null)
@@ -121,12 +127,19 @@ export function candidateFor(
   if (
     cacheInitials === undefined &&
     request.purpose === 'expansion' &&
-    (words.length !== request.tokens.length ||
-      !request.tokens.every((token, i) =>
+    (words.length !== tokens.length ||
+      !tokens.every((token, i) =>
         token.kind === 'word'
           ? words[i] === token.value.toLowerCase()
           : words[i].startsWith(token.value.toLowerCase())
       ))
+  )
+    return null
+  const ending = request.tokens.at(-1)
+  if (
+    request.purpose === 'expansion' &&
+    ending?.kind === 'punctuation' &&
+    !replacement.endsWith(ending.value)
   )
     return null
   if (
@@ -152,13 +165,14 @@ export function candidateFor(
 /** Fuzzy initials never loosen explicit word or prefix constraints. */
 export function cacheMatch(request: PredictionRequest, text: string, saved: string): number | null {
   if (request.purpose !== 'expansion' || !/^[a-z]{1,24}$/.test(saved)) return null
-  const query = request.tokens.map((t) => t.value[0].toLowerCase()).join('')
+  const tokens = wordTokens(request.tokens)
+  const query = tokens.map((t) => t.value[0].toLowerCase()).join('')
   const words = lexicalWords(text)
   if (
-    request.tokens.some(
+    tokens.some(
       (t, i) =>
         t.kind !== 'initial' &&
-        (words.length !== request.tokens.length ||
+        (words.length !== tokens.length ||
           (t.kind === 'word'
             ? words[i] !== t.value.toLowerCase()
             : !words[i]?.startsWith(t.value.toLowerCase())))

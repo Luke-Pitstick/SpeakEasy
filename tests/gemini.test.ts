@@ -410,3 +410,53 @@ describe('word replacement', () => {
     expect(final.candidates.map((c) => c.replacement)).toEqual(['cocoa', 'cookie', 'cake', 'cola'])
   })
 })
+
+describe('punctuation context', () => {
+  it.each(['?', '!'])('keeps %s out of word slots and preserves the requested ending', (mark) => {
+    const input = request()
+    input.tokens = [
+      ...[...'cyhm'].map((value, i) => ({ id: String(i), kind: 'initial' as const, value })),
+      { id: 'end', kind: 'punctuation', value: mark }
+    ]
+    expect(validRequest(input)).toBe(true)
+    const payload = JSON.parse(predictionMessages(input)[1].content)
+    expect(payload.initials).toBe('cyhm')
+    expect(payload.wordCount).toBe(4)
+    expect(payload.constraints.map((c: { value: string }) => c.value)).toEqual([...'cyhm'])
+    expect(payload.punctuationContext).toEqual([{ afterWord: 4, mark }])
+    expect(candidateFor(input, `Can you help me${mark}`, 0)?.text).toBe(`Can you help me${mark}`)
+    expect(candidateFor(input, 'Can you help me punctuation', 0)).toBeNull()
+    expect(candidateFor(input, 'Can you help me.', 0)).toBeNull()
+    expect(
+      validRequest({ ...input, tokens: [{ id: 'end', kind: 'punctuation', value: mark }] })
+    ).toBe(false)
+    expect(
+      validRequest({
+        ...input,
+        tokens: [...input.tokens.slice(0, -1), { id: 'end', kind: 'punctuation', value: 'word' }]
+      })
+    ).toBe(false)
+  })
+
+  it('keeps punctuation out of word counts in repair requests', async () => {
+    const input = request()
+    input.tokens.push({ id: 'end', kind: 'punctuation', value: '!' })
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(response([frame('I want a coffee.', 'stop')]))
+      .mockResolvedValue(
+        response([frame('I want a coffee!\nI want a cookie!\nI want a cushion!', 'stop')])
+      )
+    const emit = vi.fn()
+    await streamGemini(input, 'key', new AbortController().signal, emit, fetcher)
+    const repair = JSON.parse(
+      JSON.parse(String(fetcher.mock.calls[1][1]?.body)).messages.at(-1).content
+    )
+    expect(repair.requiredWordCount).toBe(4)
+    expect(repair.orderedConstraints).toHaveLength(4)
+    expect(repair.punctuationContext).toEqual([{ afterWord: 4, mark: '!' }])
+    expect(emit).toHaveBeenLastCalledWith(
+      expect.objectContaining({ status: 'success', complete: true })
+    )
+  })
+})

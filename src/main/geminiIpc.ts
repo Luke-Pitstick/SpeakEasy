@@ -94,7 +94,8 @@ export function installGeminiIpc(window: BrowserWindow, settings: SettingsStore 
       const facts = permittedFacts()
       void moss?.then((runtime) => runtime.memory.reconcile(sourceHistory, facts)).catch(() => {})
     },
-    phraseCache
+    phraseCache,
+    () => enabled
   )
   const permittedFacts = (): PreferenceSnapshot['facts'] => {
     const snapshot = preferences?.read()
@@ -191,6 +192,9 @@ export function installGeminiIpc(window: BrowserWindow, settings: SettingsStore 
     if (!settings) throw new Error('Settings storage is unavailable')
     settings.save({ geminiEnabled: value })
     enabled = value
+    window.webContents.send('preferences:changed', false)
+    if (!enabled) preferences?.cancel()
+    else preferences?.resume(true)
     if (!enabled) {
       cancel()
       closeMoss()

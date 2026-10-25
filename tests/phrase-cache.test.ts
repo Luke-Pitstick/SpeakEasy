@@ -187,3 +187,14 @@ describe('cache-first generation', () => {
     )
   })
 })
+
+it('matches word initials independently of punctuation and respects the selected mark', () => {
+  const { cache } = store()
+  cache.save('cyhm', 'Can you help me?')
+  cache.save('cyhe', 'Can you hear everything!')
+  const input = request('cyhm')
+  input.tokens.push({ id: 'end', kind: 'punctuation', value: '?' })
+  expect(cache.lookup(input).map((c) => c.text)).toEqual(['Can you help me?'])
+  input.tokens.at(-1)!.value = '!'
+  expect(cache.lookup(input).map((c) => c.text)).toEqual(['Can you hear everything!'])
+})

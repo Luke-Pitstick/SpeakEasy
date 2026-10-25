@@ -3,6 +3,7 @@ import { PreferenceService } from '../src/main/preferenceService'
 import { describe, expect, it, vi } from 'vitest'
 import {
   MossMemory,
+  modelContextResolver,
   selectMossFacts,
   type ContextDecision,
   type LocalIndex
@@ -115,7 +116,36 @@ describe('Moss context and durable-memory selection', () => {
       new AbortController().signal
     )
     expect(resolver).toHaveBeenCalledTimes(1)
+    await runtime.retrieve(
+      {
+        ...sample.request,
+        tokens: [...sample.request.tokens, { id: 'question', kind: 'punctuation', value: '?' }]
+      },
+      sample.history,
+      sample.facts,
+      new AbortController().signal
+    )
+    expect(resolver).toHaveBeenCalledTimes(2)
     await runtime.close()
+  })
+  it('passes sentence punctuation to the shared context decision independently of locked words', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json({
+        choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(decision) } }]
+      })
+    )
+    await modelContextResolver('test-key', fetcher)(
+      {
+        ...sample.request,
+        tokens: [...sample.request.tokens, { id: 'question', kind: 'punctuation', value: '?' }]
+      },
+      sample.history,
+      new AbortController().signal
+    )
+    const body = JSON.parse(String(fetcher.mock.calls[0][1]?.body))
+    const payload = JSON.parse(body.messages[1].content)
+    expect(payload.punctuationContext).toEqual([{ afterWord: 4, mark: '?' }])
+    expect(payload.lockedWords).toEqual([])
   })
   it('rejects late results when a memory is forgotten and removes the indexed record', async () => {
     let release!: (value: ContextDecision) => void
@@ -226,8 +256,14 @@ it('never sends facts to cloud embedding when approving, editing, or enabling me
   const db = new PreferenceStore(':memory:')
   db.save(sample.facts[0])
   const fetcher = vi.fn<typeof fetch>()
-  const service = new PreferenceService(db, 'test-key', () => {}, fetcher)
-  await service.update({ type: 'settings', extract: false, retrieve: true })
+  const service = new PreferenceService(
+    db,
+    'test-key',
+    () => {},
+    () => true,
+    fetcher
+  )
+  await service.update({ type: 'settings', retrieve: true })
   await service.update({ type: 'edit', id: sample.facts[0].id, fact: sample.facts[0].fact })
   expect(fetcher).not.toHaveBeenCalled()
   expect(service.read().facts).toHaveLength(1)
