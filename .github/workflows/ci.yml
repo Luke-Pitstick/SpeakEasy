@@ -79,6 +79,9 @@ jobs:
       - run: npm run build
       - name: Package installers
         run: npm exec -- electron-builder ${{ matrix.args }} --publish never
+      - name: Verify macOS app signature
+        if: runner.os == 'macOS'
+        run: codesign --verify --deep --strict dist/mac-arm64/SpeakEasy.app
       - uses: actions/upload-artifact@v6
         with:
           name: speakeasy-${{ matrix.platform }}
