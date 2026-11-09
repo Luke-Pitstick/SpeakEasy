@@ -102,6 +102,14 @@ enable generation, and see which data goes to each service.
 | `npm start`                                        | Preview the built app                                      |
 | `npm run build:mac`, `build:win`, or `build:linux` | Package for the corresponding operating system             |
 
+## CI and releases
+
+Open feature pull requests into `dev` and promote `dev` through a pull request into `main`. The **Checks** job runs lint, tests, and the production build on pull requests into either branch. Require **Checks** in the branch rules to enforce a passing build before merge.
+
+After a merge to `main`, download the installers from the Actions run. The workflow packages an Apple Silicon macOS DMG, a Windows x64 installer, and Linux x64 AppImage and Debian packages. These builds are for testing. macOS notarization and Windows release signing require signing credentials and configuration.
+
+To cut a release, update `package.json` and `package-lock.json` to the intended version through a pull request, then push the matching `v` tag on the merged commit. For example, for version `0.1.0`, run `git tag v0.1.0 <main-commit>` and `git push origin v0.1.0`. Once all installers build, Actions creates a draft GitHub release with the downloads and generated notes. Review the draft and publish it from GitHub Releases when it's ready.
+
 ## Further reading
 
 - [Technical overview](docs/technical-overview.md) covers the composition, generation, memory, and voice architecture.

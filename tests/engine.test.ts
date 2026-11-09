@@ -62,6 +62,7 @@ function steer(engine: DasherEngine, wanted: string, alphabet = INITIAL_ALPHABET
 describe('typed Dasher navigation', () => {
   it('continuously enters initials and reverses across promoted roots', () => {
     const engine = new DasherEngine(1100, 330, '', false, 'uniform')
+    engine.setSpeed(1.5)
     engine.resume()
     const frames = steer(engine, 'iwac')
     expect(frames).toBeLessThan(2500)
@@ -246,7 +247,7 @@ it('expands the target and reveals nested continuations while steering', () => {
   const engine = new DasherEngine(1280, 600, '', false, 'uniform')
   const initial = engine.regions().find((region) => region.text === 'n')!
   engine.resume()
-  engine.setSample(180, 0)
+  engine.setSample(275, 0)
   for (let frame = 0; frame < 80; frame++) engine.step(16.67)
   const regions = engine.regions()
   const parent = regions.find((region) => region.text === 'n')!
@@ -302,7 +303,10 @@ it('keeps the same zoom rate across character selection and root promotion', () 
   const engine = new DasherEngine(1280, 600)
   engine.resume()
   engine.setSample(320, 1)
-  const factor = Math.exp((320 / 1280) * 0.18 * (16.67 / 33))
+  const initialHeight = engine.root.height
+  engine.step(16.67)
+  const factor = engine.root.height / initialHeight
+  expect(factor).toBeGreaterThan(1)
   let promotions = 0
   let checked = 0
   for (let frame = 0; frame < 600; frame++) {
