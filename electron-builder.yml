@@ -4,6 +4,8 @@
 
 appId: com.speakeasy.app
 productName: SpeakEasy
+extraMetadata:
+  homepage: https://github.com/Luke-Pitstick/SpeakEasy
 directories:
   buildResources: build
 files:
@@ -43,6 +45,8 @@ linux:
     - snap
     - deb
   category: Utility
+deb:
+  maintainer: SpeakEasy contributors <89280703+Luke-Pitstick@users.noreply.github.com>
 appImage:
   artifactName: ${name}-${version}.${ext}
 npmRebuild: false
