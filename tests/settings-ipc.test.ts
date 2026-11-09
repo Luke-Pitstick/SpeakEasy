@@ -89,15 +89,15 @@ it('cancels the old generation on a model change and sends subsequent requests t
   mocked.handlers.get('gemini:model')!(app.event, 'test/selected')
   expect(fetcher.mock.calls[0][1]?.signal?.aborted).toBe(true)
   mocked.handlers.get('gemini:start')!(app.event, { ...input, id: 'new' })
-  await vi.waitFor(() => expect(fetcher).toHaveBeenCalledTimes(3))
-  expect(JSON.parse(String(fetcher.mock.calls[1][1]?.body)).model).toBe('test/selected')
   const send = (app.event as { sender: { send: ReturnType<typeof vi.fn> } }).sender.send
   await vi.waitFor(() =>
     expect(send).toHaveBeenCalledWith(
       'gemini:result',
-      expect.objectContaining({ requestId: 'new', complete: true })
+      expect.objectContaining({ requestId: 'new', complete: true, status: 'success' })
     )
   )
+  expect(fetcher).toHaveBeenCalledTimes(2)
+  expect(JSON.parse(String(fetcher.mock.calls[1][1]?.body)).model).toBe('test/selected')
   expect(send.mock.calls.every(([, result]) => result.requestId !== 'old')).toBe(true)
   app.close()
 })

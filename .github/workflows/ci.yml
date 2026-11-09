@@ -1,0 +1,107 @@
+# SPDX-FileCopyrightText: 2026 SpeakEasy contributors
+# SPDX-License-Identifier: GPL-3.0-only
+# See LICENSE for the full terms, including the warranty disclaimer.
+
+name: Build and release
+
+on:
+  pull_request:
+    branches: [dev, main]
+  push:
+    branches: [main]
+    tags: ['v*']
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    name: Checks
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: ${{ github.ref_type == 'tag' && '0' || '1' }}
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - name: Validate release tag
+        if: github.ref_type == 'tag'
+        run: |
+          version=$(node -p "require('./package.json').version")
+          if [[ "$GITHUB_REF_NAME" != "v$version" ]]; then
+            echo "::error::Tag $GITHUB_REF_NAME must match package.json version v$version."
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor HEAD origin/main; then
+            echo "::error::Tag a commit that has landed on main."
+            exit 1
+          fi
+      - run: npm ci
+      - run: npm run lint
+      - run: npm test
+      - run: npm run build
+
+  installers:
+    name: Installers (${{ matrix.platform }})
+    if: github.event_name == 'push'
+    needs: checks
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: macos-arm64
+            runner: macos-15
+            args: --mac dmg --arm64
+            assets: dist/*.dmg
+          - platform: windows-x64
+            runner: windows-2025
+            args: --win nsis --x64
+            assets: dist/*-setup.exe
+          - platform: linux-x64
+            runner: ubuntu-24.04
+            args: --linux AppImage deb --x64
+            assets: |
+              dist/*.AppImage
+              dist/*.deb
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Package installers
+        run: npm exec -- electron-builder ${{ matrix.args }} --publish never
+      - uses: actions/upload-artifact@v6
+        with:
+          name: speakeasy-${{ matrix.platform }}
+          path: ${{ matrix.assets }}
+          if-no-files-found: error
+          compression-level: 0
+
+  release:
+    name: Draft GitHub release
+    if: github.ref_type == 'tag'
+    needs: installers
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: speakeasy-*
+          path: installers
+          merge-multiple: true
+      - name: Create draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" installers/* \
+            --repo "$GITHUB_REPOSITORY" --verify-tag --draft --generate-notes
