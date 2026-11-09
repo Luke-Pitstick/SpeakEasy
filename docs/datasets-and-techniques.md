@@ -31,4 +31,4 @@ The existing [results report](../artifacts/initials-ppm/f70020135ab3a402/report.
 
 Model SHA-256: `2780b90e230892ba92fd8c2c16053c8d61558595a1a92b2247b48ee02d5171ba`.
 
-These are results from the saved report, not a new rerun. Its directory contains acquisition manifests, preprocessing summaries, candidate metrics, the frozen model, and final scores. The offline tools live in [scripts/initials-ppm](../scripts/initials-ppm/). The original plan describes the earlier design-stage status; the saved report records the subsequent offline run. Dasher integration, practical engine reachability, and gaze trials remain outstanding in that report, so no faster-communication claim is established.
+The saved report directory contains the acquisition manifests, preprocessing summaries, candidate metrics, and final scores. The research weights were removed from the current tree. See the [AAC-only bundled model](./initials-ppm-integration.md) for its build inputs, offline comparison, and reachability checks. Gaze performance remains unmeasured.

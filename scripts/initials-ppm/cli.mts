@@ -17,12 +17,14 @@ import {
 } from '../../src/shared/initialsPpm.ts'
 import type { PpmConfig } from '../../src/shared/initialsPpm.ts'
 import {
+  aacTrainingSource,
   acquire,
   cacheDirectory,
   dataSummary,
   hash,
   loadMessages,
   outputDirectory,
+  parseAac,
   readJson,
   trainingKeys,
   writeJson
@@ -71,6 +73,21 @@ function models(training: Message[], history: number): [InitialsPpm, InitialsPpm
   for (const m of training)
     for (const segment of m.segments) (m.source === 'aac' ? aac : turk).train(segment)
   return [aac, turk]
+}
+
+function bundle(path: string | undefined): void {
+  if (!path) throw new Error('Usage: npm run ppm -- bundle <sent_train_aac.txt>')
+  const raw = readFileSync(path)
+  if (hash(raw) !== aacTrainingSource.sha256)
+    throw new Error('Bundled model requires the pinned CC BY 4.0 AAC training file')
+
+  const config = { maxHistory: 2, aacWeight: 1, floor: 0.1 }
+  const pair = models(parseAac(raw.toString('utf8'), 'train'), config.maxHistory)
+  const serialized = JSON.stringify(exportPpm(...pair, config)) + '\n'
+  new FrozenInitialsPpm(JSON.parse(serialized))
+  const output = 'src/renderer/src/features/dasher/initials-model.json'
+  writeFileSync(output, serialized)
+  console.log(`Wrote ${output} (SHA-256 ${hash(serialized)})`)
 }
 
 function predictor(
@@ -280,15 +297,19 @@ function train(): void {
   console.log(JSON.stringify({ run, winner, unigram, comparison, devPass, directory }, null, 2))
 }
 
-function currentRun(): {
-  directory: string
+function latestRun(): { directory: string; freeze: Freeze } {
+  const { run } = readJson<{ run: string }>(join(outputDirectory, 'latest.json'))
+  const directory = join(outputDirectory, run)
+  return { directory, freeze: readJson<Freeze>(join(directory, 'freeze.json')) }
+}
+
+function loadFrozenRun(
+  directory: string,
   freeze: Freeze
+): {
   model: FrozenInitialsPpm
   baseline: number[]
 } {
-  const { run } = readJson<{ run: string }>(join(outputDirectory, 'latest.json'))
-  const directory = join(outputDirectory, run)
-  const freeze = readJson<Freeze>(join(directory, 'freeze.json'))
   const raw = readFileSync(join(directory, 'model.json'), 'utf8')
   const baseline = readFileSync(join(directory, 'unigram.json'), 'utf8')
   if (
@@ -309,20 +330,19 @@ function currentRun(): {
       throw new Error(`Frozen training/development source changed: ${id}`)
   }
   return {
-    directory,
-    freeze,
     model: new FrozenInitialsPpm(JSON.parse(raw)),
     baseline: JSON.parse(baseline).probabilities
   }
 }
 
 function finalTest(): void {
-  const { directory, freeze, model, baseline } = currentRun()
+  const { directory, freeze } = latestRun()
   const path = join(directory, 'final.json')
   if (existsSync(path)) {
     console.log(`Final test already recorded; refusing to overwrite: ${path}`)
     return
   }
+  const { model, baseline } = loadFrozenRun(directory, freeze)
   if (!freeze.devPass) {
     console.log('Development gate failed. Final data remains unscored; inspect development.json.')
     return
@@ -370,7 +390,7 @@ function finalTest(): void {
 }
 
 function report(): void {
-  const { directory, freeze } = currentRun()
+  const { directory, freeze } = latestRun()
   const dev = readJson<{
     comparison: Comparison
     devPass: boolean
@@ -443,9 +463,11 @@ try {
       )
     )
   } else if (command === 'train') train()
+  else if (command === 'bundle') bundle(process.argv[3])
   else if (command === 'test') finalTest()
   else if (command === 'report') report()
-  else throw new Error('Usage: npm run ppm -- prepare|train|test|report')
+  else
+    throw new Error('Usage: npm run ppm -- prepare|train|test|report|bundle <sent_train_aac.txt>')
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error))
   process.exitCode = 1

@@ -7,6 +7,7 @@ productName: SpeakEasy
 directories:
   buildResources: build
 files:
+  - '!artifacts/**'
   - '!benchmarks/**'
   - '!scripts/moss-experiment/**'
   - '!tests/**'
@@ -17,6 +18,8 @@ files:
   - '!{.eslintcache,eslint.config.mjs,.prettierignore,.prettierrc.yaml,dev-app-update.yml,CHANGELOG.md,README.md}'
   - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
   - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+extraResources:
+  - THIRD_PARTY_NOTICES.md
 asarUnpack:
   - resources/**
 win:

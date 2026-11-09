@@ -1,6 +1,6 @@
 # Initials PPM: first offline training run
 
-The frozen PPM passes the predeclared development and final prediction-quality gates. These are the original offline results, not a claim of faster gaze entry. The subsequent [Dasher integration and reachability checks](./initials-ppm-integration.md) are documented separately.
+The historical AAC/Turk PPM passed the predeclared development and final prediction-quality gates. The repository retains the aggregate results and provenance for that run. See the [Dasher integration notes](./initials-ppm-integration.md) for the AAC-only model now bundled with the app.
 
 Run ID: `f70020135ab3a402`. Model SHA-256: `2780b90e230892ba92fd8c2c16053c8d61558595a1a92b2247b48ee02d5171ba`.
 
@@ -19,7 +19,6 @@ npm run ppm -- report
 
 The source cache is ignored under `.cache/initials-ppm/`. Model and result files are under `artifacts/initials-ppm/<run-id>/`, outside the renderer assets. Repeating `train` with identical code/protocol/source hashes reuses the frozen run. Repeating `test` refuses to overwrite its final result. Code changes produce a new training run; previously seen COMM2 data cannot become a fresh unseen benchmark just by changing the run ID.
 
-- [Frozen model](../artifacts/initials-ppm/f70020135ab3a402/model.json)
 - [Frozen identity and settings](../artifacts/initials-ppm/f70020135ab3a402/freeze.json)
 - [All development candidates and breakdowns](../artifacts/initials-ppm/f70020135ab3a402/development.json)
 - [Final metrics and paired intervals](../artifacts/initials-ppm/f70020135ab3a402/final.json)
@@ -107,4 +106,4 @@ Keep the 10% floor for the first geometry/reachability check; do not retune it u
 
 The full repository test suite passed: **48 tests**, including nine new preparation/PPM/scoring tests. Lint, application and tool typechecks, and the production build passed. Core tests include parity against the existing jslm-derived estimator, frozen-export equivalence over seen/unseen/start contexts, message boundaries, unsupported-token resets, held-out membership, causal scoring, and deterministic paired bootstrap behavior.
 
-Current [AAC](https://aactext.org/imagine/), [Turk](https://aactext.org/turk/), and [COMM2](https://aactext.org/comm2/) source pages list CC BY 4.0, while the older packaged Turk/COMM2 READMEs list BY-ND. The local acquisition snapshots preserve that discrepancy; public distribution of the derived artifact remains unresolved. No private user text was collected. This training run was offline; the later local renderer integration is recorded in the linked integration document.
+The [Turk](https://aactext.org/turk/) and [COMM2](https://aactext.org/comm2/) source pages list CC BY 4.0, while the [Turk README](https://aactext.org/turk/turk/readme.txt) and [COMM2 README](https://aactext.org/comm2/comm2/readme.txt) list CC BY-ND 3.0. Fresh downloads matched the hashes recorded in the acquisition manifests. Turk contributed to the historical model's weights. COMM2 was used only for final evaluation. The mixed model and its paired unigram export were removed from the current tree, and new research weights are kept local. The app uses the [AAC-only replacement](./initials-ppm-integration.md), whose exact training file is explicitly listed under CC BY 4.0. [AAC corpus and license](https://aactext.org/imagine/).

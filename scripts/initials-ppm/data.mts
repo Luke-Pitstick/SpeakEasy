@@ -29,13 +29,15 @@ export function writeJson(path: string, value: unknown): void {
   writeFileSync(path, JSON.stringify(value, null, 2) + '\n')
 }
 
+export const aacTrainingSource = {
+  id: 'aac-train',
+  url: 'https://aactext.org/imagine/aac_comm/sent_train_aac.txt',
+  stage: 'prepare',
+  sha256: 'ddc0ad61652cec5f4a8b76f1dd63f92fa9d5c1197e0a65f7a13d71873aed91bd'
+} as const
+
 const sources = [
-  {
-    id: 'aac-train',
-    url: 'https://aactext.org/imagine/aac_comm/sent_train_aac.txt',
-    stage: 'prepare',
-    sha256: 'ddc0ad61652cec5f4a8b76f1dd63f92fa9d5c1197e0a65f7a13d71873aed91bd'
-  },
+  aacTrainingSource,
   {
     id: 'aac-dev',
     url: 'https://aactext.org/imagine/aac_comm/sent_dev_aac.txt',
