@@ -8,7 +8,7 @@ on:
   pull_request:
     branches: [dev, main]
   push:
-    branches: [main]
+    branches: [codex/verify-packaging]
     tags: ['v*']
 
 permissions:
