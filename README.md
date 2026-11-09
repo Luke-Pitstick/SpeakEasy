@@ -1,83 +1,111 @@
-# SpeakEasy
+<p align="center">
+  <img src="build/icon.png" alt="" width="112" />
+</p>
 
-An offline Electron/React/TypeScript composition experiment combining a Dasher-derived continuous letter stream with SpeakFaster-derived initials expansion and word refinement. Both panels share one composition state and a flat neutral theme.
+<h1 align="center">SpeakEasy</h1>
 
-## Try the composition loop
+<p align="center">
+  <strong>Write and speak with your eyes.</strong><br />
+  Enter initials, review a suggested phrase, and choose when to say it out loud.
+</p>
 
-Enter `iwac` in the Initials field and select Expand, or use Menu → Load demo initials. Select a phrase to accept it into your message; select one word in the message to spell or suggest a replacement. Undo restores the previous edit. Menu contains Undo, Delete, exact spelling, initials editing, previous phrase, a new message, and settings.
+<p align="center">
+  <img alt="Project status: development" src="https://img.shields.io/badge/status-development-f59e0b" />
+  <img alt="Desktop app built with Electron" src="https://img.shields.io/badge/desktop-Electron-2b5c70" />
+  <a href="LICENSE"><img alt="License: GPL-3.0-only" src="https://img.shields.io/badge/license-GPL--3.0--only-6f42c1" /></a>
+</p>
 
-Click anywhere in Dasher to start steering, then click again to pause. Space or Enter works when Dasher has keyboard focus. Move right toward a letter to zoom into it; move left to reverse. A pointer ring, center vector, and distance readout show steering displacement. Nested boxes use the upstream piecewise height-to-position projection across the whole panel. A continuous camera transform keeps zoom smooth across characters; pausing and resuming retains that view. Resizing scales the current boxes without resetting the branch. The phrase area contracts during entry to give Dasher more height. Moving onto the header, Escape, focus loss, tracking loss, or resizing pauses steering. Hovering the top-edge cue only holds steering (nothing is typed while you dwell on it, and coming back continues without a restart); completing the switch pauses. Moving, looking, or pointing off-screen doesn't pause, and steering continues from the last position inside the panel. Dwell selection is optional under Menu → Settings. A webcam eye tracker can drive the same controls (see [Eye tracking](#eye-tracking)); no dedicated eye-tracking hardware is supported.
+<p align="center">
+  <a href="#install-speakeasy">Install</a> ·
+  <a href="#quick-start">Quick start</a> ·
+  <a href="#eye-tracking">Eye tracking</a> ·
+  <a href="#provider-setup">Provider setup</a> ·
+  <a href="#development">Development</a>
+</p>
 
-Suggestions use a small set of authored demo fixtures, including `iwac`, `insw`, `cyhm`, and `tysm`. Unknown initials return no match while exact spelling remains available. No LLM, cloud service, microphone, or speech provider is connected. Selecting a phrase does not speak it.
+SpeakEasy is a desktop augmentative and alternative communication (AAC) app. It combines
+Dasher-style continuous letter entry with SpeakFaster-style phrase suggestions. You can steer with
+a mouse, use the built-in webcam gaze or head pointer, and dwell on controls to select them.
 
-See [interface references](docs/interface-references.md), [source mappings](docs/source-manifest.md), and [attribution](THIRD_PARTY_NOTICES.md). The current engine is a source-derived adaptation; tests do not establish parity with every upstream Dasher behavior or real gaze usability.
+## Why SpeakEasy
 
-The offline initials-prediction experiment is documented in [datasets and techniques](docs/datasets-and-techniques.md), including source provenance, preprocessing, PPM selection, and links to saved results.
+- **Enter less text.** Steer through the first letter of each word, then review suggested phrases.
+- **Keep control of the wording.** Change a word in a suggestion, spell it yourself, or write the
+  entire message in exact spelling mode.
+- **Choose when to speak.** Review the message and voice settings, then select **Speak** to read it aloud.
 
-## Development
+## Project status
 
-Use Node.js 24 LTS and npm.
+SpeakEasy is in development. A webcam gaze path is built in and has been exercised with real
+calibration data. Dedicated eye trackers that move the desktop pointer can be tried in **Mouse**
+mode. The project has yet to publish model-specific compatibility results.
+
+## Install SpeakEasy
+
+Use Git, Node.js 24, and npm. The first install downloads Electron and the webcam model.
 
 ```sh
-npm install
+git clone --branch dev https://github.com/Luke-Pitstick/SpeakEasy.git
+cd SpeakEasy
+npm ci
 npm run dev
 ```
 
-The development command opens Electron and enables hot reload for the React UI. Press F12 to toggle DevTools.
+You can try steering and exact spelling without provider accounts. See the
+[setup guide](docs/setup.md) for camera permissions, eye-tracker setup, and cloud features.
 
-## Commands
+## Quick start
 
-| Command                       | Purpose                                                     |
-| ----------------------------- | ----------------------------------------------------------- |
-| `npm run dev`                 | Start the app in development mode                           |
-| `npm run assets:eye-tracking` | Re-copy MediaPipe WASM and the face model (runs on install) |
-| `npm run lint`                | Check the source with ESLint                                |
-| `npm test`                    | Run navigation, composition, and UI tests                   |
-| `npm run typecheck`           | Check TypeScript across all processes                       |
-| `npm run format`              | Format the project with Prettier                            |
-| `npm run build`               | Typecheck and build into `out/`                             |
-| `npm start`                   | Open the production build after building                    |
-| `npm run build:unpack`        | Build an unpacked desktop app in `dist/`                    |
-| `npm run build:mac`           | Build a macOS distribution                                  |
-| `npm run build:win`           | Build a Windows installer                                   |
-| `npm run build:linux`         | Build Linux distributions                                   |
-
-Build platform distributions on their corresponding operating systems. macOS signing and notarization need configuration before public distribution.
-
-## Source layout
-
-- `src/main/index.ts`: Electron lifecycle and native window management.
-- `src/preload/index.ts`: Currently exposes no privileged operations.
-- `src/renderer/src/App.tsx`: The stacked communication workspace and secondary settings.
-- `src/renderer/src/composition/`: Authoritative composition reducer, revisions, entry sessions, and undo.
-- `src/renderer/src/features/dasher/`: Navigation, SVG rendering, and cached PPM/uniform distributions.
-- `src/renderer/src/features/speakfaster/`: Phrase selection and contextual correction.
-- `src/renderer/src/prediction/`: Async demo generator, validation, cancellation, and stale-result handling.
-- `src/shared/prediction.ts`: Serializable prediction contract for a future provider.
-- `src/renderer/src/eyetracking/`: Webcam eye tracking and the gaze-to-pointer bridge (see below).
-- `src/renderer/src/assets/`: UI styles and images.
-- `electron.vite.config.ts`: Build configuration for all three processes.
-- `electron-builder.yml`: App identity and packaging configuration.
-
-Keep filesystem access and other native work in the main process, and expose specific operations through preload as the app grows.
+1. **Enter initials.** Select **Start writing**, then steer right toward the letter you want.
+   Steer left to reverse. Try `iwac` for a sentence such as “I want a coffee.”
+2. **Review a suggestion.** Choose **Show phrases** to request suggestions, then select one to
+   review. Fresh suggestions require [cloud generation](#provider-setup).
+3. **Correct a word.** Select the word you want to change. Choose **Find replacements** for
+   same-initial options, or choose **Spell word**, enter the replacement in Dasher, and select
+   **Use word**.
+4. **Speak.** When the reviewed wording is ready, select **Speak**. This requires Cartesia.
+   For manual composition, choose **Menu → Exact spelling** and write the full message directly.
 
 ## Eye tracking
 
-Choose **Menu → Settings → Input → Eye tracker (webcam)**, then **Calibrate eye tracker**. Once calibrated, your gaze drives the workspace exactly as the mouse does: `gazePointerBridge.ts` turns each gaze sample into the pointer events a mouse would produce (enter/leave as the element under your gaze changes, and a move every frame), so the existing dwell buttons, top-edge switch and Dasher steering work unchanged. While gaze drives the pointer, the real mouse's hover is ignored (clicks still work), and losing your face cancels pending dwell and pauses writing. Enabled buttons have a very soft aim assist (a 25% pull within 40 px; never over the Dasher steering surface). The top cue has a forgiving, sticky hit zone for gaze and head input (it starts 24 px below the cue and holds until 64 px below, so jitter can't reset its dwell), and looking or pointing at or past the top edge always presses it; past the other edges the pointer leaves the window and steering continues. Going to the Menu or the phrase panel pauses writing, and coming back resumes it if you were writing. Settings also has a **Pointer dot** toggle. **Steering speed** (how fast Dasher zooms and pans for a given cursor offset, 8 steps) and **Head pointer sensitivity** use a dwell dropdown (`interaction/DwellSelect.tsx`) that opens and chooses by dwell alone, since native dropdowns can't be operated by gaze; the input choice is remembered, and the camera only runs while an eye or head input is selected.
+| Input                       | Setup                                                                                                                | Verification                                               |
+| --------------------------- | -------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------- |
+| Mouse or trackpad           | Choose **Mouse** in **Menu → Settings → General**.                                                                   | Standard desktop pointer path.                             |
+| Built-in or external webcam | Choose **Eye tracker (webcam)** and **Calibrate eye tracker**, or choose **Head pointer (webcam)** and center it.    | Webcam gaze has been exercised with real calibration data. |
+| Dedicated eye tracker       | Calibrate in the tracker software and enable continuous desktop pointer movement. Leave SpeakEasy in **Mouse** mode. | Model-specific compatibility is unverified.                |
 
-Gaze is estimated from the webcam with MediaPipe's face landmarker, fully offline. The WASM runtime and model are placed in `src/renderer/public/mediapipe/` by `npm install` (git-ignored).
+Enable **Dwell activation** in General settings to select by holding the pointer on a control.
+See [input setup and troubleshooting](docs/setup.md#input-setup) and the
+[tracker compatibility report template](.github/ISSUE_TEMPLATE/tracker-compatibility.md).
 
-1. `WebcamFaceSource` turns each camera frame into iris offsets and eyelid opening for each eye, plus the head's 3D pose (MediaPipe's facial transformation matrix).
-2. `gazeModel.ts` is a two-stage model, chosen by benchmarking candidates on real exported calibration data. Stage 1 maps eye measurements to the screen, trained only on still-head samples; stage 2 corrects for head movement from the change in head pose since calibration and is zero at the calibration pose.
-3. Calibration has three phases: 11 points with the head still in your normal posture; guided head moves (turn, tilt, lean, slide) while looking at a dot, each with a live progress bar; then held-out points to measure accuracy. It is saved in `localStorage`.
-4. `GazeTracker` applies the model, smooths with a One Euro filter, and holds position during blinks.
+## Provider setup
 
-Measured accuracy on real data is roughly 80–200 px (about 1.5–4° of gaze), and the estimate shifts when posture changes after calibration, so large targets work best. The tracker also contains experimental pieces not exposed in the UI: aim assist, its own dwell selector, learning from clicks/selections (both off), and calibration export/drift-test diagnostics.
+| Feature                                      | Required credentials                                            |
+| -------------------------------------------- | --------------------------------------------------------------- |
+| New phrase suggestions and cloud refinements | `OPENROUTER_TOKEN`, `MOSS_PROJECT_ID`, and `MOSS_PROJECT_TOKEN` |
+| Speech playback and live transcription       | `CARTESIA_API_KEY`                                              |
+| Optional Jev tone suggestions                | `TYPESAFE_AI_API_TOKEN`                                         |
 
-### Head pointing
+The [provider setup guide](docs/setup.md#cloud-features) explains how to supply credentials,
+enable generation, and see which data goes to each service.
 
-Choose **Menu → Settings → Input → Head pointer (webcam)** to steer with your nose instead of your eyes. The pointer follows where your face points (MediaPipe's head turn and tilt; about 6×13 px of jitter after smoothing). It needs no calibration, only centring: point your nose at a dot for 2 s, which happens automatically the first time each session (or use **Center head pointer**). At standard sensitivity, ±10° of turn spans the width and ±7° of tilt the height. Pointing past an edge holds the cursor at the edge; the centre only changes when you re-centre.
+## Development
 
-In React, the app is wrapped in `<GazeProvider active>`; use `useGazeTracker().onGaze(...)` for per-frame gaze without re-rendering, or `useTrackerState()` for status.
+| Command                                            | Purpose                                                    |
+| -------------------------------------------------- | ---------------------------------------------------------- |
+| `npm run dev`                                      | Open Electron in development mode with renderer hot reload |
+| `npm run assets:eye-tracking`                      | Prepare the webcam model and WASM assets                   |
+| `npm run lint`                                     | Check source with ESLint                                   |
+| `npm test`                                         | Run the test suite                                         |
+| `npm run typecheck`                                | Check TypeScript across the application and model tooling  |
+| `npm run build`                                    | Typecheck and build into `out/`                            |
+| `npm start`                                        | Preview the built app                                      |
+| `npm run build:mac`, `build:win`, or `build:linux` | Package for the corresponding operating system             |
 
-On macOS, the terminal or app that launches Electron needs camera permission (System Settings › Privacy & Security › Camera).
+## Further reading
+
+- [Technical overview](docs/technical-overview.md) covers the composition, generation, memory, and voice architecture.
+- [Initials prediction](docs/initials-ppm-integration.md) describes the local model and its provenance.
+- [Source manifest](docs/source-manifest.md) and [third-party notices](THIRD_PARTY_NOTICES.md) credit the code and data SpeakEasy builds on.
+
+SpeakEasy is licensed under [GPL-3.0-only](LICENSE).
