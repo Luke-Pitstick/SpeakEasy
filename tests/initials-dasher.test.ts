@@ -78,11 +78,11 @@ describe('frozen initials PPM in Dasher', () => {
   it('preserves trained letter proportions while reserving mass for punctuation', () => {
     const raw = readFileSync('src/renderer/src/features/dasher/initials-model.json')
     expect(createHash('sha256').update(raw).digest('hex')).toBe(
-      '2780b90e230892ba92fd8c2c16053c8d61558595a1a92b2247b48ee02d5171ba'
+      'f16463da8e77c3eba90b1df4bce72186f07a3d27f1e9bf50459f7ab66e1ba8e0'
     )
     expect(trainedInitials.model?.artifact.config).toEqual({
       maxHistory: 2,
-      aacWeight: 0.5,
+      aacWeight: 1,
       floor: 0.1
     })
     const predictor = new CharacterPredictor(INITIAL_ALPHABET, 'initials')
