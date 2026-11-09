@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 SpeakEasy contributors
+// SPDX-License-Identifier: GPL-3.0-only
+// See LICENSE for the full terms, including the warranty disclaimer.
+
 // PPM interpolation rule derived from the Apache-2.0 jslm adaptation in
 // renderer/src/features/dasher/prediction.ts. See THIRD_PARTY_NOTICES.md.
 // Modified: independent turns, context-only start marker, arbitrary history cap,

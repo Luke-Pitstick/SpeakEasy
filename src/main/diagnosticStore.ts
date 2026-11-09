@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 SpeakEasy contributors
+// SPDX-License-Identifier: GPL-3.0-only
+// See LICENSE for the full terms, including the warranty disclaimer.
+
 import type { DebugContext, DebugKind, DebugSnapshot } from '../shared/diagnostics'
 
 /** Opt-in, bounded, session-only traces. Never writes audio, keys, or data to disk. */

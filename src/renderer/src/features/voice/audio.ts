@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 SpeakEasy contributors
+// SPDX-License-Identifier: GPL-3.0-only
+// See LICENSE for the full terms, including the warranty disclaimer.
+
 import { AUDIO_RATE } from '../../../../shared/voice'
 import microphoneUrl from './microphone.worklet.js?url&no-inline'
 import rnnoiseWorkletUrl from '@sapphi-red/web-noise-suppressor/rnnoiseWorklet.js?url&no-inline'

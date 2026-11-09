@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 SpeakEasy contributors
+// SPDX-License-Identifier: GPL-3.0-only
+// See LICENSE for the full terms, including the warranty disclaimer.
+
 import { useEffect, useRef, useState } from 'react'
 import type { GeminiStatus, PredictionPurpose, PredictionResult } from '../../../shared/prediction'
 import { validateResult } from '../../../shared/predictionValidation'

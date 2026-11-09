@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 SpeakEasy contributors
+// SPDX-License-Identifier: GPL-3.0-only
+// See LICENSE for the full terms, including the warranty disclaimer.
+
 const NS = 'http://www.w3.org/2000/svg'
 
 /** Pointer feedback and letter geometry share centered panel coordinates. */

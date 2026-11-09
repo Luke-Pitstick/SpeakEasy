@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 SpeakEasy contributors
+// SPDX-License-Identifier: GPL-3.0-only
+// See LICENSE for the full terms, including the warranty disclaimer.
+
 import { createContext, useContext, type Dispatch } from 'react'
 import type { Action, CompositionState } from './model'
 export const StateContext = createContext<CompositionState | null>(null)

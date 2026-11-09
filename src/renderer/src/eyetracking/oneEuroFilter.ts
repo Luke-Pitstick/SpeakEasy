@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 SpeakEasy contributors
+// SPDX-License-Identifier: GPL-3.0-only
+// See LICENSE for the full terms, including the warranty disclaimer.
+
 /**
  * One Euro filter (Casiez et al. 2012): heavy smoothing while the gaze is still, low lag
  * during fast saccades.

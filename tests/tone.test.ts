@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 SpeakEasy contributors
+// SPDX-License-Identifier: GPL-3.0-only
+// See LICENSE for the full terms, including the warranty disclaimer.
+
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { requestTone } from '../src/main/jev'
 import { toneRequestSchema, type ToneRequest } from '../src/shared/tone'

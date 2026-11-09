@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 SpeakEasy contributors
+// SPDX-License-Identifier: GPL-3.0-only
+// See LICENSE for the full terms, including the warranty disclaimer.
+
 import { PreferenceStore } from '../src/main/preferenceStore'
 import { PreferenceService } from '../src/main/preferenceService'
 import { describe, expect, it, vi } from 'vitest'

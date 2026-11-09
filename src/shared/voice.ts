@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 SpeakEasy contributors
+// SPDX-License-Identifier: GPL-3.0-only
+// See LICENSE for the full terms, including the warranty disclaimer.
+
 export const TTS_MODEL = 'sonic-3.6'
 export const STT_MODEL = 'ink-2'
 export const AUDIO_RATE = 24000

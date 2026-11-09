@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 SpeakEasy contributors
+// SPDX-License-Identifier: GPL-3.0-only
+// See LICENSE for the full terms, including the warranty disclaimer.
+
 import { createContext, useContext, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import type { GazeTracker, TrackerState } from './GazeTracker'
 import type { GazePoint } from './types'

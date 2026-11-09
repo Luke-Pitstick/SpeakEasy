@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 SpeakEasy contributors
+// SPDX-License-Identifier: GPL-3.0-only
+// See LICENSE for the full terms, including the warranty disclaimer.
+
 // Derived from dasher-web ZoomBox, ControllerPointer, Palette, and UserInterface.
 // MIT, Copyright (c) 2020 ACE Centre-North. See THIRD_PARTY_NOTICES.md.
 // Modified: typed synchronous geometry, frozen branch weights, compact reversible

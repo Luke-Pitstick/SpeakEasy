@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 SpeakEasy contributors
+// SPDX-License-Identifier: GPL-3.0-only
+// See LICENSE for the full terms, including the warranty disclaimer.
+
 /* global AudioWorkletProcessor, sampleRate, registerProcessor */
 /* eslint @typescript-eslint/explicit-function-return-type: "off" -- Standalone audio-thread JavaScript. */
 // Runs on the audio thread; sends 100 ms mono PCM blocks, never records to disk.

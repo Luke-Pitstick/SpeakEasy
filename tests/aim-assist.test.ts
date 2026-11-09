@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 SpeakEasy contributors
+// SPDX-License-Identifier: GPL-3.0-only
+// See LICENSE for the full terms, including the warranty disclaimer.
+
 import { expect, it } from 'vitest'
 import { AimAssist } from '../src/renderer/src/eyetracking/aimAssist'
 

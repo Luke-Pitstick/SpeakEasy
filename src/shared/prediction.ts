@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 SpeakEasy contributors
+// SPDX-License-Identifier: GPL-3.0-only
+// See LICENSE for the full terms, including the warranty disclaimer.
+
 export const EXPANSION_MODEL = 'google/gemini-3.8-flash'
 export const MODEL_REASONING = { effort: 'low', exclude: true } as const
 export const validModelId = (value: unknown): value is string =>

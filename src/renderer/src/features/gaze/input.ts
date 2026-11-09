@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 SpeakEasy contributors
+// SPDX-License-Identifier: GPL-3.0-only
+// See LICENSE for the full terms, including the warranty disclaimer.
+
 /** What drives the pointer: the mouse, the webcam eye tracker, or (opt-in) head pointing. */
 export type InputSource = 'mouse' | 'eyes' | 'head'
 

@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 SpeakEasy contributors
+// SPDX-License-Identifier: GPL-3.0-only
+// See LICENSE for the full terms, including the warranty disclaimer.
+
 import { useEffect, useReducer, useRef, type ReactNode } from 'react'
 import { initialState, reducer } from './model'
 import { StateContext, DispatchContext } from './state'

@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 SpeakEasy contributors
+// SPDX-License-Identifier: GPL-3.0-only
+// See LICENSE for the full terms, including the warranty disclaimer.
+
 // Copies the MediaPipe WASM runtime out of node_modules and downloads the face landmarker
 // model into the renderer's public folder, so eye tracking works fully offline at runtime.
 import { existsSync } from 'node:fs'

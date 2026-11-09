@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 SpeakEasy contributors
+// SPDX-License-Identifier: GPL-3.0-only
+// See LICENSE for the full terms, including the warranty disclaimer.
+
 export { GazeProvider } from './GazeProvider'
 export { AimAssist, DEFAULT_AIM_ASSIST, findGazeTargets } from './aimAssist'
 export type { AimAssistOptions, GazeTargetRect } from './aimAssist'

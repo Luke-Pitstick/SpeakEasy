@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 SpeakEasy contributors
+// SPDX-License-Identifier: GPL-3.0-only
+// See LICENSE for the full terms, including the warranty disclaimer.
+
 import { describe, expect, it, vi } from 'vitest'
 import { DEFAULT_VOICE, validSpeechRequest, validVoiceSettings } from '../src/shared/voice'
 import { streamSpeech, createCartesia } from '../src/main/cartesia'

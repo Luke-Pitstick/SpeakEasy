@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 SpeakEasy contributors
+// SPDX-License-Identifier: GPL-3.0-only
+// See LICENSE for the full terms, including the warranty disclaimer.
+
 import { useCallback, useEffect, useState } from 'react'
 import { useCompositionDispatch } from '../../composition/state'
 import { CalibrationOverlay } from '../../eyetracking/components/CalibrationOverlay'

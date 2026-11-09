@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 SpeakEasy contributors
+// SPDX-License-Identifier: GPL-3.0-only
+// See LICENSE for the full terms, including the warranty disclaimer.
+
 /** Head pose in MediaPipe's metric camera space (cm, +x right, +y up, camera looks down -z). */
 export interface HeadPose {
   /** 3x3 head-to-camera rotation, row-major. */

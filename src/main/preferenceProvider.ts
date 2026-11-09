@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 SpeakEasy contributors
+// SPDX-License-Identifier: GPL-3.0-only
+// See LICENSE for the full terms, including the warranty disclaimer.
+
 import { postModelJson } from './modelJson'
 import { z } from 'zod'
 import { EXPANSION_MODEL, MODEL_REASONING } from '../shared/prediction'

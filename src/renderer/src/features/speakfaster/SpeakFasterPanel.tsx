@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 SpeakEasy contributors
+// SPDX-License-Identifier: GPL-3.0-only
+// See LICENSE for the full terms, including the warranty disclaimer.
+
 // Behavioral translation of SpeakFaster input-bar, input-bar-chip, abbreviation,
 // and abbreviation-refinement (MIT, TeamGleason). See docs/speakfaster-translation.md.
 import { useState, type ReactNode } from 'react'

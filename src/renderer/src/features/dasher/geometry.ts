@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 SpeakEasy contributors
+// SPDX-License-Identifier: GPL-3.0-only
+// See LICENSE for the full terms, including the warranty disclaimer.
+
 // Adapted from dasher-web Limits and UserInterface's target-right gradients.
 // Height controls the leading edge; every box continues to the viewport right.
 export class Geometry {

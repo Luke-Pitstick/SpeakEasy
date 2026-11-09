@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 SpeakEasy contributors
+// SPDX-License-Identifier: GPL-3.0-only
+// See LICENSE for the full terms, including the warranty disclaimer.
+
 import { AimAssist, findGazeTargets, type AimAssistOptions, type GazeTargetRect } from './aimAssist'
 import { DwellSelector, type DwellOptions, type DwellUpdate } from './dwell'
 import { HeadPointer, type HeadPointerOptions } from './headPointer'

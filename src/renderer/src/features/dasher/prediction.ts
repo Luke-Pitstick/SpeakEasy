@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 SpeakEasy contributors
+// SPDX-License-Identifier: GPL-3.0-only
+// See LICENSE for the full terms, including the warranty disclaimer.
+
 // Derived from Google Research's jslm PPM implementation (Apache-2.0).
 // See THIRD_PARTY_NOTICES.md. Modified: typed bounded contexts, fixed fixture,
 // precomputed distributions, no logging, no adaptive or corpus-loading APIs.
