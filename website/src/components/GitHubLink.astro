@@ -1,0 +1,62 @@
+---
+// SPDX-FileCopyrightText: 2026 SpeakEasy contributors
+// SPDX-License-Identifier: GPL-3.0-only
+//
+// Replaces Starlight's SocialIcons in the header: repository name with its star count.
+import { Icon } from '@astrojs/starlight/components'
+import { REPO, REPO_URL, formatCount, getStarCount } from '../lib/site'
+
+const stars = await getStarCount()
+const label =
+	stars === null
+		? `${REPO} on GitHub`
+		: `${REPO} on GitHub, ${stars} ${stars === 1 ? 'star' : 'stars'}`
+---
+
+<a class="github-link" href={REPO_URL} aria-label={label}>
+	<Icon name="github" size="1.5rem" />
+	<span class="github-text" aria-hidden="true">
+		<span class="github-repo">{REPO}</span>
+		{
+			stars !== null && (
+				<span class="github-stars">
+					<Icon name="star" size="0.75rem" />
+					{formatCount(stars)}
+				</span>
+			)
+		}
+	</span>
+</a>
+
+<style>
+	.github-link {
+		display: flex;
+		align-items: center;
+		gap: 0.625rem;
+		min-height: 2.75rem;
+		padding: 0.25rem 0.75rem;
+		border-radius: var(--se-radius);
+		border: 1px solid transparent;
+		color: var(--sl-color-white);
+		text-decoration: none;
+	}
+	.github-link:hover {
+		border-color: var(--se-field-border);
+	}
+	.github-text {
+		display: flex;
+		flex-direction: column;
+		line-height: 1.25;
+	}
+	.github-repo {
+		font-size: var(--sl-text-sm);
+		font-weight: 700;
+	}
+	.github-stars {
+		display: flex;
+		align-items: center;
+		gap: 0.25rem;
+		font-size: var(--sl-text-2xs);
+		color: var(--sl-color-gray-2);
+	}
+</style>
