@@ -12,6 +12,7 @@
 </p>
 
 <p align="center">
+  <a href="https://luke-pitstick.github.io/SpeakEasy/"><strong>Website</strong></a> ·
   <a href="#install-speakeasy">Install</a> ·
   <a href="#quick-start">Quick start</a> ·
   <a href="#eye-tracking">Eye tracking</a> ·
