@@ -1,11 +1,11 @@
 ---
 title: Install
-description: Build and run SpeakEasy from source, and what the test installers built by GitHub Actions are.
+description: Download a SpeakEasy test installer, or build and run SpeakEasy from source.
 sidebar:
   order: 1
 ---
 
-SpeakEasy is in development. Building from source is the supported way to run it today.
+SpeakEasy is in development. You can download a test installer from the [latest release](https://github.com/Luke-Pitstick/SpeakEasy/releases/latest), or build and run it from source.
 
 ## Requirements
 
@@ -35,15 +35,15 @@ When the app opens, continue with the [Quick start](../quick-start/).
 
 ## Test installers
 
-There is no published GitHub release yet. Installers are currently produced as build artifacts by the **Build and release** GitHub Actions workflow each time a change is merged to `main`. They are unsigned test builds:
+Each [GitHub release](https://github.com/Luke-Pitstick/SpeakEasy/releases/latest) includes unsigned test installers:
 
-| Platform            | Artifact name             | Contents                       |
-| ------------------- | ------------------------- | ------------------------------ |
-| macOS Apple Silicon | `speakeasy-macos-arm64`   | DMG                            |
-| Windows x64         | `speakeasy-windows-x64`   | NSIS setup `.exe`              |
-| Linux x64           | `speakeasy-linux-x64`     | AppImage and Debian `.deb`     |
+| Platform            | File                                                              |
+| ------------------- | ----------------------------------------------------------------- |
+| macOS Apple Silicon | `speakeasy-<version>.dmg`                                         |
+| Windows x64         | `speakeasy-<version>-setup.exe` (NSIS installer)                  |
+| Linux x64           | `speakeasy-<version>.AppImage` or `speakeasy_<version>_amd64.deb` |
 
-To get one, open a successful run of the workflow on `main` in the repository's **Actions** tab and download the artifact. GitHub requires you to be signed in to download workflow artifacts.
+The **Build and release** GitHub Actions workflow also builds installers each time a change is merged to `main`, before it is released. To try one of those, open a successful run of the workflow on `main` in the repository's **Actions** tab and download its artifact (`speakeasy-macos-arm64`, `speakeasy-windows-x64` or `speakeasy-linux-x64`). GitHub requires you to be signed in to download workflow artifacts.
 
 :::caution
 These builds are for testing. The macOS app has only an ad-hoc signature and is not notarized, and the Windows installer is not signed, so your operating system may warn about or block them. There is no Intel macOS or Arm Windows/Linux build.
