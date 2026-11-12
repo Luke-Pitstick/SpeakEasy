@@ -1,0 +1,68 @@
+# SPDX-FileCopyrightText: 2026 SpeakEasy contributors
+# SPDX-License-Identifier: GPL-3.0-only
+# See LICENSE for the full terms, including the warranty disclaimer.
+
+name: Website
+
+on:
+  pull_request:
+    branches: [dev, main]
+    paths: ['website/**', '.github/workflows/site.yml']
+  push:
+    branches: [main]
+    paths: ['website/**', '.github/workflows/site.yml']
+  schedule:
+    # Rebuild daily so the star count in the header stays current.
+    - cron: '17 5 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: website-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build site
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: website
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          # Full history lets each page show when it was last updated.
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+      - run: npm ci
+      - run: npm run build
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          SITE_BASE: /SpeakEasy
+      - uses: actions/upload-pages-artifact@v5
+        if: github.event_name != 'pull_request'
+        with:
+          path: website/dist
+
+  deploy:
+    name: Deploy to GitHub Pages
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/configure-pages@v6
+      - id: deployment
+        uses: actions/deploy-pages@v5

@@ -1,0 +1,77 @@
+---
+title: SpeakEasy
+description: SpeakEasy is a free and open source desktop app for writing and speaking with your eyes. Enter the first letter of each word, review a suggested phrase, and choose when to say it out loud.
+head:
+  - tag: title
+    content: SpeakEasy - write and speak with your eyes
+sidebar:
+  label: Introduction
+---
+
+import { LinkButton } from '@astrojs/starlight/components'
+import { Image } from 'astro:assets'
+import InitialsFigure from '../../components/InitialsFigure.astro'
+import composition from '../../assets/screenshots/composition-light.png'
+
+SpeakEasy is a free and open source desktop app for writing and speaking with your eyes. You enter the first letter of each word, review a suggested phrase, and choose when to say it out loud.
+
+<InitialsFigure />
+
+<div class="se-actions">
+  <LinkButton href="getting-started/install/">Install SpeakEasy</LinkButton>
+  <LinkButton href="https://github.com/Luke-Pitstick/SpeakEasy" variant="secondary">
+    View the source
+  </LinkButton>
+</div>
+
+## Highlights
+
+- Steer with a mouse, webcam gaze, a head pointer, or an eye tracker that moves the desktop pointer.
+- Select any control by dwelling on it, with an adjustable dwell time.
+- Write in exact spelling mode with no account and no cloud service.
+- Keep control of the wording. A suggestion changes nothing until you select it, and nothing is spoken until you select **Speak**.
+- Keep your camera private. Webcam frames are processed on your computer and are never saved or sent.
+- Turn on cloud phrase suggestions and cloud speech separately, only if you want them. See [What leaves your device](privacy/data/).
+- Run it on macOS, Windows, and Linux.
+
+## Installation
+
+SpeakEasy is in development and has no published release yet. Build it from source with Git and Node.js 24:
+
+```sh
+git clone https://github.com/Luke-Pitstick/SpeakEasy.git
+cd SpeakEasy
+npm ci
+npm run dev
+```
+
+See [Install](getting-started/install/) for test builds and platform notes, then follow the [Quick start](getting-started/quick-start/) to write your first message.
+
+## What it looks like
+
+<figure class="se-figure">
+  <Image
+    src={composition}
+    alt="The SpeakEasy window. The Initials field shows iwac. Below it are four suggested phrases: I want a coffee, I want a cookie, I would appreciate company, and I want another cushion, with a None of these option. The lower half is the Dasher steering area, paused, with Resume, Undo, Delete, and More buttons along the bottom."
+    widths={[640, 960, 1280]}
+    sizes="(min-width: 50rem) 46rem, 100vw"
+  />
+  <figcaption>
+    The initials <code>iwac</code> with four suggested phrases, from the built-in offline demo
+    rather than live generation.
+  </figcaption>
+</figure>
+
+## Ways to point
+
+| Input | Status | Setup |
+| --- | --- | --- |
+| Mouse or trackpad | Supported | Choose **Mouse** in **Menu → Settings → General**. |
+| Webcam gaze or head pointer | In testing | Choose **Eye tracker (webcam)** or **Head pointer (webcam)**. Webcam gaze has been exercised with real calibration data. |
+| Dedicated eye tracker | Unverified | Leave **Input** on **Mouse** and let the tracker software move the desktop pointer. Model-specific compatibility has not been tested yet. |
+
+[Input setup](getting-started/input-setup/) walks through each one. If you test a tracker, a [compatibility report](https://github.com/Luke-Pitstick/SpeakEasy/issues/new?template=tracker-compatibility.md) is the most useful contribution you can make.
+
+## Credits
+
+SpeakEasy adapts the Dasher web version from the ACE Centre for steering through letters, and selected initials expansion and correction behavior from Team Gleason's SpeakFaster. Both are MIT licensed. Initials prediction is trained on the crowdsourced corpus of AAC-like communications by Keith Vertanen and Per Ola Kristensson, under CC BY 4.0. SpeakEasy itself is licensed under GPL-3.0-only. See [Licenses and credits](development/licenses/).

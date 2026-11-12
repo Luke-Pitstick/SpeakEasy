@@ -1,0 +1,403 @@
+/*
+ * SPDX-FileCopyrightText: 2026 SpeakEasy contributors
+ * SPDX-License-Identifier: GPL-3.0-only
+ *
+ * SpeakEasy site theme. See website/DESIGN.md for the reasoning behind each token.
+ * Starlight's own styles live in cascade layers, so these unlayered rules win.
+ */
+
+@import '@fontsource/atkinson-hyperlegible/400.css';
+@import '@fontsource/atkinson-hyperlegible/400-italic.css';
+@import '@fontsource/atkinson-hyperlegible/700.css';
+
+:root {
+	/* Brand palette. White is primary, light blue is secondary, navy is tertiary. */
+	--se-paper: #ffffff;
+	--se-sky-50: #f4f9fe;
+	--se-sky-100: #e6f1fc;
+	--se-sky-200: #cfe3f7;
+	--se-sky-300: #a9cbee;
+	--se-navy-500: #1f5fae;
+	--se-navy-600: #1b4f8f;
+	--se-navy-700: #143c70;
+	--se-navy-900: #0b2545;
+	--se-ink: #14233a;
+	--se-ink-muted: #4b5e78;
+
+	/* Shape and size. One small radius keeps everything flat. */
+	--se-radius: 0.25rem;
+	--se-target: 3rem; /* minimum height of anything meant to be selected, for gaze and dwell */
+
+	/* Flat: no shadows anywhere, including Starlight's own components. */
+	--sl-shadow-sm: none;
+	--sl-shadow-md: none;
+	--sl-shadow-lg: none;
+
+	/* Type */
+	--sl-font: 'Atkinson Hyperlegible';
+	--sl-text-body: 1.0625rem;
+	--sl-text-h1: 2.25rem;
+	--sl-text-h2: 1.625rem;
+	--sl-text-h3: 1.3125rem;
+	--sl-text-h4: 1.125rem;
+	--sl-text-h5: 1.0625rem;
+	--sl-line-height: 1.7;
+	--sl-line-height-headings: 1.25;
+	--sl-nav-height: 3.75rem;
+	--sl-content-width: 46rem;
+}
+
+/* Dark theme. Opt-in from the header toggle; light is the default. */
+:root {
+	--sl-color-white: #ffffff;
+	--sl-color-gray-1: #e6eef8;
+	--sl-color-gray-2: #c3d3e6;
+	--sl-color-gray-3: #93a8c4;
+	--sl-color-gray-4: #5d7394;
+	--sl-color-gray-5: #2a4366;
+	--sl-color-gray-6: #142a47;
+	--sl-color-black: #0b1a2e;
+
+	--sl-color-accent-low: #142a47;
+	--sl-color-accent: #6aa5de;
+	--sl-color-accent-high: #c7def5;
+
+	--sl-color-text: var(--sl-color-gray-2);
+	--sl-color-text-accent: var(--se-sky-300);
+	--sl-color-text-invert: var(--se-navy-900);
+	--sl-color-bg: var(--sl-color-black);
+	--sl-color-bg-nav: #102440;
+	--sl-color-bg-sidebar: var(--sl-color-black);
+	--sl-color-bg-inline-code: #1a3358;
+	--sl-color-bg-accent: var(--se-sky-300);
+	--sl-color-hairline-light: var(--sl-color-gray-5);
+	--sl-color-hairline: #1a3152;
+	--sl-color-hairline-shade: #22395c;
+
+	--se-surface: #102440;
+	--se-border: var(--sl-color-gray-5);
+	--se-field-border: var(--sl-color-gray-4);
+	--se-heading: #ffffff;
+	--se-button-bg: var(--se-sky-300);
+	--se-button-bg-hover: #ffffff;
+	--se-button-text: var(--se-navy-900);
+	--se-focus-ring: 0 0 0 2px var(--sl-color-black), 0 0 0 5px var(--se-sky-300);
+}
+
+:root[data-theme='light'] {
+	--sl-color-white: var(--se-navy-900);
+	--sl-color-gray-1: #1a2b44;
+	--sl-color-gray-2: var(--se-ink);
+	--sl-color-gray-3: var(--se-ink-muted);
+	--sl-color-gray-4: #6b809c;
+	--sl-color-gray-5: var(--se-sky-200);
+	--sl-color-gray-6: var(--se-sky-100);
+	--sl-color-gray-7: var(--se-sky-50);
+	--sl-color-black: var(--se-paper);
+
+	--sl-color-accent-low: var(--se-sky-100);
+	--sl-color-accent: var(--se-navy-600);
+	--sl-color-accent-high: var(--se-navy-900);
+
+	--sl-color-text: var(--se-ink);
+	--sl-color-text-accent: var(--se-navy-600);
+	--sl-color-text-invert: var(--se-paper);
+	--sl-color-bg: var(--se-paper);
+	--sl-color-bg-nav: var(--se-sky-100);
+	--sl-color-bg-sidebar: var(--se-paper);
+	--sl-color-bg-inline-code: var(--se-sky-100);
+	--sl-color-bg-accent: var(--se-navy-700);
+	--sl-color-hairline-light: var(--se-sky-200);
+	--sl-color-hairline: var(--se-sky-100);
+	--sl-color-hairline-shade: var(--se-sky-200);
+
+	--se-surface: var(--se-sky-50);
+	--se-border: var(--se-sky-200);
+	--se-field-border: #6b809c; /* 3.5:1 on the header, the minimum for an input outline */
+	--se-heading: var(--se-navy-900);
+	--se-button-bg: var(--se-navy-700);
+	--se-button-bg-hover: var(--se-navy-900);
+	--se-button-text: var(--se-paper);
+	--se-focus-ring: 0 0 0 2px var(--se-paper), 0 0 0 5px var(--se-navy-500);
+}
+
+/* Header */
+.site-title {
+	color: var(--sl-color-white);
+	font-size: 1.25rem;
+	font-weight: 700;
+}
+
+site-search button[data-open-modal] {
+	border-color: var(--se-field-border);
+	border-radius: var(--se-radius);
+}
+
+/* Search sits at the right of the header, next to the GitHub link. */
+@media (min-width: 50rem) {
+	site-search button[data-open-modal] {
+		margin-inline-start: auto;
+	}
+}
+
+/* No rule between the page title and the page body. */
+.content-panel + .content-panel {
+	border-top: 0;
+}
+
+/* Headings */
+.sl-markdown-content :is(h1, h2, h3, h4, h5, h6),
+h1#_top {
+	color: var(--se-heading);
+	font-weight: 700;
+	letter-spacing: -0.01em;
+}
+
+.sl-markdown-content h2 {
+	margin-top: 2.25em;
+}
+
+/* Links carry an underline so colour is never the only signal. */
+.sl-markdown-content a:not(.sl-link-button, .sl-anchor-link) {
+	color: var(--sl-color-text-accent);
+	text-decoration-thickness: 1px;
+	text-underline-offset: 0.2em;
+}
+
+.sl-markdown-content a:not(.sl-link-button, .sl-anchor-link):hover {
+	text-decoration-thickness: 2px;
+}
+
+/* One visible focus treatment everywhere. */
+:focus-visible {
+	outline: none;
+	box-shadow: var(--se-focus-ring);
+	border-radius: var(--se-radius);
+}
+
+/*
+ * Sidebar: a plain list on the page background. No edge border, no guide lines beside nested
+ * items, and section names as larger text rather than collapsible rows with chevrons. The current
+ * page is bold navy text.
+ */
+.sidebar-pane {
+	border-inline-end: 0;
+}
+
+.sidebar-content {
+	padding-top: 2rem;
+}
+
+.sidebar-content ul ul li {
+	margin-inline-start: 0;
+	border-inline-start: 0;
+	padding-inline-start: 0;
+}
+
+.sidebar-content .top-level > li + li {
+	margin-top: 1.5rem;
+}
+
+/* Sections collapse from their name; the chevron on the right shows the state. */
+.sidebar-content .top-level > li > details > summary {
+	min-height: 2.5rem;
+	padding-block: 0;
+	border-radius: var(--se-radius);
+}
+
+.sidebar-content .top-level > li > details > summary:hover .large {
+	color: var(--sl-color-text-accent);
+}
+
+.sidebar-content summary .caret {
+	color: var(--sl-color-gray-3);
+}
+
+/* On wide screens the sidebar and the site name sit in from the window edge, as on uv. */
+@media (min-width: 50rem) {
+	:root {
+		--sl-nav-pad-x: 2.5rem;
+	}
+
+	.sidebar-content {
+		padding-inline: 2rem 1rem;
+	}
+}
+
+/* "On this page": no border, nudged slightly right of where Starlight puts it. */
+@media (min-width: 72rem) {
+	.right-sidebar {
+		border-inline-start: 0;
+	}
+
+	.right-sidebar-panel {
+		padding-inline-start: 2rem;
+	}
+
+	/* The heading stays for screen readers, which use it to name the list. */
+	.right-sidebar-panel #starlight__on-this-page {
+		position: absolute;
+		width: 1px;
+		height: 1px;
+		overflow: hidden;
+		clip-path: inset(50%);
+		white-space: nowrap;
+	}
+
+	.right-sidebar-panel a {
+		font-size: 0.9375rem;
+		line-height: 1.5;
+	}
+}
+
+.sidebar-content .large,
+.sidebar-content .top-level > li > a {
+	color: var(--sl-color-white);
+	font-size: var(--sl-text-lg);
+	font-weight: 400;
+}
+
+.sidebar-content a {
+	padding-block: 0.3em;
+	color: var(--sl-color-gray-2);
+	font-size: var(--sl-text-base);
+}
+
+.sidebar-content a:hover {
+	color: var(--sl-color-text-accent);
+}
+
+/* .top-level raises specificity above the section-name rule, so Introduction shows as current. */
+.sidebar-content .top-level a[aria-current='page'],
+.sidebar-content .top-level a[aria-current='page']:hover,
+.sidebar-content .top-level a[aria-current='page']:focus {
+	background-color: transparent;
+	color: var(--sl-color-text-accent);
+	font-weight: 700;
+}
+
+/* Tables scroll sideways on narrow screens instead of widening the page. */
+.sl-markdown-content table {
+	display: block;
+	width: fit-content;
+	max-width: 100%;
+	overflow-x: auto;
+	border: 1px solid var(--se-border);
+	border-radius: var(--se-radius);
+	border-collapse: separate;
+	border-spacing: 0;
+}
+
+.sl-markdown-content th {
+	background-color: var(--se-surface);
+	color: var(--se-heading);
+	text-align: start;
+	border-bottom: 1px solid var(--se-border);
+}
+
+.sl-markdown-content :is(th, td) {
+	padding: 0.6em 0.9em;
+	vertical-align: top;
+}
+
+.sl-markdown-content td {
+	border-bottom: 1px solid var(--se-border);
+}
+
+.sl-markdown-content tr:last-child td {
+	border-bottom: 0;
+}
+
+.sl-markdown-content tr:nth-child(2n):not(:where(.not-content *)) {
+	background-color: transparent;
+}
+
+.sl-markdown-content code:not(pre code) {
+	border-radius: var(--se-radius);
+	padding: 0.15em 0.35em;
+}
+
+/* Buttons: Starlight's LinkButton. Primary is filled navy; secondary is outlined. */
+.sl-link-button {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.5em;
+	min-height: var(--se-target);
+	padding: 0.6em 1.25em;
+	border: 1px solid var(--se-button-bg);
+	border-radius: var(--se-radius);
+	background-color: var(--se-button-bg);
+	color: var(--se-button-text);
+	font-size: var(--sl-text-base);
+	font-weight: 700;
+	line-height: 1.2;
+	text-decoration: none;
+}
+
+.sl-link-button:hover {
+	background-color: var(--se-button-bg-hover);
+	border-color: var(--se-button-bg-hover);
+	color: var(--se-button-text);
+}
+
+.sl-link-button.secondary,
+.sl-link-button.minimal {
+	background-color: transparent;
+	border-color: var(--se-field-border);
+	color: var(--se-heading);
+}
+
+.sl-link-button.secondary:hover,
+.sl-link-button.minimal:hover {
+	background-color: var(--se-surface);
+	border-color: var(--se-heading);
+	color: var(--se-heading);
+}
+
+/* Asides: notes use the brand colours; caution and danger keep Starlight's warning colours. */
+.starlight-aside {
+	border-radius: var(--se-radius);
+}
+
+.starlight-aside--note,
+.starlight-aside--tip {
+	--sl-color-asides-text-accent: var(--se-heading);
+	--sl-color-asides-border: var(--sl-color-text-accent);
+	background-color: var(--se-surface);
+}
+
+/* Figures: a 1px frame, no shadow. */
+.se-figure {
+	margin-block: 1.5rem;
+}
+
+.se-figure img {
+	display: block;
+	width: 100%;
+	height: auto;
+	border: 1px solid var(--se-border);
+	border-radius: var(--se-radius);
+}
+
+.se-figure figcaption {
+	margin-top: 0.5rem;
+	color: var(--sl-color-gray-3);
+	font-size: var(--sl-text-sm);
+}
+
+/* A row of buttons in page content. */
+.se-actions {
+	display: flex;
+	flex-wrap: wrap;
+	gap: 0.75rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	*,
+	*::before,
+	*::after {
+		transition-duration: 0.01ms !important;
+		animation-duration: 0.01ms !important;
+		scroll-behavior: auto !important;
+	}
+}
