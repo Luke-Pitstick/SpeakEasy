@@ -1,0 +1,63 @@
+---
+// SPDX-FileCopyrightText: 2026 SpeakEasy contributors
+// SPDX-License-Identifier: GPL-3.0-only
+//
+// Replaces Starlight's three-way theme menu with one toggle: light by default, dark on request.
+import { Icon } from '@astrojs/starlight/components'
+---
+
+<se-theme-toggle>
+	<button type="button" class="theme-toggle" aria-pressed="false">
+		<Icon name="moon" class="show-in-light" size="1.25rem" />
+		<Icon name="sun" class="show-in-dark" size="1.25rem" />
+		<span class="sr-only">Dark theme</span>
+	</button>
+</se-theme-toggle>
+
+{/* Inlined so the pressed state is right before the page paints. */}
+<script is:inline>
+	StarlightThemeProvider.updatePickers()
+</script>
+
+<script>
+	class SeThemeToggle extends HTMLElement {
+		connectedCallback(): void {
+			this.querySelector('button')?.addEventListener('click', () => {
+				const next = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark'
+				document.documentElement.dataset.theme = next
+				try {
+					localStorage.setItem('starlight-theme', next === 'dark' ? 'dark' : '')
+				} catch {
+					// Storage can be blocked; the choice then lasts for this page only.
+				}
+				document.querySelectorAll('se-theme-toggle button').forEach((button) => {
+					button.setAttribute('aria-pressed', String(next === 'dark'))
+				})
+			})
+		}
+	}
+	customElements.define('se-theme-toggle', SeThemeToggle)
+</script>
+
+<style>
+	.theme-toggle {
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		width: 2.75rem;
+		height: 2.75rem;
+		padding: 0;
+		border: 1px solid transparent;
+		border-radius: var(--se-radius);
+		background: transparent;
+		color: var(--sl-color-white);
+		cursor: pointer;
+	}
+	.theme-toggle:hover {
+		border-color: var(--se-field-border);
+	}
+	:global(:root[data-theme='dark']) .show-in-light,
+	:global(:root[data-theme='light']) .show-in-dark {
+		display: none;
+	}
+</style>

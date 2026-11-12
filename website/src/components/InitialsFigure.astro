@@ -1,0 +1,86 @@
+---
+// SPDX-FileCopyrightText: 2026 SpeakEasy contributors
+// SPDX-License-Identifier: GPL-3.0-only
+//
+// The home page's one bold element: typed initials above the phrase they expand to, with each
+// initial marked so the mapping is visible. The layout mirrors the app's Initials field and its
+// suggestion list.
+const initials = 'iwac'
+const phrase = 'I want a coffee'
+const words = phrase.split(' ')
+---
+
+<figure class="initials-figure">
+	<div class="panel">
+		<p class="typed">
+			<span class="sr-only">Initials you enter: </span>
+			<span class="field">{initials}</span>
+		</p>
+		<p class="phrase">
+			<span class="sr-only">A suggestion you can choose: </span>
+			{
+				words.map((word, index) => (
+					<>
+						<span class="word">
+							<span class="initial">{word.charAt(0)}</span>
+							{word.slice(1)}
+						</span>
+						{index < words.length - 1 && ' '}
+					</>
+				))
+			}
+		</p>
+	</div>
+	<figcaption>
+		Enter the first letter of each word. SpeakEasy suggests phrases that match, and you pick one,
+		change a word, or spell it yourself. Nothing is spoken until you select <strong>Speak</strong>.
+	</figcaption>
+</figure>
+
+<style>
+	.initials-figure {
+		margin-block: 2rem;
+	}
+	.panel {
+		display: grid;
+		gap: 1rem;
+		padding: 1.5rem;
+		border: 1px solid var(--se-border);
+		border-radius: var(--se-radius);
+		background-color: var(--se-surface);
+	}
+	.panel p {
+		margin: 0;
+	}
+	.field {
+		display: inline-block;
+		min-width: 8ch;
+		padding: 0.25rem 0.75rem;
+		border: 1px solid var(--se-field-border);
+		border-radius: var(--se-radius);
+		background-color: var(--sl-color-bg);
+		color: var(--sl-color-white);
+		font-size: var(--sl-text-2xl);
+		letter-spacing: 0.08em;
+	}
+	.phrase {
+		color: var(--sl-color-gray-3);
+		font-size: var(--sl-text-4xl);
+		line-height: 1.2;
+		letter-spacing: -0.01em;
+	}
+	.initial {
+		color: var(--sl-color-text-accent);
+		font-weight: 700;
+	}
+	figcaption {
+		margin-top: 0.75rem;
+		color: var(--sl-color-gray-3);
+		font-size: var(--sl-text-sm);
+	}
+	@media (min-width: 50rem) {
+		.phrase {
+			font-size: var(--sl-text-5xl);
+		}
+	}
+</style>

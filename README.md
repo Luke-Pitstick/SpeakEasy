@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="build/icon.png" alt="" width="112" />
-</p>
-
 <h1 align="center">SpeakEasy</h1>
 
 <p align="center">
