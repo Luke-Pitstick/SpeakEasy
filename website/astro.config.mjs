@@ -12,6 +12,10 @@ const base = process.env.SITE_BASE || '/'
 export default defineConfig({
 	site: process.env.SITE_URL || 'https://luke-pitstick.github.io',
 	base,
+	// Use the site's own TypeScript config for every file. Without this, Vite climbs to the app's
+	// root tsconfig.json, whose references need the app's packages, and the site build fails in CI
+	// where only website/ dependencies are installed.
+	vite: { tsconfig: './tsconfig.json' },
 	integrations: [
 		starlight({
 			title: 'SpeakEasy',
