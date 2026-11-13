@@ -1,0 +1,140 @@
+---
+// SPDX-FileCopyrightText: 2026 SpeakEasy contributors
+// SPDX-License-Identifier: GPL-3.0-only
+//
+// Download links for the newest published release, resolved at build time. Installer names carry
+// the version, so the links are matched by file suffix. If GitHub cannot be reached during the
+// build, every button points at the latest release page instead.
+import { LinkButton } from '@astrojs/starlight/components'
+import { REPO_URL, formatBytes, getLatestRelease, type ReleaseAsset } from '../lib/site'
+
+const release = await getLatestRelease()
+const latestUrl = `${REPO_URL}/releases/latest`
+
+interface Option {
+	label: string
+	suffix: string
+}
+
+const platforms: { name: string; arch: string; options: Option[] }[] = [
+	{ name: 'macOS', arch: 'Apple Silicon', options: [{ label: 'Download .dmg', suffix: '.dmg' }] },
+	{
+		name: 'Windows',
+		arch: 'x64',
+		options: [{ label: 'Download installer', suffix: '-setup.exe' }]
+	},
+	{
+		name: 'Linux',
+		arch: 'x64',
+		options: [
+			{ label: 'Download AppImage', suffix: '.AppImage' },
+			{ label: 'Download .deb', suffix: '_amd64.deb' }
+		]
+	}
+]
+
+function find(suffix: string): ReleaseAsset | undefined {
+	return release?.assets.find((asset) => asset.name.endsWith(suffix))
+}
+
+const released = release?.publishedAt.toLocaleDateString('en-US', {
+	year: 'numeric',
+	month: 'long',
+	day: 'numeric',
+	timeZone: 'UTC'
+})
+---
+
+<div class="downloads">
+	<p class="release">
+		{
+			release ? (
+				<>
+					Latest release: <a href={release.url}>{release.tag}</a>, published {released}.
+				</>
+			) : (
+				<>
+					Download from the <a href={latestUrl}>latest release</a>.
+				</>
+			)
+		}
+	</p>
+	<ul class="platforms">
+		{
+			platforms.map((platform) => (
+				<li class="platform">
+					<p class="platform-name">
+						{platform.name} <span class="arch">{platform.arch}</span>
+					</p>
+					<div class="se-actions">
+						{platform.options.map((option, index) => {
+							const asset = find(option.suffix)
+							return (
+								<LinkButton
+									href={asset?.url ?? latestUrl}
+									variant={index === 0 ? 'primary' : 'secondary'}
+								>
+									{option.label}
+								</LinkButton>
+							)
+						})}
+					</div>
+					{release && (
+						<p class="files">
+							{platform.options
+								.map((option) => find(option.suffix))
+								.filter((asset) => asset !== undefined)
+								.map((asset) => `${asset.name} (${formatBytes(asset.size)})`)
+								.join(', ')}
+						</p>
+					)}
+				</li>
+			))
+		}
+	</ul>
+</div>
+
+<style>
+	.downloads {
+		margin-block: 1.5rem;
+	}
+	.release {
+		color: var(--sl-color-gray-3);
+	}
+	.platforms {
+		display: grid;
+		gap: 1rem;
+		padding: 0;
+		list-style: none;
+	}
+	.platform {
+		display: grid;
+		gap: 0.75rem;
+		margin: 0;
+		padding: 1.25rem 1.5rem;
+		border: 1px solid var(--se-border);
+		border-radius: var(--se-radius);
+		background-color: var(--se-surface);
+	}
+	.platform p {
+		margin: 0;
+	}
+	.platform-name {
+		color: var(--se-heading);
+		font-size: var(--sl-text-h4);
+		font-weight: 700;
+	}
+	.arch {
+		color: var(--sl-color-gray-3);
+		font-size: var(--sl-text-sm);
+		font-weight: 400;
+	}
+	.files {
+		color: var(--sl-color-gray-3);
+		font-size: var(--sl-text-sm);
+		overflow-wrap: anywhere;
+	}
+	.platform :global(.sl-link-button) {
+		margin: 0;
+	}
+</style>

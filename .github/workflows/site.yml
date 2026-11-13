@@ -11,8 +11,11 @@ on:
   push:
     branches: [main]
     paths: ['website/**', '.github/workflows/site.yml']
+  release:
+    # Rebuild when a release is published so the Install page links to its installers.
+    types: [published]
   schedule:
-    # Rebuild daily so the star count in the header stays current.
+    # Rebuild daily so the star count and download links stay current.
     - cron: '17 5 * * *'
   workflow_dispatch:
 
@@ -33,6 +36,9 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
+          # A release event points at the tagged commit, which can be older than main. Build the
+          # current site instead; other events keep their own ref.
+          ref: ${{ github.event_name == 'release' && 'main' || '' }}
           # Full history lets each page show when it was last updated.
           fetch-depth: 0
           persist-credentials: false
