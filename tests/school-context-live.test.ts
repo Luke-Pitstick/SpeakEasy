@@ -40,7 +40,8 @@ it.skipIf(process.env.SPEAKEASY_LIVE_SCHOOL_TEST !== '1')(
         conversation,
         tokens: [...initials].map((value, i) => ({ id: String(i), kind: 'initial', value }))
       }
-      diagnostics.start({
+      diagnostics.setEnabled(true)
+      diagnostics.context({
         epoch: 0,
         revision: 1,
         draft: '',
@@ -78,7 +79,7 @@ it.skipIf(process.env.SPEAKEASY_LIVE_SCHOOL_TEST !== '1')(
           .events.filter((e) => e.kind === 'candidate')
           .map((e) => e.data)
       )
-      diagnostics.stop()
+      diagnostics.setEnabled(false)
       console.info('School context live result', JSON.stringify(result))
       expect(result?.status, JSON.stringify(result)).toBe('success')
       if (result?.status !== 'success') throw Error('No successful result')

@@ -59,6 +59,8 @@ export function installCartesiaIpc(window: BrowserWindow): void {
   const emit = (event: VoiceEvent): void => {
     if (event.type === 'transcript' || event.type === 'listening')
       diagnostics.record(event.type, event)
+    if (event.type === 'transcript' && event.final && event.text.trim())
+      diagnostics.transcript({ session: event.session, id: event.id, text: event.text })
     if (!window.isDestroyed()) window.webContents.send('voice:event', event)
   }
   const stopSpeech = (): void => {

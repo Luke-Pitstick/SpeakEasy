@@ -95,6 +95,7 @@ const diagnostics: DiagnosticsApi = {
   open: (context) => ipcRenderer.invoke('diagnostics:open', context),
   context: (context) => ipcRenderer.send('diagnostics:context', context),
   read: () => ipcRenderer.invoke('diagnostics:read'),
-  clear: () => ipcRenderer.invoke('diagnostics:clear')
+  clear: () => ipcRenderer.invoke('diagnostics:clear'),
+  close: () => ipcRenderer.invoke('diagnostics:close')
 }
 contextBridge.exposeInMainWorld('diagnostics', diagnostics)

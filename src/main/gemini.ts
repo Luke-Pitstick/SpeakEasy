@@ -231,7 +231,8 @@ export async function streamGemini(
           stream: true,
           temperature: 0,
           max_tokens: 2048,
-          reasoning: MODEL_REASONING,
+          // Reasoning never enters candidate text; it is only returned for the open debug window.
+          reasoning: diagnostics.enabled ? { ...MODEL_REASONING, exclude: false } : MODEL_REASONING,
           provider: { sort: 'latency' }
         })
       })
@@ -251,7 +252,8 @@ export async function streamGemini(
       let buffer = '',
         pending = '',
         finish: string | null = null,
-        size = 0
+        size = 0,
+        reasoned = false
       try {
         while (true) {
           const { done, value } = await reader.read()
@@ -270,6 +272,13 @@ export async function streamGemini(
               throw new Error('Gemini interrupted the response. Retry or keep spelling.')
             const choice = data.choices?.[0]
             if (choice?.finish_reason) finish = choice.finish_reason
+            const reasoning = choice?.delta?.reasoning
+            if (typeof reasoning === 'string' && reasoning) {
+              if (attempt && !reasoned)
+                diagnostics.appendReasoning(request.id, '\n\n[Repair pass]\n')
+              reasoned = true
+              diagnostics.appendReasoning(request.id, reasoning)
+            }
             const content = choice?.delta?.content
             if (typeof content === 'string') pending += content
             while ((at = pending.indexOf('\n')) >= 0) {
