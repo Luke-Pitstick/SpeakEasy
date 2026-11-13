@@ -21,7 +21,7 @@ const platforms: { name: string; arch: string; options: Option[] }[] = [
 	{
 		name: 'Windows',
 		arch: 'x64',
-		options: [{ label: 'Download installer', suffix: '-setup.exe' }]
+		options: [{ label: 'Download .exe', suffix: '-setup.exe' }]
 	},
 	{
 		name: 'Linux',
@@ -66,28 +66,20 @@ const released = release?.publishedAt.toLocaleDateString('en-US', {
 					<p class="platform-name">
 						{platform.name} <span class="arch">{platform.arch}</span>
 					</p>
-					<div class="se-actions">
-						{platform.options.map((option, index) => {
-							const asset = find(option.suffix)
-							return (
+					{platform.options.map((option, index) => {
+						const asset = find(option.suffix)
+						return (
+							<div class="option">
 								<LinkButton
 									href={asset?.url ?? latestUrl}
 									variant={index === 0 ? 'primary' : 'secondary'}
 								>
 									{option.label}
 								</LinkButton>
-							)
-						})}
-					</div>
-					{release && (
-						<p class="files">
-							{platform.options
-								.map((option) => find(option.suffix))
-								.filter((asset) => asset !== undefined)
-								.map((asset) => `${asset.name} (${formatBytes(asset.size)})`)
-								.join(', ')}
-						</p>
-					)}
+								{asset && <p class="size">{formatBytes(asset.size)}</p>}
+							</div>
+						)
+					})}
 				</li>
 			))
 		}
@@ -97,21 +89,25 @@ const released = release?.publishedAt.toLocaleDateString('en-US', {
 <style>
 	.downloads {
 		margin-block: 1.5rem;
+		container-type: inline-size;
 	}
 	.release {
 		color: var(--sl-color-gray-3);
 	}
+	/* Stacked on narrow screens, side by side once three cards fit. */
 	.platforms {
 		display: grid;
+		grid-template-columns: minmax(0, 1fr);
 		gap: 1rem;
 		padding: 0;
 		list-style: none;
 	}
 	.platform {
-		display: grid;
-		gap: 0.75rem;
+		display: flex;
+		flex-direction: column;
+		gap: 1rem;
 		margin: 0;
-		padding: 1.25rem 1.5rem;
+		padding: 1.25rem;
 		border: 1px solid var(--se-border);
 		border-radius: var(--se-radius);
 		background-color: var(--se-surface);
@@ -129,12 +125,26 @@ const released = release?.publishedAt.toLocaleDateString('en-US', {
 		font-size: var(--sl-text-sm);
 		font-weight: 400;
 	}
-	.files {
+	@container (min-width: 38rem) {
+		.platforms {
+			grid-template-columns: repeat(3, minmax(0, 1fr));
+		}
+	}
+	.platform > .option {
+		display: grid;
+		margin: 0;
+		gap: 0.375rem;
+	}
+	.option :global(.sl-link-button) {
+		justify-content: center;
+		margin: 0;
+		padding-inline: 0.5rem;
+		font-size: var(--sl-text-sm);
+		white-space: nowrap;
+	}
+	.size {
 		color: var(--sl-color-gray-3);
 		font-size: var(--sl-text-sm);
-		overflow-wrap: anywhere;
-	}
-	.platform :global(.sl-link-button) {
-		margin: 0;
+		text-align: center;
 	}
 </style>
