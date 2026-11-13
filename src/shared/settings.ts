@@ -15,6 +15,8 @@ export interface AppSettings {
   duration: number
   geminiEnabled: boolean
   toneSuggestionsEnabled: boolean
+  /** Captures session-only conversation/generation traces for the debug window. */
+  debugMode: boolean
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -27,7 +29,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   dwell: true,
   duration: 1000,
   geminiEnabled: false,
-  toneSuggestionsEnabled: false
+  toneSuggestionsEnabled: false,
+  debugMode: false
 }
 
 export type GeneralSettingsPatch = Partial<
@@ -58,6 +61,7 @@ export function validSettingsPatch(
         return setting === 'uniform' || setting === 'ppm'
       case 'showGazeDot':
       case 'dwell':
+      case 'debugMode':
         return typeof setting === 'boolean'
       case 'duration':
         return typeof setting === 'number' && [700, 1000, 1500].includes(setting)

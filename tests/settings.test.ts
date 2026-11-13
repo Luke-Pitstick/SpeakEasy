@@ -44,7 +44,8 @@ describe('settings persistence', () => {
       dwell: false,
       duration: 1500,
       geminiEnabled: true,
-      toneSuggestionsEnabled: true
+      toneSuggestionsEnabled: true,
+      debugMode: true
     }
     first.save(changed)
     expect(new SettingsStore(path).read()).toEqual(changed)

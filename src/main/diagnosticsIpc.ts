@@ -19,7 +19,8 @@ export function installDiagnosticsIpc(owner: BrowserWindow): void {
   ipcMain.handle('diagnostics:open', async (event, value: unknown) => {
     if (!owns(event, owner)) throw Error('Unauthorized sender')
     const context = debugContextSchema.parse(value)
-    diagnostics.start(context)
+    if (!diagnostics.enabled) throw Error('Turn on debug mode first')
+    diagnostics.context(context)
     if (inspector && !inspector.isDestroyed()) {
       inspector.show()
       inspector.focus()
@@ -39,9 +40,9 @@ export function installDiagnosticsIpc(owner: BrowserWindow): void {
     const window = inspector
     window.webContents.setWindowOpenHandler(() => ({ action: 'deny' }))
     window.webContents.on('will-navigate', (event) => event.preventDefault())
+    // Closing only hides the viewer; capture continues until debug mode is turned off.
     window.on('closed', () => {
       inspector = null
-      diagnostics.stop()
     })
     if (is.dev && process.env.ELECTRON_RENDERER_URL)
       await window.loadURL(`${process.env.ELECTRON_RENDERER_URL}#debug`)
@@ -61,10 +62,19 @@ export function installDiagnosticsIpc(owner: BrowserWindow): void {
     if (!owns(event, inspector) && !owns(event, owner)) throw Error('Unauthorized sender')
     diagnostics.clear()
   })
+  ipcMain.handle('diagnostics:close', (event) => {
+    if (!owns(event, inspector)) throw Error('Unauthorized sender')
+    inspector?.close()
+    if (!owner.isDestroyed()) {
+      owner.show()
+      owner.focus()
+    }
+  })
   owner.on('closed', () => {
     inspector?.destroy()
-    diagnostics.stop()
-    for (const name of ['open', 'read', 'clear']) ipcMain.removeHandler(`diagnostics:${name}`)
+    diagnostics.setEnabled(false)
+    for (const name of ['open', 'read', 'clear', 'close'])
+      ipcMain.removeHandler(`diagnostics:${name}`)
     ipcMain.removeListener('diagnostics:context', context)
   })
 }

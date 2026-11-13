@@ -58,7 +58,7 @@ function Workspace({
   const dispatch = useCompositionDispatch()
   const interaction = useInteraction()
   const [menu, setMenu] = useState<'closed' | 'more' | 'settings'>('closed')
-  const { theme, speed, edgeHeight, weighting, showGazeDot } = settings
+  const { theme, speed, edgeHeight, weighting, showGazeDot, debugMode } = settings
   const predictions = usePredictions()
   const voice = useVoice()
   const [debugError, setDebugError] = useState('')
@@ -78,8 +78,9 @@ function Workspace({
   }
   const debugPayload = JSON.stringify(debugContext)
   useEffect(() => {
-    window.diagnostics?.context(JSON.parse(debugPayload))
-  }, [debugPayload])
+    // Resent when debug mode turns on so capture starts with the current context.
+    if (debugMode) window.diagnostics?.context(JSON.parse(debugPayload))
+  }, [debugPayload, debugMode])
   const [settingsTab, setSettingsTab] = useState<'general' | 'voice' | 'gemini'>('general')
   const [gazeOverlay, setGazeOverlay] = useState<GazeOverlay>('none')
   const closeGazeOverlay = useCallback(() => setGazeOverlay('none'), [])
@@ -309,26 +310,39 @@ function Workspace({
             ) : (
               <>
                 <ActionButton
-                  identity="open-debug"
+                  identity="debug-mode"
+                  selected={debugMode}
                   onAction={() => {
-                    if (!window.diagnostics) {
-                      setDebugError('Restart the desktop app to load the debug window.')
-                      return
-                    }
-                    void window.diagnostics
-                      .open(debugContext)
-                      .catch(() =>
-                        setDebugError(
-                          'Could not open debug window. Restart the desktop app and retry.'
-                        )
-                      )
+                    setDebugError('')
+                    onSettings({ debugMode: !debugMode })
                   }}
                 >
-                  Open conversation debug window
+                  Debug mode: {debugMode ? 'On' : 'Off'}
                 </ActionButton>
+                {debugMode && (
+                  <ActionButton
+                    identity="open-debug"
+                    onAction={() => {
+                      if (!window.diagnostics) {
+                        setDebugError('Restart the desktop app to load the debug window.')
+                        return
+                      }
+                      void window.diagnostics
+                        .open(debugContext)
+                        .catch(() =>
+                          setDebugError(
+                            'Could not open debug window. Restart the desktop app and retry.'
+                          )
+                        )
+                    }}
+                  >
+                    Open conversation debug window
+                  </ActionButton>
+                )}
                 <p className="settings-hint">
-                  Captures context, transcriptions, and model results locally while open. Closing
-                  the window deletes its trace.
+                  {debugMode
+                    ? 'Capturing context, transcriptions, and model results in memory for this session. Turning debug mode off deletes them.'
+                    : 'Turn on to capture context, transcriptions, and model results in memory for the debug window.'}
                 </p>
                 {debugError && <p role="alert">{debugError}</p>}
                 <div className="settings-tabs" role="group" aria-label="Settings tabs">

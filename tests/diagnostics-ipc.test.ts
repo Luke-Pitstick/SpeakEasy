@@ -24,6 +24,7 @@ class FakeWindow {
   isDestroyed = (): boolean => false
   show = vi.fn()
   focus = vi.fn()
+  close = vi.fn(() => this.callbacks.get('closed')?.())
   on = (name: string, callback: () => void): void => {
     this.callbacks.set(name, callback)
   }
@@ -54,9 +55,9 @@ afterEach(() => {
   mocked.handlers.clear()
   mocked.listeners.clear()
   mocked.windows = []
-  diagnostics.stop()
+  diagnostics.setEnabled(false)
 })
-it('limits open/context to the main renderer, read to the inspector, and clears data on close', async () => {
+it('limits open/context to the main renderer, read/close to the inspector, and keeps capturing after close', async () => {
   const owner = new FakeWindow()
   installDiagnosticsIpc(owner as unknown as Parameters<typeof installDiagnosticsIpc>[0])
   const call = (name: string, event: object, value?: unknown): unknown =>
@@ -76,6 +77,9 @@ it('limits open/context to the main renderer, read to the inspector, and clears 
     busy: false
   }
   await expect(call('open', {}, context)).rejects.toThrow('Unauthorized')
+  await expect(call('open', owner.event(), context)).rejects.toThrow('debug mode')
+  expect(mocked.windows).toHaveLength(0)
+  diagnostics.setEnabled(true)
   await expect(call('open', owner.event(), { ...context, key: 'secret' })).rejects.toThrow()
   await call('open', owner.event(), context)
   const inspector = mocked.windows[0]
@@ -87,7 +91,20 @@ it('limits open/context to the main renderer, read to the inspector, and clears 
   expect(diagnostics.read().context?.draft).toBe('valid')
   await call('open', owner.event(), context)
   expect(mocked.windows).toHaveLength(1)
+  expect(() => call('close', owner.event())).toThrow('Unauthorized')
+  call('close', inspector.event())
+  expect(inspector.close).toHaveBeenCalledOnce()
+  expect(owner.focus).toHaveBeenCalled()
+  expect(diagnostics.read()).toMatchObject({ enabled: true, context })
+  await call('open', owner.event(), context)
+  expect(mocked.windows).toHaveLength(2)
   owner.destroy()
-  expect(diagnostics.read()).toEqual({ enabled: false, context: null, events: [] })
+  expect(diagnostics.read()).toEqual({
+    enabled: false,
+    context: null,
+    events: [],
+    transcripts: [],
+    generations: []
+  })
   expect(mocked.handlers.size).toBe(0)
 })

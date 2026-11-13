@@ -112,3 +112,18 @@ it('reports failed saves while leaving composition available', async () => {
   await waitFor(() => expect(screen.getByRole('alert').textContent).toContain('could not be saved'))
   expect(screen.getByLabelText('Appearance')).toBeTruthy()
 })
+
+it('turns on debug mode, sends context for capture, and only then offers the debug window', async () => {
+  window.settings = { load: async () => ({ ...DEFAULT_SETTINGS }), save: vi.fn(async () => {}) }
+  const context = vi.fn()
+  window.diagnostics = { open: vi.fn(), context, read: vi.fn(), clear: vi.fn(), close: vi.fn() }
+  render(<App />)
+  openSettings()
+  expect(screen.queryByRole('button', { name: 'Open conversation debug window' })).toBeNull()
+  expect(context).not.toHaveBeenCalled()
+  fireEvent.click(screen.getByRole('button', { name: 'Debug mode: Off' }), { detail: 1 })
+  await waitFor(() => expect(window.settings?.save).toHaveBeenCalledWith({ debugMode: true }))
+  expect(screen.getByRole('button', { name: 'Open conversation debug window' })).toBeTruthy()
+  await waitFor(() => expect(context).toHaveBeenCalled())
+  delete window.diagnostics
+})

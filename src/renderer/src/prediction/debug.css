@@ -75,6 +75,57 @@
   padding: 12px;
   border-radius: 6px;
 }
+.debug-actions {
+  display: flex;
+  gap: 12px;
+}
+.debug-window .debug-back {
+  font-size: 16px;
+  font-weight: 600;
+  padding: 14px 22px;
+  background: #202432;
+  border-color: #202432;
+  color: white;
+}
+.debug-stack {
+  display: grid;
+  gap: 20px;
+  min-width: 0;
+}
+.debug-window h4 {
+  font-size: 13px;
+  margin: 16px 0 4px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #5a657a;
+}
+.debug-window .acronym {
+  font-size: 15px;
+  font-weight: 700;
+}
+.debug-window .meta,
+.debug-window .muted {
+  color: #5a657a;
+  font-size: 13px;
+  margin: 4px 0;
+}
+.debug-window .status {
+  font-size: 12px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #e8ebf2;
+}
+.debug-window .status-complete {
+  background: #dcf1e3;
+}
+.debug-window .status-error {
+  background: #f8dede;
+}
+.debug-window .transcripts {
+  max-height: 320px;
+  overflow: auto;
+  padding-left: 20px;
+}
 @media (max-width: 800px) {
   .debug-columns {
     grid-template-columns: 1fr;

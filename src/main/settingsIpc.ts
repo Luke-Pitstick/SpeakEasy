@@ -6,6 +6,7 @@ import { app, ipcMain, type BrowserWindow, type IpcMainInvokeEvent } from 'elect
 import { join } from 'node:path'
 import { SettingsStore } from './settings'
 import { validSettingsPatch } from '../shared/settings'
+import { diagnostics } from './diagnosticStore'
 
 export function installSettingsIpc(window: BrowserWindow): SettingsStore | null {
   let store: SettingsStore | null = null
@@ -14,6 +15,7 @@ export function installSettingsIpc(window: BrowserWindow): SettingsStore | null 
   } catch {
     // Keep exact composition available; load/save will report the storage failure.
   }
+  diagnostics.setEnabled(store?.read().debugMode ?? false)
   const own = (event: IpcMainInvokeEvent): boolean =>
     !window.isDestroyed() &&
     event.sender === window.webContents &&
@@ -26,6 +28,7 @@ export function installSettingsIpc(window: BrowserWindow): SettingsStore | null 
   ipcMain.handle('settings:save', (event, patch: unknown) => {
     if (!own(event) || !store || !validSettingsPatch(patch)) throw Error('Could not save settings')
     store.save(patch)
+    if (typeof patch.debugMode === 'boolean') diagnostics.setEnabled(patch.debugMode)
   })
   window.on('closed', () => {
     ipcMain.removeHandler('settings:load')

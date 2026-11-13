@@ -80,7 +80,10 @@ export function installGeminiIpc(window: BrowserWindow, settings: SettingsStore 
   let model = settings?.read().phraseModel ?? EXPANSION_MODEL
   let active: { id: string; controller: AbortController } | null = null
   const cancel = (): void => {
-    if (active) diagnostics.record('cancel', { reason: 'Cancelled or superseded' }, active.id)
+    if (active) {
+      diagnostics.record('cancel', { reason: 'Cancelled or superseded' }, active.id)
+      diagnostics.updateGeneration(active.id, { status: 'cancelled' })
+    }
     active?.controller.abort()
     active = null
   }
@@ -224,7 +227,24 @@ export function installGeminiIpc(window: BrowserWindow, settings: SettingsStore 
     const contextual = enabled && key && (value.lockedMessage.trim() || sourceHistory.length)
     const cached = (phraseCache?.lookup(value) ?? []).slice(0, contextual ? 2 : 6)
     diagnostics.record('request', { model, request: value, cached }, value.id)
+    if (value.purpose === 'expansion')
+      diagnostics.generation({
+        requestId: value.id,
+        acronym: value.tokens.map((t) => t.value).join(' '),
+        model,
+        status: 'pending',
+        cached: cached.map((c) => c.replacement),
+        shortTerm: null,
+        longTerm: null,
+        reasoning: { context: null, model: '' },
+        candidates: []
+      })
     if (cached.length && (!enabled || !key || cached.length === 6)) {
+      diagnostics.updateGeneration(value.id, {
+        status: 'complete',
+        candidates: cached.map((c) => c.replacement),
+        message: 'Served from the phrase cache; no context was sent to a model.'
+      })
       event.sender.send('gemini:result', {
         requestId: value.id,
         revision: value.revision,
@@ -238,6 +258,10 @@ export function installGeminiIpc(window: BrowserWindow, settings: SettingsStore 
       return
     }
     if (!enabled || !key) {
+      diagnostics.updateGeneration(value.id, {
+        status: 'error',
+        message: !enabled ? 'Gemini is disabled.' : 'OPENROUTER_TOKEN is not configured.'
+      })
       event.sender.send('gemini:result', {
         requestId: value.id,
         revision: value.revision,
@@ -302,6 +326,27 @@ export function installGeminiIpc(window: BrowserWindow, settings: SettingsStore 
       const preparationMs = performance.now() - contextStarted
       if (controller.signal.aborted || active?.controller !== controller) return
       diagnostics.record('memory', { ...personalMemory, facts }, value.id)
+      diagnostics.updateGeneration(value.id, {
+        shortTerm: {
+          conversation: effectiveRequest.conversation.map(({ speaker, text }) => ({
+            speaker,
+            text
+          })),
+          lockedMessage: effectiveRequest.lockedMessage,
+          draft: effectiveRequest.draft
+        },
+        longTerm: {
+          query: bundle.decision.query,
+          cacheHit: bundle.cacheHit,
+          facts,
+          vocabulary: personalMemory.vocabulary,
+          examples: personalMemory.examples
+        },
+        reasoning: {
+          context: { ...preparedContext, certain: bundle.decision.certain },
+          model: ''
+        }
+      })
       await streamGemini(
         effectiveRequest,
         key,
@@ -314,6 +359,16 @@ export function installGeminiIpc(window: BrowserWindow, settings: SettingsStore 
           ) {
             result.elapsedMs += preparationMs
             diagnostics.record('result', result, value.id)
+            diagnostics.updateGeneration(
+              value.id,
+              result.status === 'success'
+                ? {
+                    status: result.complete ? 'complete' : 'pending',
+                    candidates: result.candidates.map((c) => c.replacement),
+                    message: result.message
+                  }
+                : { status: 'error', message: result.message }
+            )
             window.webContents.send('gemini:result', result)
           }
         },
@@ -325,6 +380,10 @@ export function installGeminiIpc(window: BrowserWindow, settings: SettingsStore 
       )
     })()
       .catch(() => {
+        diagnostics.updateGeneration(value.id, {
+          status: 'error',
+          message: 'Memory context unavailable (Moss).'
+        })
         if (
           active?.controller === controller &&
           !controller.signal.aborted &&
