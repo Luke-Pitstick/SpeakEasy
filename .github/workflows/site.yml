@@ -11,8 +11,11 @@ on:
   push:
     branches: [main]
     paths: ['website/**', '.github/workflows/site.yml']
+  release:
+    # Rebuild when a release is published so the Install page links to its installers.
+    types: [published]
   schedule:
-    # Rebuild daily so the star count in the header stays current.
+    # Rebuild daily so the star count and download links stay current.
     - cron: '17 5 * * *'
   workflow_dispatch:
 

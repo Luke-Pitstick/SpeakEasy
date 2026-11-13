@@ -46,13 +46,12 @@ After a merge to `main`, you can download these from the Actions run. They are t
 
 3. CI checks that the tag matches the `package.json` version and that the tagged commit is on `main`. If either check fails, the run stops.
 4. Once all installers build, CI creates a **draft** release with the installers attached.
-5. Review the draft and publish it from GitHub Releases.
+5. Review the draft and publish it from GitHub Releases. Publishing rebuilds the website, and the [Install](../../getting-started/install/) page then links to the new installers.
 
 ## Current status
 
-- The package version is `0.1.0`.
-- A `v0.1.0` tag exists, and its release is still a **draft** with a macOS DMG, a Windows installer, an AppImage, and a deb attached. No release has been published yet.
-- The `v0.1.0` tag points at a commit from before the change that added the ad-hoc macOS signature check, so its DMG may not include that signature.
+- The package version is `0.1.1`, and the `v0.1.1` release is published with a macOS DMG, a Windows installer, an AppImage, and a deb.
+- The older `v0.1.0` release is still a draft.
 
 ## Signing
 
