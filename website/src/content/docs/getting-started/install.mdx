@@ -1,0 +1,50 @@
+---
+title: Install
+description: Download the latest SpeakEasy installer for macOS, Windows, or Linux, or build and run SpeakEasy from source.
+sidebar:
+  order: 1
+---
+
+import Downloads from '../../../components/Downloads.astro'
+
+SpeakEasy is in development. Download a test installer for your computer, or [build it from source](#build-from-source).
+
+## Download
+
+<Downloads />
+
+:::caution
+These builds are for testing. The macOS app has only an ad-hoc signature and is not notarized, and the Windows installer is not signed, so your operating system may warn about or block them. There is no Intel macOS or Arm Windows/Linux build.
+:::
+
+You do not need any accounts to open the app, steer, or write in exact spelling mode. Phrase suggestions and speech need cloud credentials. A packaged build does not read a `.env` file, so set the credentials in the environment of the process that launches SpeakEasy, as described in [Cloud features](../cloud-features/).
+
+When the app opens, continue with the [Quick start](../quick-start/). Older versions and release notes are on the [releases page](https://github.com/Luke-Pitstick/SpeakEasy/releases).
+
+### Unreleased builds
+
+The **Build and release** GitHub Actions workflow also builds installers each time a change is merged to `main`, before it is released. To try one of those, open a successful run of the workflow on `main` in the repository's **Actions** tab and download its artifact (`speakeasy-macos-arm64`, `speakeasy-windows-x64` or `speakeasy-linux-x64`). GitHub requires you to be signed in to download workflow artifacts.
+
+## Build from source
+
+### Requirements
+
+- **Git**, to clone the repository.
+- **Node.js 24**. The repository pins this version in `.nvmrc`, and CI uses the same file. If you use a version manager such as nvm, run `nvm use` in the checkout.
+- **npm**, which comes with Node.js.
+- A network connection for the first install. `npm ci` downloads Electron and the webcam face model. After that, webcam tracking runs offline.
+
+### Run it
+
+```sh
+git clone https://github.com/Luke-Pitstick/SpeakEasy.git
+cd SpeakEasy
+npm ci
+npm run dev
+```
+
+`npm ci` installs dependencies and then prepares the webcam model and its WebAssembly runtime. `npm run dev` opens SpeakEasy in development mode, and reads cloud credentials from a `.env` file in the checkout.
+
+This clones the default branch, `main`. New work is merged into the `dev` branch first and then promoted to `main`, so `dev` can sometimes have changes that `main` does not have yet.
+
+To preview a production build instead of development mode, run `npm run build` and then `npm start`. To make your own installer, see [Building](../../development/building/).
