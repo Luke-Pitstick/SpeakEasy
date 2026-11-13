@@ -11,7 +11,9 @@ sidebar:
 import { LinkButton } from '@astrojs/starlight/components'
 import { Image } from 'astro:assets'
 import InitialsFigure from '../../components/InitialsFigure.astro'
-import composition from '../../assets/screenshots/composition-light.png'
+import steering from '../../assets/screenshots/steering.png'
+import phrases from '../../assets/screenshots/phrase-suggestions.png'
+import reviewSpeak from '../../assets/screenshots/review-speak.png'
 
 SpeakEasy is a free and open source desktop app for writing and speaking with your eyes. You enter the first letter of each word, review a suggested phrase, and choose when to say it out loud.
 
@@ -42,14 +44,37 @@ SpeakEasy is in development. [Download the latest test installer](getting-starte
 
 <figure class="se-figure">
   <Image
-    src={composition}
-    alt="The SpeakEasy window. The Initials field shows iwac. Below it are four suggested phrases: I want a coffee, I want a cookie, I would appreciate company, and I want another cushion, with a None of these option. The lower half is the Dasher steering area, paused, with Resume, Undo, Delete, and More buttons along the bottom."
+    src={steering}
+    alt="The SpeakEasy steering area. Letters a to z, plus an exclamation mark and a question mark, are stacked on the right, each box sized by how likely that letter is to come next. A dashed line runs from the center crosshair to the pointer, which is moving toward the letters."
     widths={[640, 960, 1280]}
     sizes="(min-width: 50rem) 46rem, 100vw"
   />
   <figcaption>
-    The initials <code>iwac</code> with four suggested phrases, from the built-in offline demo
-    rather than live generation.
+    Steer toward a letter to enter it. Likelier letters get bigger boxes, so they are easier to reach.
+  </figcaption>
+</figure>
+
+<figure class="se-figure">
+  <Image
+    src={phrases}
+    alt="The SpeakEasy window with the initials hhayt? entered. Below are Expand and Spell buttons and six suggested phrases, starting with Hi, how are you today? and Hello, how are you today?, then a None of these button."
+    widths={[640, 960, 1280]}
+    sizes="(min-width: 50rem) 46rem, 100vw"
+  />
+  <figcaption>
+    The initials <code>hhayt?</code> with six suggested phrases. Choose one to review it, or choose <strong>None of these</strong> and keep writing.
+  </figcaption>
+</figure>
+
+<figure class="se-figure">
+  <Image
+    src={reviewSpeak}
+    alt="The review screen for the phrase Hi, how are you today?. Each word is shown as its own Change word button. Below them is a large blue Speak button with the phrase, a Back button, and a Delivery tone control set to Neutral."
+    widths={[640, 960, 1280]}
+    sizes="(min-width: 50rem) 46rem, 100vw"
+  />
+  <figcaption>
+    Review the phrase before anyone hears it. Change any word, pick a delivery tone, then select <strong>Speak</strong>.
   </figcaption>
 </figure>
 
