@@ -16,20 +16,16 @@ interface Option {
 	suffix: string
 }
 
-const platforms: { name: string; arch: string; options: Option[] }[] = [
-	{ name: 'macOS', arch: 'Apple Silicon', options: [{ label: 'Download .dmg', suffix: '.dmg' }] },
-	{
-		name: 'Windows',
-		arch: 'x64',
-		options: [{ label: 'Download .exe', suffix: '-setup.exe' }]
-	},
+// One main download per platform keeps the cards the same height. A second package format is a
+// text link under the main button.
+const platforms: { name: string; arch: string; main: Option; alternate?: Option }[] = [
+	{ name: 'macOS', arch: 'Apple Silicon', main: { label: 'Download .dmg', suffix: '.dmg' } },
+	{ name: 'Windows', arch: 'x64', main: { label: 'Download .exe', suffix: '-setup.exe' } },
 	{
 		name: 'Linux',
 		arch: 'x64',
-		options: [
-			{ label: 'Download AppImage', suffix: '.AppImage' },
-			{ label: 'Download .deb', suffix: '_amd64.deb' }
-		]
+		main: { label: 'Download AppImage', suffix: '.AppImage' },
+		alternate: { label: '.deb', suffix: '_amd64.deb' }
 	}
 ]
 
@@ -61,27 +57,30 @@ const released = release?.publishedAt.toLocaleDateString('en-US', {
 	</p>
 	<ul class="platforms">
 		{
-			platforms.map((platform) => (
-				<li class="platform">
-					<p class="platform-name">
-						{platform.name} <span class="arch">{platform.arch}</span>
-					</p>
-					{platform.options.map((option, index) => {
-						const asset = find(option.suffix)
-						return (
-							<div class="option">
-								<LinkButton
-									href={asset?.url ?? latestUrl}
-									variant={index === 0 ? 'primary' : 'secondary'}
-								>
-									{option.label}
-								</LinkButton>
-								{asset && <p class="size">{formatBytes(asset.size)}</p>}
-							</div>
-						)
-					})}
-				</li>
-			))
+			platforms.map((platform) => {
+				const main = find(platform.main.suffix)
+				const alternate = platform.alternate && find(platform.alternate.suffix)
+				return (
+					<li class="platform">
+						<p class="platform-name">
+							{platform.name} <span class="arch">{platform.arch}</span>
+						</p>
+						<div class="option">
+							<LinkButton href={main?.url ?? latestUrl}>{platform.main.label}</LinkButton>
+							<p class="size">
+								{main && formatBytes(main.size)}
+								{platform.alternate && (
+									<>
+										{main && ' · '}
+										<a href={alternate?.url ?? latestUrl}>{platform.alternate.label}</a>
+										{alternate && ` (${formatBytes(alternate.size)})`}
+									</>
+								)}
+							</p>
+						</div>
+					</li>
+				)
+			})
 		}
 	</ul>
 </div>
