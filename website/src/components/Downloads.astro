@@ -16,20 +16,16 @@ interface Option {
 	suffix: string
 }
 
-const platforms: { name: string; arch: string; options: Option[] }[] = [
-	{ name: 'macOS', arch: 'Apple Silicon', options: [{ label: 'Download .dmg', suffix: '.dmg' }] },
-	{
-		name: 'Windows',
-		arch: 'x64',
-		options: [{ label: 'Download installer', suffix: '-setup.exe' }]
-	},
+// One main download per platform keeps the cards the same height. A second package format is a
+// text link under the main button.
+const platforms: { name: string; arch: string; main: Option; alternate?: Option }[] = [
+	{ name: 'macOS', arch: 'Apple Silicon', main: { label: 'Download .dmg', suffix: '.dmg' } },
+	{ name: 'Windows', arch: 'x64', main: { label: 'Download .exe', suffix: '-setup.exe' } },
 	{
 		name: 'Linux',
 		arch: 'x64',
-		options: [
-			{ label: 'Download AppImage', suffix: '.AppImage' },
-			{ label: 'Download .deb', suffix: '_amd64.deb' }
-		]
+		main: { label: 'Download AppImage', suffix: '.AppImage' },
+		alternate: { label: '.deb', suffix: '_amd64.deb' }
 	}
 ]
 
@@ -61,35 +57,30 @@ const released = release?.publishedAt.toLocaleDateString('en-US', {
 	</p>
 	<ul class="platforms">
 		{
-			platforms.map((platform) => (
-				<li class="platform">
-					<p class="platform-name">
-						{platform.name} <span class="arch">{platform.arch}</span>
-					</p>
-					<div class="se-actions">
-						{platform.options.map((option, index) => {
-							const asset = find(option.suffix)
-							return (
-								<LinkButton
-									href={asset?.url ?? latestUrl}
-									variant={index === 0 ? 'primary' : 'secondary'}
-								>
-									{option.label}
-								</LinkButton>
-							)
-						})}
-					</div>
-					{release && (
-						<p class="files">
-							{platform.options
-								.map((option) => find(option.suffix))
-								.filter((asset) => asset !== undefined)
-								.map((asset) => `${asset.name} (${formatBytes(asset.size)})`)
-								.join(', ')}
+			platforms.map((platform) => {
+				const main = find(platform.main.suffix)
+				const alternate = platform.alternate && find(platform.alternate.suffix)
+				return (
+					<li class="platform">
+						<p class="platform-name">
+							{platform.name} <span class="arch">{platform.arch}</span>
 						</p>
-					)}
-				</li>
-			))
+						<div class="option">
+							<LinkButton href={main?.url ?? latestUrl}>{platform.main.label}</LinkButton>
+							<p class="size">
+								{main && formatBytes(main.size)}
+								{platform.alternate && (
+									<>
+										{main && ' · '}
+										<a href={alternate?.url ?? latestUrl}>{platform.alternate.label}</a>
+										{alternate && ` (${formatBytes(alternate.size)})`}
+									</>
+								)}
+							</p>
+						</div>
+					</li>
+				)
+			})
 		}
 	</ul>
 </div>
@@ -97,21 +88,25 @@ const released = release?.publishedAt.toLocaleDateString('en-US', {
 <style>
 	.downloads {
 		margin-block: 1.5rem;
+		container-type: inline-size;
 	}
 	.release {
 		color: var(--sl-color-gray-3);
 	}
+	/* Stacked on narrow screens, side by side once three cards fit. */
 	.platforms {
 		display: grid;
+		grid-template-columns: minmax(0, 1fr);
 		gap: 1rem;
 		padding: 0;
 		list-style: none;
 	}
 	.platform {
-		display: grid;
-		gap: 0.75rem;
+		display: flex;
+		flex-direction: column;
+		gap: 1rem;
 		margin: 0;
-		padding: 1.25rem 1.5rem;
+		padding: 1.25rem;
 		border: 1px solid var(--se-border);
 		border-radius: var(--se-radius);
 		background-color: var(--se-surface);
@@ -129,12 +124,26 @@ const released = release?.publishedAt.toLocaleDateString('en-US', {
 		font-size: var(--sl-text-sm);
 		font-weight: 400;
 	}
-	.files {
+	@container (min-width: 38rem) {
+		.platforms {
+			grid-template-columns: repeat(3, minmax(0, 1fr));
+		}
+	}
+	.platform > .option {
+		display: grid;
+		margin: 0;
+		gap: 0.375rem;
+	}
+	.option :global(.sl-link-button) {
+		justify-content: center;
+		margin: 0;
+		padding-inline: 0.5rem;
+		font-size: var(--sl-text-sm);
+		white-space: nowrap;
+	}
+	.size {
 		color: var(--sl-color-gray-3);
 		font-size: var(--sl-text-sm);
-		overflow-wrap: anywhere;
-	}
-	.platform :global(.sl-link-button) {
-		margin: 0;
+		text-align: center;
 	}
 </style>
