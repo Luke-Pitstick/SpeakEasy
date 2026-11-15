@@ -92,6 +92,16 @@ describe('filtered microphone lifecycle', () => {
     expect(destroy).toHaveBeenCalledOnce()
   })
 
+  // Issues 21 and 22: on macOS, the AudioContext that follows an echo-cancelled stream blocks
+  // the renderer main thread for ~10 s, freezing the app on load and on reconnect.
+  it('requests the microphone without echo cancellation', async () => {
+    fixture()
+    await captureMicrophone('default', new AbortController().signal, vi.fn(), vi.fn())
+    expect(navigator.mediaDevices.getUserMedia).toHaveBeenCalledWith(
+      expect.objectContaining({ audio: expect.objectContaining({ echoCancellation: false }) })
+    )
+  })
+
   it('releases the microphone if a denoiser asset fails to load', async () => {
     const f = fixture()
     f.addModule.mockRejectedValue(new Error('asset unavailable'))
