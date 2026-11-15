@@ -21,7 +21,9 @@ export async function captureMicrophone(
   const stream = await navigator.mediaDevices.getUserMedia({
     audio: {
       deviceId: deviceId === 'default' ? undefined : { exact: deviceId },
-      echoCancellation: true,
+      // On macOS, echo cancellation makes the next AudioContext block the renderer for ~10 s
+      // (issues 21, 22). Capture stops during SpeakEasy playback, so it never hears itself.
+      echoCancellation: false,
       // RNNoise handles suppression; stacking denoisers can erase soft consonants.
       noiseSuppression: false,
       autoGainControl: true
