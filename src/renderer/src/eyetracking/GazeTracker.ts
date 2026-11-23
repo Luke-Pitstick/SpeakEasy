@@ -10,6 +10,7 @@ import { OneEuroFilter } from './oneEuroFilter'
 import { areNeighbors, assessSelection } from './selectionLearning'
 import { WebcamFaceSource, type CameraInfo } from './WebcamFaceSource'
 import type { CalibrationResult, EyeFeatures, GazePoint, HeadPose, TrackerStatus } from './types'
+import type { TobiiSample } from '../../../shared/tobii'
 
 // Bumped when the model's inputs change; older calibrations can't be reused.
 const STORAGE_KEY = 'speakeasy.gazeCalibration.v6'
@@ -50,6 +51,13 @@ const DRIFT_SUMMARY_WINDOW_MS = 5000
 const DWELL_SETTLE_MS = 300
 const SELECTION_CONFIRM_MS = 2000
 
+/**
+ * Tobii input: tracking counts as lost once no valid gaze has arrived for this long. Longer than
+ * a blink (the tracker reports no gaze while the eyes are closed), so blinks don't pause writing.
+ */
+const TOBII_STALE_MS = 500
+const TOBII_WATCHDOG_MS = 100
+
 export interface TrackerState {
   status: TrackerStatus
   error: string | null
@@ -62,7 +70,10 @@ export interface TrackerState {
   learnedSelections: number
   /** False when calibration samples weren't saved (calibrated by an older version). */
   canRefine: boolean
-  /** What moves the pointer: eye gaze (needs calibration) or head pointing. */
+  /**
+   * What moves the pointer: webcam eye gaze (needs calibration), head pointing, or a Tobii
+   * tracker via Talon (calibrated in Talon). For Tobii, `faceDetected` means gaze is arriving.
+   */
   pointerMode: PointerMode
   headPointer: HeadPointerOptions
   /** Head pointing needs a neutral pose (centring) once per session. */
@@ -72,7 +83,7 @@ export interface TrackerState {
   cameras: CameraInfo[]
 }
 
-export type PointerMode = 'eyes' | 'head'
+export type PointerMode = 'eyes' | 'head' | 'tobii'
 
 export type CalibrationPhase = 'still' | 'motion' | 'validation' | 'drift'
 
@@ -247,6 +258,10 @@ export class GazeTracker {
   private openBaseline: number | null = null
   private collector: ((f: EyeFeatures) => void) | null = null
   private lastGaze: GazePoint | null = null
+  /** Tobii input: sample subscription, stale-sample watchdog, last valid sample time. */
+  private offTobii: (() => void) | null = null
+  private tobiiWatchdog: number | null = null
+  private lastTobiiAt = 0
   private readonly gazeListeners = new Set<(gaze: GazePoint) => void>()
   private readonly headListeners = new Set<(head: HeadPose) => void>()
   private readonly dwellListeners = new Set<(dwell: DwellUpdate) => void>()
@@ -332,15 +347,21 @@ export class GazeTracker {
   }
 
   /** Changes dwell selection (on/off, duration, learning from selections). */
-  /** Switches between eye gaze and head pointing. */
+  /** Switches between webcam eye gaze, head pointing, and a Tobii tracker. */
   setPointerMode(mode: PointerMode): void {
     if (mode === this.state.pointerMode) return
+    // Tobii and the webcam are different sources: restart onto the new one if running.
+    const restart =
+      this.state.status !== 'idle' && (mode === 'tobii') !== (this.state.pointerMode === 'tobii')
+    if (restart) this.stop()
     this.filterX.reset()
     this.filterY.reset()
     this.aimAssist.reset()
     this.dwell.reset()
+    this.lastGaze = null
     this.setState({ pointerMode: mode })
     this.savePointerPrefs()
+    if (restart) void this.start()
   }
 
   /** Changes head-pointer sensitivity. */
@@ -379,6 +400,7 @@ export class GazeTracker {
   async start(): Promise<void> {
     if (this.state.status === 'running' || this.state.status === 'loading') return
     this.setState({ status: 'loading', error: null })
+    if (this.state.pointerMode === 'tobii') return this.startTobii()
     try {
       this.source.deviceId = load(CAMERA_KEY, (d) => (typeof d === 'string' ? d : null))
       await this.source.start()
@@ -419,7 +441,53 @@ export class GazeTracker {
 
   stop(): void {
     this.source.stop()
+    this.stopTobii()
     this.setState({ status: 'idle', faceDetected: false })
+  }
+
+  /** Listens for Tobii gaze from Talon (no camera). */
+  private async startTobii(): Promise<void> {
+    const api = window.tobii
+    if (!api) {
+      this.setState({ status: 'error', error: 'Tobii input needs the SpeakEasy desktop app.' })
+      return
+    }
+    this.offTobii = api.onSample((sample) => this.handleTobiiSample(sample))
+    const { error } = await api.start().catch(() => ({ error: 'Could not listen for gaze.' }))
+    // stop() may have run while starting.
+    if (this.state.status !== 'loading' || !this.offTobii) return
+    if (error) {
+      this.stopTobii()
+      this.setState({ status: 'error', error })
+      return
+    }
+    this.lastTobiiAt = 0
+    this.tobiiWatchdog = window.setInterval(() => {
+      const stale = performance.now() - this.lastTobiiAt > TOBII_STALE_MS
+      if (stale && this.state.faceDetected) this.setState({ faceDetected: false })
+    }, TOBII_WATCHDOG_MS)
+    this.setState({ status: 'running', camera: null })
+  }
+
+  private stopTobii(): void {
+    if (!this.offTobii) return
+    this.offTobii()
+    this.offTobii = null
+    if (this.tobiiWatchdog !== null) clearInterval(this.tobiiWatchdog)
+    this.tobiiWatchdog = null
+    window.tobii?.stop()
+  }
+
+  /**
+   * One Tobii frame. Invalid frames (blinks, looking away) are skipped; the watchdog reports
+   * tracking loss if they last. Gaze is already calibrated (in Talon) and in screen points.
+   */
+  private handleTobiiSample(sample: TobiiSample): void {
+    if (this.state.status !== 'running' || !sample.valid) return
+    const now = performance.now()
+    this.lastTobiiAt = now
+    if (!this.state.faceDetected) this.setState({ faceDetected: true })
+    this.emitPoint([sample.x, sample.y], now, false, false)
   }
 
   /**
@@ -651,14 +719,26 @@ export class GazeTracker {
     }
     // Head pose doesn't depend on the eyes, so blinks don't pause head pointing.
     const eyesClosed = blinking && this.state.pointerMode === 'eyes'
+    this.emitPoint(point, features.timestamp, eyesClosed, headOffscreen)
+  }
 
+  /**
+   * Smooths a pointer position (screen px), applies aim assist, and emits gaze and dwell. A null
+   * point while the eyes are closed holds the last position.
+   */
+  private emitPoint(
+    point: [number, number] | null,
+    timestamp: number,
+    eyesClosed: boolean,
+    headOffscreen: boolean
+  ): void {
     let gaze: GazePoint
     if (!point) {
       if (!eyesClosed || !this.lastGaze) return
-      gaze = { ...this.lastGaze, timestamp: features.timestamp, blinking: true }
+      gaze = { ...this.lastGaze, timestamp, blinking: true }
     } else {
-      const screenX = this.filterX.filter(point[0], features.timestamp)
-      const screenY = this.filterY.filter(point[1], features.timestamp)
+      const screenX = this.filterX.filter(point[0], timestamp)
+      const screenY = this.filterY.filter(point[1], timestamp)
       const [rawX, rawY] = screenToClient(screenX, screenY)
       this.targets = findGazeTargets()
       // No aim assist over a continuous-steering surface (Dasher): pulling there would drag
@@ -676,7 +756,7 @@ export class GazeTracker {
         target,
         screenX,
         screenY,
-        timestamp: features.timestamp,
+        timestamp,
         blinking: eyesClosed,
         offscreen:
           headOffscreen || x < 0 || y < 0 || x >= window.innerWidth || y >= window.innerHeight
@@ -687,7 +767,7 @@ export class GazeTracker {
 
     const dwell = this.dwell.update(gaze)
     this.dwellListeners.forEach((l) => l(dwell))
-    if (dwell.selected) this.select(dwell.selected, features.timestamp)
+    if (dwell.selected) this.select(dwell.selected, timestamp)
   }
 
   private select(id: string, time: number): void {

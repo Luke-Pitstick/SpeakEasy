@@ -21,7 +21,13 @@ you want. Move left to reverse. Exact spelling works without provider credential
 Webcam frames are processed on-device. If the webcam loses your face, the built-in tracking path
 cancels the pending selection and pauses writing.
 
-### Dedicated eye trackers
+### Tobii eye trackers on macOS (via Talon)
+
+Tobii doesn't ship a macOS driver for its consumer trackers (4C, Eye Tracker 5).
+[Talon](https://talonvoice.com) has its own, and SpeakEasy can read gaze from it. See
+[Tobii input through Talon](./tobii-talon.md) for setup and how it works.
+
+### Other dedicated eye trackers
 
 1. Install the tracker’s driver and accessibility software, then calibrate it for the display
    running SpeakEasy.

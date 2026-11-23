@@ -41,6 +41,7 @@ export function GazeSettings({
   const { status, error, faceDetected, calibrated, headPointer, camera, cameras } =
     useTrackerState()
   const running = status === 'running'
+  const webcam = input === 'eyes' || input === 'head'
   return (
     <>
       <label>
@@ -49,9 +50,10 @@ export function GazeSettings({
           <option value="mouse">Mouse</option>
           <option value="eyes">Eye tracker (webcam)</option>
           <option value="head">Head pointer (webcam)</option>
+          <option value="tobii">Tobii eye tracker (via Talon)</option>
         </select>
       </label>
-      {input !== 'mouse' && cameras.length > 1 && (
+      {webcam && cameras.length > 1 && (
         <DwellSelect
           label="Camera"
           identity="camera"
@@ -103,20 +105,28 @@ export function GazeSettings({
       )}
       {input !== 'mouse' && (
         <p className="settings-note" role="status">
-          {error
-            ? `Camera: ${error}`
-            : !running
-              ? 'Starting camera…'
-              : !faceDetected
-                ? `No face detected${camera ? ` on ${camera.label}` : ''}. Sit facing the camera, or choose another camera.`
-                : input === 'eyes'
-                  ? calibrated
-                    ? 'Eye tracker calibrated and driving the pointer.'
-                    : 'Calibrate to start using your eyes. The mouse works until then.'
-                  : 'Head pointer active. Point your nose to move; center again if it drifts.'}
+          {input === 'tobii'
+            ? error
+              ? `Tobii: ${error}`
+              : !running
+                ? 'Starting Tobii input…'
+                : !faceDetected
+                  ? 'Waiting for gaze from Talon. Open Talon with your Tobii connected and the SpeakEasy gaze script installed, and look at the screen.'
+                  : 'Tobii eye tracker driving the pointer. If it is off, recalibrate in Talon.'
+            : error
+              ? `Camera: ${error}`
+              : !running
+                ? 'Starting camera…'
+                : !faceDetected
+                  ? `No face detected${camera ? ` on ${camera.label}` : ''}. Sit facing the camera, or choose another camera.`
+                  : input === 'eyes'
+                    ? calibrated
+                      ? 'Eye tracker calibrated and driving the pointer.'
+                      : 'Calibrate to start using your eyes. The mouse works until then.'
+                    : 'Head pointer active. Point your nose to move; center again if it drifts.'}
         </p>
       )}
-      {input !== 'mouse' && running && !faceDetected && (
+      {webcam && running && !faceDetected && (
         <div className="settings-preview">
           <CameraPreview />
         </div>

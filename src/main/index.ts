@@ -10,6 +10,7 @@ import { installGeminiIpc } from './geminiIpc'
 import { installCartesiaIpc } from './cartesiaIpc'
 import { installJevIpc } from './jevIpc'
 import { installSettingsIpc } from './settingsIpc'
+import { installTobiiIpc } from './tobiiIpc'
 import icon from '../../resources/icon.png?asset'
 
 function createWindow(): void {
@@ -35,6 +36,7 @@ function createWindow(): void {
   installGeminiIpc(mainWindow, settings)
   installCartesiaIpc(mainWindow)
   installJevIpc(mainWindow, settings)
+  installTobiiIpc(mainWindow)
 
   mainWindow.on('ready-to-show', () => {
     mainWindow.show()

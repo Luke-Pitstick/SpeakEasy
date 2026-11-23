@@ -24,7 +24,7 @@ afterEach(() => {
   localStorage.clear()
 })
 
-it('offers mouse, eye tracker and head pointer as inputs, defaulting to the mouse', () => {
+it('offers mouse, eye tracker, head pointer and Tobii as inputs, defaulting to the mouse', () => {
   render(<App />)
   fireEvent.click(screen.getByRole('button', { name: 'Menu', exact: true }), { detail: 1 })
   fireEvent.click(screen.getByRole('button', { name: 'Settings', exact: true }))
@@ -32,7 +32,8 @@ it('offers mouse, eye tracker and head pointer as inputs, defaulting to the mous
   expect([...input.options].map((o) => o.textContent)).toEqual([
     'Mouse',
     'Eye tracker (webcam)',
-    'Head pointer (webcam)'
+    'Head pointer (webcam)',
+    'Tobii eye tracker (via Talon)'
   ])
   expect(input.value).toBe('mouse')
 })
