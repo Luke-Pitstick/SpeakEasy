@@ -9,6 +9,7 @@ import type { GeminiApi } from '../shared/prediction'
 import type { SettingsApi } from '../shared/settings'
 import type { MemoryApi } from '../shared/memory'
 import type { PreferenceApi } from '../shared/preferences'
+import type { TobiiApi } from '../shared/tobii'
 declare global {
   interface Window {
     tone?: ToneApi
@@ -18,5 +19,6 @@ declare global {
     settings?: SettingsApi
     gemini?: GeminiApi
     voice?: VoiceApi
+    tobii?: TobiiApi
   }
 }

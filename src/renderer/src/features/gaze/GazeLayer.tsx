@@ -31,7 +31,9 @@ export function GazeLayer({ input, overlay, onOverlayDone, showDot }: Props): Re
   const dispatch = useCompositionDispatch()
   const { calibrated, headCentered, faceDetected, status } = useTrackerState()
   const active = input !== 'mouse'
-  const pointing = input === 'eyes' ? calibrated : input === 'head' && headCentered
+  // A Tobii tracker is calibrated in Talon, so it points as soon as gaze arrives.
+  const pointing =
+    input === 'eyes' ? calibrated : input === 'head' ? headCentered : input === 'tobii'
   // Head pointing needs centring once per session; do it as soon as the face is visible. If the
   // user cancels that, don't reopen it on its own (Center in Settings is still there).
   const [autoCenterDismissed, setAutoCenterDismissed] = useState(false)
@@ -49,7 +51,7 @@ export function GazeLayer({ input, overlay, onOverlayDone, showDot }: Props): Re
   const driving = active && pointing && shown === 'none'
 
   useEffect(() => {
-    if (active) tracker.setPointerMode(input === 'head' ? 'head' : 'eyes')
+    if (active) tracker.setPointerMode(input)
   }, [tracker, input, active])
 
   useEffect(() => {

@@ -10,6 +10,7 @@ import type { GeminiApi, PredictionResult } from '../shared/prediction'
 import type { SettingsApi } from '../shared/settings'
 import type { MemoryApi } from '../shared/memory'
 import type { PreferenceApi } from '../shared/preferences'
+import type { TobiiApi, TobiiSample } from '../shared/tobii'
 const preferences: PreferenceApi = {
   read: () => ipcRenderer.invoke('preferences:read'),
   update: (operation) => ipcRenderer.invoke('preferences:update', operation),
@@ -99,3 +100,17 @@ const diagnostics: DiagnosticsApi = {
   close: () => ipcRenderer.invoke('diagnostics:close')
 }
 contextBridge.exposeInMainWorld('diagnostics', diagnostics)
+
+const tobii: TobiiApi = {
+  start: () => ipcRenderer.invoke('tobii:start'),
+  stop: () => ipcRenderer.send('tobii:stop'),
+  onSample: (listener) => {
+    const receive = (_event: Electron.IpcRendererEvent, sample: TobiiSample): void =>
+      listener(sample)
+    ipcRenderer.on('tobii:sample', receive)
+    return () => {
+      ipcRenderer.removeListener('tobii:sample', receive)
+    }
+  }
+}
+contextBridge.exposeInMainWorld('tobii', tobii)
